@@ -1,0 +1,13 @@
+# Ignore
+nono.h
+build/
+libraries/
+
+# Ignore all files in .vscode folder except needed esp32 project files (!= exeption on the * all files)
+.vscode/*
+!.vscode/arduino.json
+!.vscode/tasks.json
+
+# DO NOT Ignore
+#!examplefolder/
+nono.h.example

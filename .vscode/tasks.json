@@ -1,0 +1,19 @@
+{
+  "version": "2.0.4",
+  "tasks": [
+    {
+      "label": "OTA Upload",
+      "type": "shell",
+      "command": "python3 ~/.arduino15/packages/esp32/hardware/esp32/3.3.12/tools/espota.py -i 192.168.4.201 -p 3232 --auth=\"\" -f ./build/build_ESP32-S3-Zero-N8R8-M/De-kleine-kas.ino.bin",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "dependsOn": ["Arduino: Verify"]
+    }
+  ]
+}
