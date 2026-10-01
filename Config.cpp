@@ -6,7 +6,11 @@
 #include "nono.h" 
 #include "Config.h"
 
+// --- KAS AAN/UIT ZETTEN, WEERDATA ALTIJD LATEN DOOR GAAN
+bool isKasSleeping = false;
+
 bool pendingTelegramAlert = false;
+
 
 // --- NETWERK & SERVERS (Gekoppeld aan nono.h) ---
 char ssid [] = SECRET_SSID;
@@ -15,7 +19,7 @@ String openWeatherKey = API_KEY;
 String cityID = CITY_ID;
 
 char telbot[] = BOT_TOKEN;
-char telid[] = CHAT_ID;
+char telid[] = MY_CHAT_ID;
 
 // --- SYSTEEM & NETWERK STATEN ---
 unsigned long lastSuccessfulNetworkActivity = 0;
@@ -28,10 +32,16 @@ uint32_t freeHeap = 0;
 const char* BUFFER_FILE = "/data_buffer.txt";
 
 // --- PID & VENTILATOR STREEFWAARDES ---
-float pidSetPointVPD = 0.70;        
-float kp = 2.0;                     
-float ki = 0.1;                     
-float kd = 0.5;                     
+// --- NIEUW/SLIM, LEERT EN OPBOUWT IN PLAATS VAN ABRUPT TE REAGEREN IVM KIEMGROENTES / KLEINE MINI KAS
+float pidSetPointVPD = 0.70;        // Ideale VPD voor kiemgroenten
+float kp = 1.5;                     // Iets milder op directe schommelingen
+float ki = 0.15;                    // Bouwt net wat sneller op als het vocht in de kas blijft hangen
+float kd = 0.6;                     // Houdt de rem er goed op tegen doorschieten
+// --- OUD, IS WAT ABRUPTER
+// float pidSetPointVPD = 0.70;        
+// float kp = 2.0;                     
+// float ki = 0.1;                     
+// float kd = 0.5;                     
 
 // --- SENSOR & KLIMAAT VARIABELEN ---
 unsigned long totalKasDhtReads = 0;
@@ -45,7 +55,7 @@ float kasSmoothedTemp = -999.0, kasSmoothedHum = -999.0, indoorSmoothedTemp = -9
 unsigned long lastTempUpdate = 0;
 
 float outdoorTemp = 0.0, outdoorTempMax = 0.0, outdoorTempMin = 0.0, outdoorHumidity = 0.0, outdoorDewPoint = 0.0, outdoorPressure = 0.0;
-bool outdoorMoldRisk = false, hasOutdoorAlert = false;
+bool outdoorMoldRisk = false, hasOutdoorAlert = false, hasWeatherAlarm = false;
 String weatherDesc = "", outdoorPressureTrendText = "=";
 int weatherID = 0;
 unsigned long lastWeatherUpdate = 0;
@@ -76,11 +86,20 @@ bool isLuxShiftPending = false;
 bool isDisplayOff = false;
 unsigned long darkStartTime = 0;
 
+// =========================================================================
+// 4. GLOBALE KLIMAAT & MARGE VARIABELEN
+// =========================================================================
 float kasDewPoint = -999.0, kasVpd = -999.0, indoorDewPoint = -999.0, indoorVpd = -999.0, currentPressure = 0.0, currentLuxValue = 0.0, outdoorVpd = -999.0;
 bool moldRisk = false;
 String moldReasonText = "";
-String vpdStatusText = "";
-String dpMarginStatusText = "";
+float kasDpMargin = 0.0;
+float indoorDpMargin = 0.0;
+float outdoorDpMargin = 0.0;
+String kasDpIcon = "🟢 (Veilig)";
+String indoorDpIcon = "🟢 (Veilig)";
+String indoorVpdIcon = "🟢";
+String vpdStatusText = " `(⏳ Opstarten)`";
+String dpMarginStatusText = " `(⏳ Kalibreren)`";
 
 bool previousMoldRisk = false;
 bool moldHistory[MOLD_SAMPLES] = {false};
@@ -112,10 +131,13 @@ float outdoorHighHum = 0.0;
 volatile unsigned long rpmCountInt = 0;
 volatile unsigned long rpmCountExt1 = 0;
 volatile unsigned long rpmCountExt2 = 0;
-
+// Fan speed, procent en PID gegevens
 int fanIntSpeed = 0, fanIntRPM = 0;
 int fanExt1Speed = 0, fanExt1RPM = 0;
 int fanExt2Speed = 0, fanExt2RPM = 0;
+int fanIntPct = 0;
+int fanExt1Pct = 0;
+int fanExt2Pct = 0;
 float pidOutput = 0.0;
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;

@@ -22,8 +22,8 @@ extern unsigned long lastTrendSample;
 extern const char* baroTrendArrow; 
 extern float dailyHighTempKas;
 extern float dailyLowTempKas;
-extern float dailyHighTempRoom;
-extern float dailyLowTempRoom;
+extern float dailyHighTempIndoor;
+extern float dailyLowTempIndoor;
 extern unsigned long lastHighLowReset;
 
 extern float stableLuxBase;
@@ -83,12 +83,15 @@ extern float pastTemp;
 extern float minIndoorHum, maxIndoorHum;
 extern float minKasHum, maxKasHum;
 extern float minOutdoorHum, maxOutdoorHum;
-extern float roomHum;
+extern float indoorHum;
 
-void updateHumidityHighLow(float kasHum, float roomHum, float outHum);
+void updateHumidityHighLow(float kasHum, float indoorHum, float outHum);
 
 // Forward declaration voor alert functionaliteit
 void sendTelegramAlert(String message);
+// // void sendTelegramAlert(String message, bool isReboot);
+// void sendTelegramAlert(String message);
+// void sendTelegramAlert(String message, bool isReboot);
 
 // inline float getCalibratedVcc() {
 //   const float KALIBRATIE_FACTOR = 3.3F / 3.011F;
@@ -115,7 +118,7 @@ void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTem
 void updateHeatingAdvice(float inTemp, float outTemp);
 void updateMoldRiskHistory(bool currentRisk);
 void checkKasTrends(float currentTemp, float currentHum, float currentBaro);
-void checkRoomTrends();
+void checkIndoorTrends();
 void updateHighLow(float currentTemp);
 
 #endif // CLIMATELOGIC_H

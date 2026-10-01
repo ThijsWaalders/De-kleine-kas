@@ -32,6 +32,9 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
+  // --- SYSLOG INITIALISEREN ---
+  setupLogger();
+  
   // 1. Status LED initialiseren en op blauw zetten (Opstarten)
   statusLed.begin();
   statusLed.setColor(0, 0, 255); 
@@ -49,54 +52,56 @@ void setup() {
   // 3. Initialiseer hardware modules, sensoren én ventilatoren
   setupKasSensors();
   setupIndoorSensors();
-  setupFans(); // ⚠️ Deze ontbrak en is cruciaal voor de PWM/LEDC initialisatie!
+  setupFans(); 
 
   // 4. Bestandssysteem initialiseren (LittleFS voor ESP32)
   drawBootScreen("Bestandssysteem...");
-  if (!LittleFS.begin(true)) { // true = automatisch formatteren indien mislukt
+  if (!LittleFS.begin(true)) { 
     logToSyslogAndSerial(F("[FS WARNING] LittleFS kon niet worden gestart."));
   }
 
-  // 5. Netwerk starten (Wi-Fi, vast IP, Telnet, Syslog en ArduinoOTA via NetworkManager)
+  // 5. Netwerk starten (Wi-Fi, vast IP, Telnet, Syslog en ArduinoOTA)
   drawBootScreen("Netwerk starten...");
   setupNetwork();
 
-  // 6. MQTT Client instellen
-  drawBootScreen("MQTT config...");
-  setupMqtt();
+  // 6. MQTT Client instellen (optioneel inschakelen indien gewenst)
+  // drawBootScreen("MQTT config...");
+  // setupMqtt();
 
-  // 7. Telegram SSL instellingen (ESP32 geoptimaliseerd)
+  // // 7. Telegram SSL instellingen en veilige start (inclusief queue flush tegen boot-loops)
+  // if (ENABLE_TELEGRAM) {
+  //   telegramSslClient.setInsecure();
+  //   telegramSslClient.setTimeout(1500); // Snelle timeout
+    
+  //   // Wacht eventueel kort op Wi-Fi en wis oude openstaande commando's
+  //   if (WiFi.status() == WL_CONNECTED) {
+  //     flushTelegramQueue();
+  //   }
+    
+  //   logToSyslogAndSerial(F("[TELEGRAM] Telegram client geïnitialiseerd."));
+  // }
+  
+  // 7. Telegram SSL instellingen
   if (ENABLE_TELEGRAM) {
     telegramSslClient.setInsecure();
-    telegramSslClient.setTimeout(3000); 
+    telegramSslClient.setTimeout(1500); // Snelle timeout
+    
+    logToSyslogAndSerial(F("[TELEGRAM] Telegram client geïnitialiseerd."));
   }
 
-  // Telegram updates opschonen bij start
-  if (WiFi.status() == WL_CONNECTED && ENABLE_TELEGRAM) {
-    int numInitUpdates = bot.getUpdates(bot.last_message_received + 1);
-      while(numInitUpdates > 0) {
-        bot.last_message_received = bot.messages[numInitUpdates - 1].message_id;
-        numInitUpdates = bot.getUpdates(bot.last_message_received + 1);
-      }
-    // int updates = bot.getUpdates(-1); 
-    // if (updates > 0) {
-    //   bot.last_message_received = bot.messages[updates - 1].message_id;
-    //   bot.getUpdates(bot.last_message_received + 1);
-    // }
-  }
+// Controleer of de esp is herstart doordat het AP te lang aan stond
+  if (apTimedOut) {
+    bot.sendMessage(telid, "⚠️ *Waarschuwing:* De AP-modus is automatisch uitgeschakeld vanwege inactiviteit (5 minuten limiet). Het weerstation is herstart naar de normale netwerkmodus.", "Markdown");
+    apTimedOut = false; // Reset de vlag
+  };
   
   lastSuccessfulNetworkActivity = millis(); 
   
   drawBootScreen("Klaar!");
   delay(300);
 
-  // 8. Systeem operationeel -> LED Groen
-  statusLed.setColor(0, 255, 0); 
-
-  // Ventilatoren direct veilig op 0% zetten bij start
-  // ledcWrite(PIN_FAN_INT_PWM, 0);
-  // ledcWrite(PIN_FAN_EXT1_PWM, 0);
-  // ledcWrite(PIN_FAN_EXT2_PWM, 0);
+  // Systeem operationeel -> LED uit (of groen indien gewenst: statusLed.setColor(0, 255, 0);)
+  statusLed.setColor(0, 0, 0);
 }
 
 /* ============================================================================
@@ -108,6 +113,9 @@ void loop() {
 
   // Update LED voor status
   statusLed.update(); 
+
+  // Controleer de fysieke BOOT-knop (voor het uitschakelen van fan-alerts)
+  checkFlashButton();
 
   // 2. Veiligheidscheck geheugenlekken (< 10KB op ESP32)
   freeHeap = ESP.getFreeHeap();
@@ -130,8 +138,13 @@ void loop() {
   // 4. MQTT en Telegram verwerking
   if (isConnected) {
     handleMqtt(); 
+    
     if (ENABLE_TELEGRAM) {
-      handleTelegramIncoming();
+      static unsigned long lastTelegramCheck = 0;
+      if (millis() - lastTelegramCheck >= 4000 || lastTelegramCheck == 0) { // Maximaal 1x per 4 seconden peilen
+        lastTelegramCheck = millis();
+        handleTelegramIncoming();
+      }
     }
   }
 
@@ -148,6 +161,7 @@ void loop() {
   // 5. Testmodus timer bewaking
   if (isTestModeActive && (millis() - testModeStartTime > currentTestDuration)) {
     isTestModeActive = false;
+    sendTelegramAlert("🧪 *Testmodus afgelopen.*\nSysteem draait weer volledig automatisch op basis van sensoren.");
     logToSyslogAndSerial(F("[TESTMODE] Testmodus automatisch uitgeschakeld."));
   }
 
@@ -155,7 +169,10 @@ void loop() {
   if (millis() - lastWeatherUpdate > 900000 || lastWeatherUpdate == 0) {
     lastWeatherUpdate = millis(); 
     if (isConnected) {
+      logToSyslogAndSerial("[WEATHER] Actueel weer en voorspelling ophalen...");
       fetchInternetWeather();
+      delay(500); 
+      fetchWeatherForecast();
     }
   }
 
@@ -179,7 +196,7 @@ void loop() {
         lastTempUpdate = millis();
       }
 
-      if (millis() < 180000) {
+      if (millis() < SYSTEM_STARTUP_DELAY) {
         moldRisk = false;
         moldReasonText = "⏳ Systeem kalibreert / leert...";
         vpdStatusText = " `(⏳ Opstarten)`";
@@ -199,13 +216,7 @@ void loop() {
       if (kasSmoothedHum < kasLowHum) kasLowHum = kasSmoothedHum;
       if (kasSmoothedHum > kasHighHum) kasHighHum = kasSmoothedHum;
       
-      // --- WACHT 3 MINUTEN VOOR JE GAAT REGELEN ---
-      // if (millis() >= 180000) {
-      //   updateFanSpeeds(kasVpd);
-      // }
-      // --- NIET WACHTEN ZODAT DE INTERNE FAN GAAT BLAZEN.
       updateFanSpeeds(kasVpd);
-
       calculateRPM();
     }
 

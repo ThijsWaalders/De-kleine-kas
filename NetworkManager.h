@@ -33,5 +33,10 @@ void handleRtcConnectionLogging();
 void handleWiFiReconnect();
 void setupNetwork();
 void handleNetwork();
+void startAPMode();
+void stopAPMode();
+
+extern bool apModeActive;
+extern bool apTimedOut;
 
 #endif // NETWORK_MANAGER_H

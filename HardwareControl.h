@@ -19,4 +19,9 @@ void checkLuxStability(float currentLux);
 void calculateRPM();
 void updateFanSpeeds(float targetVal);
 
+// NIEUW
+void toggleFanAlerts(bool enable);
+bool getFanAlertsStatus();
+extern bool fanAlertsEnabled;
+
 #endif // HARDWARE_CONTROL_H

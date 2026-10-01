@@ -24,15 +24,15 @@ void setupKasSensors() {
   kasDht.begin();
 
   // Als je de lichtsensor weer wilt aanzetten, kun je hieronder de coderegel activeren:
-  // if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-  //   lightMeterConnected = true;
-  //   logToSyslogAndSerial("[KAS] BH1750 lichtsensor gedetecteerd.");
-  // } else {
-  //   lightMeterConnected = false;
-  //   logToSyslogAndSerial("[KAS WARNING] BH1750 lichtsensor niet gevonden.");
-  // }
+  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
+    lightMeterConnected = true;
+    logToSyslogAndSerial("[KAS] BH1750 lichtsensor gedetecteerd.");
+  } else {
+    lightMeterConnected = false;
+    logToSyslogAndSerial("[KAS WARNING] BH1750 lichtsensor niet gevonden.");
+  }
   
-  lightMeterConnected = false; // Forceer op false tot je hem fysiek aansluit
+  // lightMeterConnected = true; // Forceer op false tot je hem fysiek aansluit
   logToSyslogAndSerial("[KAS] Kassensoren geïnitialiseerd.");
 }
 

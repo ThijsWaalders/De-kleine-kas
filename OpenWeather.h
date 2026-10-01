@@ -12,9 +12,15 @@
 extern float forecastedTempSoon;     // Verwachte temperatuur over ~3 uur
 extern bool isTempDroppingSoon;      // Signaal of er een koude omslag aankomt
 
-// Functie prototypes
-const char* shortenWeather(const String& text);
 void fetchInternetWeather();
+// // Functie prototypes
+// const char* shortenWeather(const String& text);
+// // void fetchInternetWeather();
+// if (WiFi.status() == WL_CONNECTED) {
+//     fetchInternetWeather();
+// }
+
 void fetchWeatherForecast();
+
 
 #endif // OPEN_WEATHER_H

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "port": "192.168.4.201:23",
+  "port": "192.168.2.1:23",
   "configuration": "UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=0,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default",
   "output": "build",
   "board": "esp32:esp32:esp32s3",
@@ -10,7 +10,7 @@
   "configurationRequired": true,
   "compile_profile": "ESP32-S3-Zero-N8R8-M",
   "monitorPortSettings": {
-    "port": "192.168.4.201:23",
+    "port": "192.168.2.1:23",
     "baudRate": 115200,
     "lineEnding": "\r\n",
     "dataBits": 8,

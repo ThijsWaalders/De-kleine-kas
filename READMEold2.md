@@ -17,17 +17,11 @@ Door prioriteiten te stellen (kritieke meldingen boven normaal gedrag), weet de 
 Hier is de logische volgorde van belang (van hoog naar laag):
 
 - **Blauw** = Netwerk / Wi-Fi actueel of verbinden / AP-modus.
-- **Geel** = Extern weer-alarm / waarschuwing.
-- **Oranje** = Actie vereist van JOU (als woning-actuator, bijv. het raam van de woning openzetten).
-- **Groen** = ESP regelt de kas zelfstandig / alles is optimaal.
-- **Uit** = Systeem in diepe rust.
-
-<!-- Was:
-- **Blauw** = Netwerk / Wi-Fi actueel of verbinden / AP-modus.
 - **Geel** = Extern weer-alarm (aankomends ruig weer buiten).
 - **Oranje** = Ventilatie-actie vereist (ramen open/dicht op basis van binnen/buiten klimaat).
 - **Groen** = Systeem is actief aan het regelen (ventilators draaien, verwarming aan).
-- **Uit** = Alles is stabiel en rustig, geen actie nodig. -->
+- **Uit** = Alles is stabiel en rustig, geen actie nodig.
+
 
 ## 1. Kerncomponenten van het Klimaatregelsysteem (ClimateLogic.cpp)
 
@@ -64,21 +58,13 @@ Het systeem kijkt niet alleen naar de absolute luchtvochtigheid, maar ook naar d
 
 ### Prioriteiten Volgorde
 
-De volgorde van prioriteiten is nu als volgt waterdicht vastgelegd:
+De volgorde van prioriteiten nu als volgt vastgelegd:
 
-1. **Kritiek heet / Brandgevaar:** Als de kas absoluut te heet wordt (> 28°C), grijpt het systeem direct in met geforceerde ventilatie om oververhitting te voorkomen.
-2. **Te droog / Uitdrogingsrisico (Hoge VPD):** Als de kas door de lampen te droog dreigt te worden, krijgt vochtbehoud absolute prioriteit. De kas blijft **gesloten (OFF)** om te voorkomen dat ventilatoren de laatste beetjes vocht wegbriezen.
-3. **Te klam / Schimmelrisico / Condensrisico:** Pas als de kas te nat/klam is, grijpt de ESP in met buitenlucht (als die droger/koeler is) of interne circulatie.
-4. **Te warm (Normale overschrijding door lampen):** Als de kas iets te warm is door de lampen *en* de VPD is nog acceptabel, koelt de ESP met koelere buitenlucht.
-5. **Te koud:** Circuleren met warmte uit de woning.
-6. **Balans:** Alles in orde.
-
-<!--was:
 1. Te warm? (Hogere prioriteit dan droogte): Als het te warm is én buiten koeler is, gaan de ventilatoren open om te koelen (en koele, natte buitenlucht verlaagt meteen ook de VPD).
 2. Te klam / Schimmelrisico / Lage VPD? Als de kas te nat/klam is (kasVpd < VPD_MIN_OPTIMAL of hoge LV), grijpen we in met buitenlucht (als buiten droger/koeler is) of interne circulatie.
 3. Te droog / Hoge VPD? Pas als het klimaat niet te warm of te klam is, maar de kas dreigt uit te drogen (kasVpd > VPD_MAX_OPTIMAL), gaat het systeem in rust (OFF) om verdere uitdroging door te hard blazen te voorkomen.
 4. Te koud? Circuleren met warmte uit de woning.
-5. Balans. -->
+5. Balans.
 
 ## 2. Slimme Omgevingsbeoordeling (Kas vs. Binnen vs. Buiten)
 
