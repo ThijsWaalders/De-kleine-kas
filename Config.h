@@ -77,10 +77,10 @@ namespace LedConfig {
   // --- HIER STEL JE ALLES PER STATUS IN ---
   // Formaat: { R, G, B, Helderheid, AnimatieType, Snelheid_ms }
   
-  constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   8, BLINK,  300 }; // Was 15 -> nu 8
+  constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   5, BLINK,  300 }; // Was 15 -> nu 8
   constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   5, BREATHE, 3000 }; // Was 10 -> nu 5
-  constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   8, SOLID,     0 }; // Was 15 -> nu 8
-  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 200,  20,   6, SOLID,     0 }; // Was 12 -> nu 6
+  constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   4, SOLID,     0 }; // Was 15 -> nu 8
+  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 200,  20,   3, SOLID,     0 }; // Was 12 -> nu 6
   constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,       0 }; // Uit
 }
 
