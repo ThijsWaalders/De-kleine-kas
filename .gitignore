@@ -10,4 +10,4 @@ libraries/
 
 # DO NOT Ignore
 #!examplefolder/
-nono.h.example
+!nono.h.example

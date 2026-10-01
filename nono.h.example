@@ -1,0 +1,5 @@
+// nono.h
+#define SECRET_SSID "<PLACEHOLDER>"
+#define SECRET_PASS "<PLACEHOLDER>"
+#define API_KEY     "<PLACEHOLDER>"
+#define LOCATION    "<PLACEHOLDER>"
