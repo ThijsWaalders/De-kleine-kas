@@ -152,8 +152,8 @@ String buildHelpMenu() {
                    "• *Testschimmel* (`/ts`) - Test schimmeltoggle (10 min)\n"
                    "• *Testfans* (`/tf`) - Test alle fans op 100% (30 sec)\n"
                    "• *Hardwarecheck* (`/hc`) - Meetwaardes hardware\n"
+                   "• *Fanalarm* (`/fa`) - Fan alarmering aan/uit\n"
                    "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
-                  //  "• *Stop AP/OTA* (`/sota`) - Sluit Access Point handmatig\n"
                    "• *Flush* (`/fl`) - Wis Telegram wachtrij\n"
                    "• *Reboot* (`/rb`) - Herstart het systeem\n"
                    "• *Help* (`/h`) - Dit menu\n";
@@ -342,7 +342,9 @@ void handleTelegramIncoming() {
     int fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
     int fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
     
-    // Buffer iets vergroot van 850 naar 1024 voor de extra chip-temperatuurregel
+    // Interne chip temperatuur ophalen via de EspSensors module
+    float espInternalTemp = readEspInternalTemp();
+
     char hcBuf[1024];
     snprintf(hcBuf, sizeof(hcBuf),
       "🛠️ *Hardware & Sensor Check*\n\n"
@@ -359,7 +361,7 @@ void handleTelegramIncoming() {
       "• Extern 1 (Hoofd): `%d%%` (`%d RPM`)\n"
       "• Extern 2 (Boost): `%d%%` (`%d RPM`)\n",
       heapKb,
-      espInternalTemp, // <-- Hier wordt de chip-temperatuur ingevoegd
+      espInternalTemp,
       currentLuxValue,
       formatVal(displayedTemp, 1, "°C").c_str(), formatVal(kasSmoothedHum, 0, "%").c_str(), failKas,
       formatVal(indoorSmoothedTemp, 1, "°C").c_str(), currentPressure,
@@ -369,6 +371,16 @@ void handleTelegramIncoming() {
       fanExt2Pct, fanExt2RPM
     );
     sendTelegramAlert(String(hcBuf));
+  }
+  else if (text == "fanalarm" || text == "fa") {
+    // Wissel de status om (toggle aan/uit)
+    fanAlertsEnabled = !fanAlertsEnabled;
+
+    String statusMsg = fanAlertsEnabled 
+      ? "🔔 *Fan-alarm is weer INGESCHAKELD via Telegram.*" 
+      : "🔕 *Fan-alarm is UITGESCHAKELD (gedempt) via Telegram.*";
+      
+    sendTelegramAlert(statusMsg);
   }
   else if (text == "ota") {
     // Bouw het bericht dynamisch op met de echte gegevens uit Config.h

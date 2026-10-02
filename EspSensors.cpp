@@ -5,7 +5,6 @@
 
 #include "EspSensors.h"
 #include "Config.h"
-#include "driver/temperature_sensor.h"
 
 // Externe functie uit Telegram / main code
 extern void sendTelegramAlert(String message);
@@ -17,7 +16,7 @@ static temperature_sensor_handle_t temp_sensor_handle = NULL;
 // Herhalend alarm variabelen
 static unsigned long lastEspAlertTime = 0;
 const unsigned long ESP_ALERT_INTERVAL = 900000; // 15 minuten in milliseconden
-const float ESP_CRITICAL_TEMP = 60.0;            // Veiligheidsgrens chip-temperatuur
+// const float ESP_CRITICAL_TEMP = 75.0;            // Veiligheidsgrens chip-temperatuur
 
 void initEspSensors() {
   // Installeer de interne temperatuursensor voor de ESP32-S3 (meetbereik ingesteld op 20°C tot 100°C)

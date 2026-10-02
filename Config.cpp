@@ -6,6 +6,17 @@
 #include "nono.h" 
 #include "Config.h"
 
+// ESP kritieke temperatuur
+const float ESP_CRITICAL_TEMP = 70.0;
+
+// Globale handle en vlag (veilig verborgen in Config.cpp)
+static temperature_sensor_handle_t global_temp_sensor_handle = NULL;
+static bool tempSensorInitialized = false;
+
+
+
+
+
 // --- KAS AAN/UIT ZETTEN, WEERDATA ALTIJD LATEN DOOR GAAN
 bool isKasSleeping = false;
 

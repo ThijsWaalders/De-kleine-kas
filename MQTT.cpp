@@ -192,6 +192,12 @@ void sendMqttData() {
   doc["wifi_rssi"]          = wifiRSSI;
   doc["free_heap"]          = freeHeap;
 
+  // Lees de interne temperatuur uit via de EspSensors module
+  float espInternalTemp = readEspInternalTemp();
+  if (espInternalTemp != -999.0 && espInternalTemp != 0.0) {
+    doc["esp_temp"] = espInternalTemp;
+  }
+
   char buffer[1536];
   serializeJson(doc, buffer);
 

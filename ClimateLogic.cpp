@@ -647,3 +647,11 @@ void handleTestModeTimeout() {
     sendTelegramAlert("🧪 *Testmodus afgelopen.*\nSysteem draait weer volledig automatisch op basis van sensoren.");
   }
 }
+
+// =========================================================================
+// 11. KIJK OF BOOT TIJD KORTER KAN ALS ERROR RATE KORTER WORDT VOOR DE SENSOREN
+// =========================================================================
+float calculateErrorRate(unsigned long total, unsigned long failed) {
+  if (total == 0) return 0.0;
+  return ((float)failed / (float)total) * 100.0;
+}

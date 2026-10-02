@@ -17,7 +17,7 @@
 #include <Wire.h>        
 #include <SSD1306Wire.h>
 #include "DHT.h"
-#include "driver/temp_sensor.h"
+#include "driver/temperature_sensor.h"
 #include <Adafruit_BMP085.h>
 #include <BH1750.h>
 #include <PubSubClient.h>
@@ -94,6 +94,18 @@ extern unsigned long lastEspTempCheck;
 
 inline bool fanAlertsEnabled = true;
 
+extern const float ESP_CRITICAL_TEMP;            // Veiligheidsgrens chip-temperatuur
+
+float readEspInternalTemp();                    // Alleen de functienaam (declaratie)
+// float readEspInternalTemp();
+
+
+
+
+
+
+
+
 // =========================================================================
 // 2. KLIMAAT & SENSOR CORRECTIE OFFSETS
 // =========================================================================
@@ -153,7 +165,7 @@ const int EXT_FAN_BASE_PWM          = 70;  //65
 const int EXT_FAN_MIN_PWM           = 70;  //65 ~25% minimale startdrempel extern
 
 // Interne ventilator (Kleinere model - draait meer toeren)
-const int INT_FAN_BASE_PWM          = 119;  // Eventueel eigen basis
+const int INT_FAN_BASE_PWM          = 122;  // 119 was 46% 1994rpm of was dat de min pwm?    // Eventueel eigen basis
 const int INT_FAN_MIN_PWM           = 105;  // 55 = 750 RPM Eigen minimale startdrempel (pas aan naar wens voor de kleine fan)
 // const int CIRCULATION_PWM           = 145;  // was 90 Vaste rust-stand voor de interne fan (pas dit getal aan zodat hij fijn zacht circuleert)
 
