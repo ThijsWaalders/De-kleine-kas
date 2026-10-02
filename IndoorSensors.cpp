@@ -20,9 +20,40 @@ DHT indoorDht(INDOOR_DHT_PIN, INDOOR_DHT_TYPE);
 Adafruit_BMP085 bmp;
 
 /**
- * @brief Initialiseert de kamersensoren (DHT en BMP085).
+ * @brief Initialiseert de PIR bewegingssensor.
+ */
+void setupPIR() {
+  pinMode(PIN_PIR, INPUT);
+  logToSyslogAndSerial("[PIR] HW-416-B bewegingssensor geïnitialiseerd op Pin 1.");
+}
+
+/**
+ * @brief Controleert of er beweging is gedetecteerd via de PIR sensor.
+ */
+void checkPIRMotion() {
+  int motionState = digitalRead(PIN_PIR);
+  if (motionState == HIGH) {
+    lastMotionTime = millis();
+    if (!isDisplayActiveByMotion) {
+      isDisplayActiveByMotion = true;
+      logToSyslogAndSerial("[PIR] Beweging gedetecteerd! Display ingeschakeld.");
+    }
+  } else {
+    // Schakel display na 30 seconden inactiviteit uit
+    if (isDisplayActiveByMotion && (millis() - lastMotionTime > 30000)) {
+      isDisplayActiveByMotion = false;
+      logToSyslogAndSerial("[PIR] Geen beweging meer. Display uitgeschakeld.");
+    }
+  }
+}
+
+/**
+ * @brief Initialiseert de kamersensoren (DHT, BMP085 en PIR).
  */
 void setupIndoorSensors() {
+  // Initialiseer PIR
+  setupPIR();
+
   // Start I2C met de juiste S3 pinnen gedefinieerd in config.h
   Wire.begin(PIN_SDA, PIN_SCL);
   
@@ -42,6 +73,8 @@ void setupIndoorSensors() {
  * @brief Leest periodiek de kamersensoren uit (BMP voor temp/druk, DHT voor vochtigheid) en past smoothing toe.
  */
 void updateIndoorSensors() {
+  // Vergeet ook niet om eventueel checkPIRMotion() hier of in je main loop aan te roepen als dat nodig is!
+  
   if (millis() - lastIndoorReadTime >= 3000 || lastIndoorReadTime == 0) {
     lastIndoorReadTime = millis();
     

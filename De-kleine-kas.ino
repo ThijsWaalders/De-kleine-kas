@@ -20,10 +20,6 @@
 #include "OpenWeather.h"      // Weergegevens ophalen via internet
 #include "Display.h"          // OLED display aansturing
 #include <LittleFS.h>         // Bestandssysteem voor ESP32
-// Testvlag om Telegram optioneel uit te schakelen voor maximale snelheid
-#ifndef ENABLE_TELEGRAM
-#define ENABLE_TELEGRAM true
-#endif
 
 /* ============================================================================
    2. SETUP FUNCTIE (EENMALIGE INITIALISATIE)
@@ -31,6 +27,9 @@
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
+  // -- Setup bewegingssensor
+  setupPIR();
 
   // --- SYSLOG INITIALISEREN ---
   setupLogger();
@@ -96,7 +95,7 @@ void setup() {
   if (apTimedOut) {
     bot.sendMessage(telid, "⚠️ *Waarschuwing:* De AP-modus is automatisch uitgeschakeld vanwege inactiviteit (5 minuten limiet). Het weerstation is herstart naar de normale netwerkmodus.", "Markdown");
     apTimedOut = false; // Reset de vlag
-  };
+  }
   
   lastSuccessfulNetworkActivity = millis(); 
   
@@ -113,6 +112,9 @@ void setup() {
 void loop() {
   // 1. Altijd als eerste aanroepen voor Netwerk, OTA-updates en Telnet-clients
   handleNetwork(); 
+
+  // Check bewegingssensor
+  checkPIRMotion();
 
   // Meet de interne temperatuur en check de veiligheid elke 5 seconden
   if (millis() - lastEspTempCheck > 5000) {

@@ -172,7 +172,7 @@ void sendMqttData() {
 
   // Converteer de KasVentState enum naar een leesbare tekst string voor Grafana
   switch (kasAdvice) {
-    case OFF: doc["kas_advies"] = "OFF"; break;
+    case KAS_OFF: doc["kas_advies"] = "KAS_OFF"; break;
     case GREENHOUSE_VENTILATE: doc["kas_advies"] = "VENTILATE"; break;
     case GREENHOUSE_CIRCULATE_INTERNAL: doc["kas_advies"] = "CIRCULATE"; break;
     default: doc["kas_advies"] = "UNKNOWN"; break;

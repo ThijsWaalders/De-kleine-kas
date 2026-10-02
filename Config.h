@@ -24,16 +24,18 @@
 #include <math.h>
 #include <LittleFS.h>
 
+// #ifndef ENABLE_TELEGRAM
+#define ENABLE_TELEGRAM true
+// #endif
 
-// 
 // Globale vlag voor de winterslaap van de kas (true = alleen data/monitoring, geen actie)
-// 
 extern bool isKasSleeping;
 
 // =========================================================================
 // 1. HARDWARE & PIN DEFINITIES (ESP32-S3 Indeling)
 // =========================================================================
-const int FLASH_BUTTON_PIN  = 0;  // BOOT knop op ESP32-S3
+const int FLASH_BUTTON_PIN  = 0;  // B(oot) knop op ESP32-S3
+#define PIN_PIR 3           // HW-416-B Bewegingssensor
 
 // I2C bus pinnen (OLED display en sensoren zoals BMP085, BH1750)
 #define PIN_SDA 4
@@ -44,8 +46,8 @@ const int FLASH_BUTTON_PIN  = 0;  // BOOT knop op ESP32-S3
 #define PIN_FAN_INT_PWM     12  // PWM-sturing BLAUW voor interne ventilator
 #define PIN_FAN_EXT2_TACHO   11  // Tacho GROEN voor externe ventilator(en)
 #define PIN_FAN_EXT2_PWM     10  // PWM-sturing BLAUW voor externe ventilator(en)
-#define PIN_FAN_EXT1_TACHO   9  // Tacho GROEN voor externe ventilator(en)
-#define PIN_FAN_EXT1_PWM     8  // PWM-sturing BLAUW voor externe ventilator(en)
+#define PIN_FAN_EXT1_TACHO   9   // Tacho GROEN voor externe ventilator(en)
+#define PIN_FAN_EXT1_PWM     8   // PWM-sturing BLAUW voor externe ventilator(en)
 
 // Sensor Pinnen & Typen (DHT11)
 #define KAS_DHT_PIN         6   
@@ -53,120 +55,87 @@ const int FLASH_BUTTON_PIN  = 0;  // BOOT knop op ESP32-S3
 #define INDOOR_DHT_PIN      7   
 #define INDOOR_DHT_TYPE     DHT11
 
-
 // Status LED (indien van toepassing)
-#define PIN_NEOPIXEL        21  // Let op: als GPIO 21 al voor tacho wordt gebruikt, kun je deze eventueel naar een andere vrije pin verhuizen!
+#define PIN_NEOPIXEL        21  
 #define NUMPIXELS           1
 #define LED_BRIGHTNESS      5
 
 // ============================================================================
 // 💡 STATUS LED CONFIGURATIE (Per Status Volledig Instelbaar)
 // ============================================================================
-namespace LedConfig {
-  // Animatie types
-  enum AnimationType { OFF, SOLID, BLINK, BREATHE };
+// Definieer de LED modes
+enum LedMode { OFF, SOLID, BLINK, BREATHE };
 
+namespace LedConfig {
   struct LedSetting {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t brightness;       // Helderheid voor deze status (0-255)
-    AnimationType animation;  // SOLID, BLINK of BREATHE
-    uint32_t speedMs;         // Snelheid in ms (voor knipperen of ademen)
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+    uint8_t brightness;
+    LedMode mode;
+    unsigned long interval;
   };
 
-  // --- HIER STEL JE ALLES PER STATUS IN ---
-  // Formaat: { R, G, B, Helderheid, AnimatieType, Snelheid_ms }
-  
-  constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   5, BLINK,  300 }; // Was 15 -> nu 8
-  constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   4, BREATHE, 3000 }; // Was 10 -> nu 5
-  constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   5, SOLID,     0 }; // Was 15 -> nu 8
-  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 200,  20,   1, SOLID,     0 }; // Was 12 -> nu 6
-  constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,       0 }; // Uit
+  // Pre-defined settings (exact 6 waarden voor de 6 velden hierboven)
+  constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   5, BLINK,  300 };
+  constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   4, BREATHE, 3000 };
+  constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   5, SOLID,     0 };
+  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 200,  20,   1, SOLID,     0 };
+  constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,       0 };
 }
 
-// --- VENTILATOR ALERTS CONFIGURATIE ---
-// Standaard TRUE. Kan op FALSE gezet worden via Telegram/commando 
-// om 0-RPM alarmen te onderdrukken als de voeding van de fans los is.
+// #endif
 
-// ESP temp check
 extern unsigned long lastEspTempCheck;
-
 inline bool fanAlertsEnabled = true;
 
-// Veiligheidsgrens chip-temperatuur
 extern const float ESP_CRITICAL_TEMP;
 float readEspInternalTemp();
 
 // =========================================================================
 // 2. KLIMAAT & SENSOR CORRECTIE OFFSETS
 // =========================================================================
-const float KAS_TEMP_OFFSET    = +0.9; // Temperatuurcorrectie kas (°C)
-const float INDOOR_TEMP_OFFSET = -0.1; // Temperatuurcorrectie woning (°C) (ook hier +1 gedaan, indoor week 1 % af was -0.6)
-const float KAS_HUM_OFFSET     = -6.4; // Luchtvochtigheidcorrectie kas (%)
-const float INDOOR_HUM_OFFSET  = +1.4; // Luchtvochtigheidcorrectie woning (%) (heb er + 1 gedaan, was +0.4)
-const float PRESSURE_OFFSET    = +0.9; // Barometer / Luchtdruk correctie (hPa) *(Pas aan naar -0.8 indien te hoog)*
-
+const float KAS_TEMP_OFFSET    = +0.9; 
+const float INDOOR_TEMP_OFFSET = -0.1; 
+const float KAS_HUM_OFFSET     = -6.4; 
+const float INDOOR_HUM_OFFSET  = +1.4; 
+const float PRESSURE_OFFSET    = +0.9; 
 
 // =========================================================================
 // 3. KIEMGROENTEN KLIMAAT CONFIGURATIE
 // =========================================================================
-// VPD Grenzen voor Kiemgroenten (kPa)
-const float VPD_MIN_OPTIMAL = 0.40;  // Onder deze waarde: Te klam / Schimmelrisico
-const float VPD_MAX_OPTIMAL = 0.90;  // Boven deze waarde: Te droog / Uitdrogingsrisico (voor kiemgroenten strenger gezet max 0.9 of 1.0)
+const float VPD_MIN_OPTIMAL = 0.40;  
+const float VPD_MAX_OPTIMAL = 0.90;  
 
-// Temperatuur Grenzen Kas (°C)
-const float GREENHOUSE_MAX_TEMP = 23.0; // Maximale kas temperatuur voor ingrijpen
-const float HEAT_MAT_TEMP_LOW = 16.0;   // Onder deze waarde: Warmtemat aanbevolen
-const float HEAT_MAT_TEMP_HIGH = 20.0;  // Boven deze waarde: Warmtemat uit
+const float GREENHOUSE_MAX_TEMP = 23.0; 
+const float HEAT_MAT_TEMP_LOW = 16.0;   
+const float HEAT_MAT_TEMP_HIGH = 20.0;  
 
-// Vochtigheid & Dauwpunt Grenzen (%)
-const float HUM_MOLD_THRESHOLD = 75.0;  // Luchtvochtigheid waarbij schimmelrisico exponentieel stijgt
-const float DP_MARGIN_MIN = 2.0;        // Minimale dauwpuntmarge (°C) ten opzichte van kas temperatuur (voorkomt condens op zaadjes)
-// --- OUDE DREMPEL/GEDRAGSREGELS VOOR CLIMATLOGIC ---
-// // VPD Grenzen voor Kiemgroenten (kPa)
-// const float VPD_MIN_OPTIMAL         = 0.40; 
-// const float VPD_MAX_OPTIMAL         = 1.0;  
-// // Temperatuur Grenzen Kas (°C)
-// const float GREENHOUSE_MAX_TEMP     = 22.5; 
-// // Warmtemat instellingen
-// const float HEAT_MAT_TEMP_LOW       = 16.0; 
-// const float HEAT_MAT_TEMP_HIGH      = 21.5; 
-// // Vochtigheid & Dauwpunt Grenzen (%)
-// const float HUM_MOLD_THRESHOLD      = 68.0; 
-// const float DP_MARGIN_MIN           = 2.5;  
+const float HUM_MOLD_THRESHOLD = 75.0;  
+const float DP_MARGIN_MIN = 2.0;        
 
 const unsigned long HEAT_MAT_DELAY  = 300000; 
 
-// Buffer en schimmel historie constanten
 const int MOLD_SAMPLES              = 60;
 const int MAX_BUFFER_SIZE           = 50;
 extern const char* BUFFER_FILE;
 
-// Display en Hysteresis constanten
 const unsigned long TEMP_UPDATE_INTERVAL = 5000;
 const float TEMP_HYSTERESIS_THRESHOLD = 0.3;
 const unsigned long BUTTON_DEBOUNCE_DELAY = 50;
 const unsigned long LUX_STABILITY_TIMEOUT = 10000;
 
-// --- PWM Configuraties voor Ventilatoren (ESP32 ledc) ---
 const int PWM_FREQ                  = 25000; 
 const int PWM_RANGE                 = 255; 
 const int FAN_MAX_PWM               = 255; 
 
-// Externe ventilatoren (Grote model)
-const int EXT_FAN_BASE_PWM          = 70;  //65
-const int EXT_FAN_MIN_PWM           = 70;  //65 ~25% minimale startdrempel extern
+const int EXT_FAN_BASE_PWM          = 70;  
+const int EXT_FAN_MIN_PWM           = 70;  
 
-// Interne ventilator (Kleinere model - draait meer toeren)
-const int INT_FAN_BASE_PWM          = 122;  // 119 was 46% 1994rpm of was dat de min pwm?    // Eventueel eigen basis
-const int INT_FAN_MIN_PWM           = 105;  // 55 = 750 RPM Eigen minimale startdrempel (pas aan naar wens voor de kleine fan)
-// const int CIRCULATION_PWM           = 145;  // was 90 Vaste rust-stand voor de interne fan (pas dit getal aan zodat hij fijn zacht circuleert)
+const int INT_FAN_BASE_PWM          = 122;  
+const int INT_FAN_MIN_PWM           = 105;  
 
-// Anti-hunt instellingen voor ventilatoren (minimaal aan/uit behouden om klapperen te voorkomen)
-const unsigned long MIN_FAN_RUN_TIME = 180000; // 180.000 ms = 3 minuten
-
-// Opstartvertraging voor sensoren stabilisatie en rustige start (2 minuten)
+const unsigned long MIN_FAN_RUN_TIME = 180000; 
 const unsigned long SYSTEM_STARTUP_DELAY = 120000;
 
 // =========================================================================
@@ -178,8 +147,8 @@ const char* const mqtt_topic        = "weerstation/data";
 const char* const mqtt_status_topic = "weerstation/status"; 
 const unsigned long MQTT_INTERVAL   = 30000; 
 
-const unsigned long TELEGRAM_MIN_INTERVAL    = 1000; // stond ook op 4000 om te voorkomen dat de bot geblockt wordt ivm spammen door niet werkende hardware/code
-const unsigned long BOT_CHECK_INTERVAL       = 1000; // stond op 4000 eens kijken of het nu weer zo vlot reageert als hier voor 
+const unsigned long TELEGRAM_MIN_INTERVAL    = 1000; 
+const unsigned long BOT_CHECK_INTERVAL       = 1000; 
 const unsigned long MAX_TOTAL_WIFI_DOWN_TIME = 600000; 
 const unsigned long MAX_WIFI_RECONNECT_TIME  = 30000;  
 
@@ -187,15 +156,14 @@ const unsigned long MAX_WIFI_RECONNECT_TIME  = 30000;
 // 5. ENUMS & GLOBAL EXTERN DECLARATIES
 // =========================================================================
 enum HouseVentState { HOUSE_CLOSED, HOUSE_VENTILATE };
-enum KasVentState   { OFF, GREENHOUSE_CIRCULATE_INTERNAL, KasVentState_dummy, GREENHOUSE_VENTILATE };
+// enum KasVentState   { OFF, GREENHOUSE_CIRCULATE_INTERNAL, KasVentState_dummy, GREENHOUSE_VENTILATE };
+enum KasVentState { KAS_OFF, GREENHOUSE_CIRCULATE_INTERNAL, KasVentState_dummy, GREENHOUSE_VENTILATE };
 
-// --- Netwerk & API variabelen ---
 extern char ssid[];
 extern char password[];
 extern String openWeatherKey, cityID;
 extern char telbot[], telid[];     
 
-// --- Systeem & Hardware Objecten ---
 extern unsigned long lastWifiLedBlink;
 extern bool wifiLedState;
 extern SSD1306Wire display; 
@@ -207,26 +175,18 @@ extern UniversalTelegramBot bot;
 extern WiFiClient mqttWifiClient;
 extern PubSubClient mqttClient;
 
-// Wi-Fi drop tracking variabelen
 inline bool hadWifiDrop = false;
 inline unsigned long wifiTotalDropStartTime = 0;
 
-// --- Systeem & Netwerk Staten ---
 extern unsigned long lastSuccessfulNetworkActivity;
 extern bool isConnected;
-// extern float espVcc;
 extern int wifiRSSI;
 extern uint32_t freeHeap;
 
-// =========================================================================
-// 4. GLOBALE KLIMAAT & MARGE VARIABELEN
-// =========================================================================
-// --- Meetwaarden & Klimaat (Extern) ---
 extern float kasTemp, kasHum, indoorTemp, indoorHum;
 extern float outdoorTemp, outdoorHumidity, outdoorDewPoint, outdoorPressure, outdoorVpd;
 extern float kasDewPoint, kasVpd, indoorDewPoint, indoorVpd;
 
-// Marges en Iconen
 extern float kasDpMargin;
 extern float indoorDpMargin;
 extern float outdoorDpMargin;
@@ -234,24 +194,18 @@ extern String kasDpIcon;
 extern String indoorDpIcon;
 extern String indoorVpdIcon;
 
-// Schimmel & Status teksten
 extern bool moldRisk;
 extern String moldReasonText, vpdStatusText, dpMarginStatusText;
-extern String indoorVpdIcon;
 
-// Min/Max Statistieken
 extern float kasLowHum, kasHighHum, indoorLowHum, indoorHighHum, outdoorLowHum, outdoorHighHum;
 extern float kasTempLow, kasTempHigh, indoorTempHigh, indoorTempLow;
 
-// Smoothed waarden
 extern float kasSmoothedTemp, kasSmoothedHum, indoorSmoothedTemp, indoorSmoothedHum, displayedTemp;
 extern unsigned long lastTempUpdate;
 
-// Sensor foutentellers
 extern unsigned long totalKasDhtReads, failedKasDhtReads, lastValidKasDhtTime;
 extern unsigned long totalIndoorDhtReads, failedIndoorDhtReads, lastValidIndoorDhtTime;
 
-// Weer & Trends
 extern float outdoorTempMax, outdoorTempMin;
 extern bool outdoorMoldRisk, hasOutdoorAlert;
 extern String weatherDesc, outdoorPressureTrendText;
@@ -260,7 +214,6 @@ extern unsigned long lastWeatherUpdate;
 extern float forecastedTempSoon;
 extern bool isTempDroppingSoon;
 
-// Besturing & Advies Staten
 extern HouseVentState houseAdvice;
 extern KasVentState kasAdvice;
 extern bool pendingTelegramAlert;
@@ -272,27 +225,25 @@ extern bool isTestModeActive;
 extern unsigned long testModeStartTime, currentTestDuration;
 extern unsigned long heatMatLowStartTime, heatMatHighStartTime;
 
-// Trends & High/Low
 extern float pastBaro, pastHum, pastTemp;
 extern unsigned long lastTrendSample;
 extern const char* baroTrendArrow;
 
-// Display & Licht
 extern float stableLuxBase;
 extern bool lastLightStateOn;
 extern unsigned long luxShiftStartTime;
 extern bool isLuxShiftPending;
 extern bool isDisplayOff;
+extern bool isDisplayActiveByMotion;
+extern unsigned long lastMotionTime;
 extern unsigned long darkStartTime;
 
-// Schimmel historie
 extern bool previousMoldRisk;
 extern bool moldHistory[MOLD_SAMPLES];
 extern int moldSampleIndex;
 extern bool moldHistoryFilled;
 extern unsigned long lastMoldSampleTime;
 
-// UI / Knoppen / Timers
 extern unsigned long lastBannerToggle;
 extern int bannerMode;
 extern unsigned long lastButtonPressTime;
@@ -303,7 +254,6 @@ extern float previousHumForVelocity;
 extern unsigned long lastVelocityCheckTime;
 extern float humidityVelocity;
 
-// Ventilators & PID
 extern volatile unsigned long rpmCountInt;
 extern volatile unsigned long rpmCountExt1;
 extern volatile unsigned long rpmCountExt2;
@@ -315,7 +265,6 @@ extern float pidSetPointVPD, kp, ki, kd, pidOutput;
 extern unsigned long lastPidTime;
 extern float pError, iError, dError, lastError;
 
-// --- TELEGRAM / ADVIES BUFFER ---
 extern char advBuffer[1600];
 
 #endif // CONFIG_H

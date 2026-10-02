@@ -13,7 +13,9 @@ const float ESP_CRITICAL_TEMP = 70.0;
 static temperature_sensor_handle_t global_temp_sensor_handle = NULL;
 static bool tempSensorInitialized = false;
 
-
+// Display activeren door bewegingssensor
+bool isDisplayActiveByMotion = false;
+unsigned long lastMotionTime = 0;
 
 
 
@@ -168,9 +170,9 @@ float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
 // Advies staten
 HouseVentState houseAdvice = HOUSE_CLOSED;
-KasVentState kasAdvice = OFF;
+KasVentState kasAdvice = KAS_OFF;
 HouseVentState previousHouseAdvice = HOUSE_CLOSED;
-KasVentState previousKasAdvice = OFF;
+KasVentState previousKasAdvice = KAS_OFF;
 
 String houseAdviceReason = "Klimaat in woning is stabiel.";
 String kasAdviceReason = "Klimaat in de kas is in balans.";

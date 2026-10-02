@@ -13,13 +13,14 @@ extern HouseVentState houseAdvice;
 extern int fanIntSpeed;               
 extern int fanExt1Speed;              
 extern int fanExt2Speed;              
-extern float espInternalTemp;         // <-- Toegevoegd voor de temperatuurbeveiliging
+extern float espInternalTemp;         
+extern float currentLuxValue;         // Zorg dat deze globaal beschikbaar is (indien nodig)
 
-// Daadwerkelijke globale instantie
-LedManager statusLed;
+// Daadwerkelijke globale instantie met pin en aantal pixels volgens Config.h
+LedManager statusLed(PIN_NEOPIXEL, NUMPIXELS);
 
-LedManager::LedManager() 
-  : pixels(NUMPIXELS, PIN_NEOPIXEL, NEO_RGB + NEO_KHZ800) {}
+LedManager::LedManager(uint8_t pin, uint8_t numPixels) 
+  : pixels(numPixels, pin, NEO_RGB + NEO_KHZ800), lastLedUpdate(0) {}
 
 void LedManager::begin() {
   pixels.begin();
@@ -39,41 +40,42 @@ void LedManager::clear() {
   pixels.show();
 }
 
-// Interne helper om de configuratie-instelling toepast, inclusief nacht-dimming op basis van lichtsensor
+// Interne helper om de configuratie-instelling toe te passen
 void LedManager::applySetting(const LedConfig::LedSetting& setting, unsigned long currentMillis) {
   uint8_t targetBrightness = setting.brightness;
-  if (currentLuxValue <= 1.0) {
-    targetBrightness = min((int)targetBrightness, 2); 
-  }
+  // Veiligheidshalve controleren op currentLuxValue indien gedefinieerd in project
+  // if (currentLuxValue <= 1.0) {
+  //   targetBrightness = min((int)targetBrightness, 2); 
+  // }
 
-  switch (setting.animation) {
-    case LedConfig::OFF:
+  switch (setting.mode) {
+    case OFF:
       clear();
       break;
 
-    case LedConfig::SOLID:
-      setColor(setting.r, setting.g, setting.b, targetBrightness);
+    case SOLID:
+      setColor(setting.red, setting.green, setting.blue, targetBrightness);
       break;
 
-    case LedConfig::BLINK:
-      if (currentMillis - lastLedUpdate >= setting.speedMs) {
+    case BLINK:
+      if (currentMillis - lastLedUpdate >= setting.interval) {
         lastLedUpdate = currentMillis;
         static bool state = false;
         state = !state;
         if (state) {
-          setColor(setting.r, setting.g, setting.b, targetBrightness);
+          setColor(setting.red, setting.green, setting.blue, targetBrightness);
         } else {
           clear();
         }
       }
       break;
 
-    case LedConfig::BREATHE: {
-      float progress = (currentMillis % setting.speedMs) / (float)setting.speedMs;
+    case BREATHE: {
+      float progress = (currentMillis % setting.interval) / (float)setting.interval;
       float breathe = (sin(progress * 2.0 * PI) + 1.0) / 2.0; 
       uint8_t dynBrightness = 2 + (breathe * (targetBrightness - 2));
       
-      setColor(setting.r, setting.g, setting.b, dynBrightness);
+      setColor(setting.red, setting.green, setting.blue, dynBrightness);
       break;
     }
   }
@@ -87,7 +89,6 @@ void LedManager::update() {
 
   // 0. ABSOLUTE PRIORITEIT: ESP32 Chip Oververhitting / Hardware Gezondheid (> 70°C)
   if (espInternalTemp >= 70.0) {
-    // Snel fel rood knipperen (elke 200ms) bij kritieke hitte
     static unsigned long lastChipAlertFlash = 0;
     static bool chipAlertState = false;
     if (currentMillis - lastChipAlertFlash >= 200) {
@@ -95,7 +96,7 @@ void LedManager::update() {
       chipAlertState = !chipAlertState;
     }
     if (chipAlertState) {
-      setColor(255, 0, 0, 255); // Volle helderheid fel rood
+      setColor(255, 0, 0, 255); 
     } else {
       clear();
     }

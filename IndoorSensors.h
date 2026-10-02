@@ -23,8 +23,12 @@ extern bool bmpConnected;
 extern unsigned long totalIndoorDhtReads;
 extern unsigned long failedIndoorDhtReads;
 
+extern bool isDisplayActiveByMotion;
+
 // Functies
 void setupIndoorSensors();
 void updateIndoorSensors();
+void setupPIR();
+void checkPIRMotion();
 
 #endif 
