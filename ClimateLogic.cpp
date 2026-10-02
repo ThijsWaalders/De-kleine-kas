@@ -328,7 +328,7 @@ void checkClimateVelocity(float currentHum) {
 }
 
 // =========================================================================
-// 8. VENTILATIE- EN VERWARMINGSLOGICA (Hiërarchisch & Waterdicht)
+// 8. VENTILATIE- EN VERWARMINGSLOGICA (Hiërarchisch, 3-Klimaten & Waterdicht)
 // =========================================================================
 void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp) {
   if (isnan(inTemp) || isnan(inHum)) return;
@@ -342,6 +342,11 @@ void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTem
   KasVentState rawNewAdvice = OFF;
   bool lampsAreOn = (currentLuxValue > 1.0);
 
+  // --- 3-KLIMATEN ANTICIPATIE (Buiten ➔ Woning ➔ Kas) ---
+  // Variabelen van buitenvoorspelling (zorg dat deze globaal bekend zijn vanuit je weather/api module)
+  bool isOutdoorShockIncoming = (isTempDroppingSoon && forecastedTempSoon < 12.0); 
+  bool isIndoorBufferStable   = (!isnan(indoorSmoothedTemp) && indoorSmoothedTemp > 19.0);
+
   bool isTooWarm = (inTemp > GREENHOUSE_MAX_TEMP);
   bool isKritischHeet = (inTemp > 28.0); 
   bool isTooCold = (inTemp < HEAT_MAT_TEMP_LOW);
@@ -351,11 +356,9 @@ void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTem
 
   bool outdoorIsCooler = (outTemp < (inTemp - 0.5)); 
   bool indoorIsDrier   = (indoorSmoothedTemp > inTemp); 
-  
-  // Vergelijk binnen LV met kas LV (als het binnen bijna gelijk of gunstiger is, niet alles potdicht gooien)
   bool indoorHumIsFavorable = (indoorHum <= inHum + 3.0); 
 
-  // --- HIERARCHISCHE REGELBESLISTHEID ---
+  // --- HIERARCHISCHE REGELBESLISTHEID MET ANTICIPATIE ---
 
   if (isClimateCrash) {
     rawNewAdvice = GREENHOUSE_VENTILATE;
@@ -365,22 +368,31 @@ void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTem
     rawNewAdvice = GREENHOUSE_VENTILATE;
     kasAdviceReason = "🚨 KRITIEK: Kas is te heet (" + String(inTemp, 1) + "°C)! Direct geforceerd koelen/ventileren!";
   }
+  // 1. ANTICIPATIE: Buiten wordt het straks heel koud, maar de woning-buffer is stabiel -> Houd warmte vast!
+  else if (isOutdoorShockIncoming && isIndoorBufferStable && inTemp >= 17.0 && !isTooWarm) {
+    rawNewAdvice = OFF;
+    kasAdviceReason = "🛡️ Buffer-bewustzijn: Weersomslag naar kou voorspeld (vóórkomen koude schok), woningbuffer van " + String(indoorSmoothedTemp, 1) + "°C vangt dit op.";
+  }
+  // 2. ANTICIPATIE: Lichten gaan uit + vocht stijgt / kans op koudeval -> Start preventieve interne circulatie tegen schimmel
+  else if (!lampsAreOn && isTooWet && (humidityVelocity >= 1.0 || condensRisk)) {
+    rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
+    kasAdviceReason = "🌀 Schimmel-anticipatie: Kweeklampen uit en stijgende vochtigheid; interne circulatie gestart tegen condens op kiemgroentes.";
+  }
   // TE DROOG -> Check of het door lampen komt
   else if (isTooDry) {
     rawNewAdvice = OFF;
     String cause = lampsAreOn ? "door brandende kweeklampen" : "door omgevingswarmte";
     kasAdviceReason = "🔥 Uitdrogingsrisico " + cause + " (VPD " + String(kasVpd, 2) + " kPa); kas blijft gesloten.";
   }
-  // TE KLAM / SCHIMMEL- OF CONDENSRISICO -> Slimme afweging icm binnenlucht
+  // TE KLAM / SCHIMMEL- OF CONDENSRISICO (Standaard reactief)
   else if (isTooWet || condensRisk) {
     if (outdoorIsCooler && outHum < 85.0) {
       rawNewAdvice = GREENHOUSE_VENTILATE;
       kasAdviceReason = "Kas te klam/condensrisico; advies: buitenlucht inzetten voor droge vochtafvoer.";
     } 
     else if (indoorHumIsFavorable) {
-      // Als de kas klam is, maar binnen is de LV vergelijkbaar, laat dan de externe fan op een laag pitje bijspringen i.p.v. alleen interne circulatie!
       rawNewAdvice = GREENHOUSE_VENTILATE;
-      kasAdviceReason = "Kas aan de klamme kant; binnenlucht is vergelijkbaar, externe fan draait zacht mee om vocht af te voeren.";
+      kasAdviceReason = "Kas aan de klamme kant; binnenlucht is vergelijkbaar, externe fan draait zacht mee.";
     } 
     else {
       rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
@@ -423,6 +435,102 @@ void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTem
     }
   }
 }
+// // =========================================================================
+// // 8. VENTILATIE- EN VERWARMINGSLOGICA (Hiërarchisch & Waterdicht)
+// // =========================================================================
+// void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp) {
+//   if (isnan(inTemp) || isnan(inHum)) return;
+
+//   if (millis() < 180000) {
+//     kasAdvice = OFF;
+//     kasAdviceReason = "Systeem is aan het opstarten...";
+//     return;
+//   }
+
+//   KasVentState rawNewAdvice = OFF;
+//   bool lampsAreOn = (currentLuxValue > 1.0);
+
+//   bool isTooWarm = (inTemp > GREENHOUSE_MAX_TEMP);
+//   bool isKritischHeet = (inTemp > 28.0); 
+//   bool isTooCold = (inTemp < HEAT_MAT_TEMP_LOW);
+//   bool isTooWet  = (kasVpd < VPD_MIN_OPTIMAL) || (inHum >= HUM_MOLD_THRESHOLD);
+//   bool isTooDry  = (kasVpd > VPD_MAX_OPTIMAL);
+//   bool condensRisk = (kasDpMargin < DP_MARGIN_MIN);
+
+//   bool outdoorIsCooler = (outTemp < (inTemp - 0.5)); 
+//   bool indoorIsDrier   = (indoorSmoothedTemp > inTemp); 
+  
+//   // Vergelijk binnen LV met kas LV (als het binnen bijna gelijk of gunstiger is, niet alles potdicht gooien)
+//   bool indoorHumIsFavorable = (indoorHum <= inHum + 3.0); 
+
+//   // --- HIERARCHISCHE REGELBESLISTHEID ---
+
+//   if (isClimateCrash) {
+//     rawNewAdvice = GREENHOUSE_VENTILATE;
+//     kasAdviceReason = "🚨 NOODTOESTAND: Kas uit de hand gelopen (" + String(inTemp, 1) + "°C)! Maximale geforceerde ventilatie.";
+//   }
+//   else if (isKritischHeet) {
+//     rawNewAdvice = GREENHOUSE_VENTILATE;
+//     kasAdviceReason = "🚨 KRITIEK: Kas is te heet (" + String(inTemp, 1) + "°C)! Direct geforceerd koelen/ventileren!";
+//   }
+//   // TE DROOG -> Check of het door lampen komt
+//   else if (isTooDry) {
+//     rawNewAdvice = OFF;
+//     String cause = lampsAreOn ? "door brandende kweeklampen" : "door omgevingswarmte";
+//     kasAdviceReason = "🔥 Uitdrogingsrisico " + cause + " (VPD " + String(kasVpd, 2) + " kPa); kas blijft gesloten.";
+//   }
+//   // TE KLAM / SCHIMMEL- OF CONDENSRISICO -> Slimme afweging icm binnenlucht
+//   else if (isTooWet || condensRisk) {
+//     if (outdoorIsCooler && outHum < 85.0) {
+//       rawNewAdvice = GREENHOUSE_VENTILATE;
+//       kasAdviceReason = "Kas te klam/condensrisico; advies: buitenlucht inzetten voor droge vochtafvoer.";
+//     } 
+//     else if (indoorHumIsFavorable) {
+//       // Als de kas klam is, maar binnen is de LV vergelijkbaar, laat dan de externe fan op een laag pitje bijspringen i.p.v. alleen interne circulatie!
+//       rawNewAdvice = GREENHOUSE_VENTILATE;
+//       kasAdviceReason = "Kas aan de klamme kant; binnenlucht is vergelijkbaar, externe fan draait zacht mee om vocht af te voeren.";
+//     } 
+//     else {
+//       rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
+//       kasAdviceReason = "Kas te klam; advies: interne circulatie gebruiken om microklimaat te breken.";
+//     }
+//   }
+//   // TE WARM
+//   else if (isTooWarm) {
+//     if (outdoorIsCooler) {
+//       rawNewAdvice = GREENHOUSE_VENTILATE;
+//       kasAdviceReason = "Kas warm; koelen met koelere buitenlucht (" + String(outTemp, 1) + "°C).";
+//     } else {
+//       rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
+//       kasAdviceReason = "Kas warm, maar buiten ook warm; interne circulatie.";
+//     }
+//   }
+//   else if (isTooCold && indoorIsDrier) {
+//     rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
+//     kasAdviceReason = "Kas te koud; intern circuleren voor warmte uit de woning.";
+//   }
+//   else {
+//     rawNewAdvice = OFF;
+//     kasAdviceReason = "Klimaat in de kas is optimaal in balans; lampen en kas draaien stabiel.";
+//   }
+
+//   kasAdvice = applyAntiHuntFilter(rawNewAdvice);
+
+//   // Telegram alerts bij veranderingen...
+//   if (kasAdvice != previousKasAdvice) {
+//     previousKasAdvice = kasAdvice;
+//     if (kasAdvice == GREENHOUSE_VENTILATE) {
+//       logToSyslogAndSerialPrintf("[ADVICE] Ventileren geadviseerd. Reden: %s", kasAdviceReason.c_str());
+//       sendTelegramAlert("🪟 *ADVIES: Ventileren / Afvoeren*\n" + kasAdviceReason);
+//     } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+//       logToSyslogAndSerialPrintf("[ADVICE] Circulatie geadviseerd. Reden: %s", kasAdviceReason.c_str());
+//       sendTelegramAlert("🌀 *ADVIES: Intern circuleren*\n" + kasAdviceReason);
+//     } else if (kasAdvice == OFF) {
+//       logToSyslogAndSerial("[ADVIES] Systeem in rust (balans).");
+//       sendTelegramAlert("✅ *De kleine Kas is in balans (dicht?)*\nIdeaal kiemklimaat behouden.");
+//     }
+//   }
+// }
 // void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp) {
 //   if (isnan(inTemp) || isnan(inHum)) return;
 
