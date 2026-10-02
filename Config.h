@@ -94,17 +94,9 @@ extern unsigned long lastEspTempCheck;
 
 inline bool fanAlertsEnabled = true;
 
-extern const float ESP_CRITICAL_TEMP;            // Veiligheidsgrens chip-temperatuur
-
-float readEspInternalTemp();                    // Alleen de functienaam (declaratie)
-// float readEspInternalTemp();
-
-
-
-
-
-
-
+// Veiligheidsgrens chip-temperatuur
+extern const float ESP_CRITICAL_TEMP;
+float readEspInternalTemp();
 
 // =========================================================================
 // 2. KLIMAAT & SENSOR CORRECTIE OFFSETS
@@ -113,6 +105,8 @@ const float KAS_TEMP_OFFSET    = +0.9; // Temperatuurcorrectie kas (°C)
 const float INDOOR_TEMP_OFFSET = -0.1; // Temperatuurcorrectie woning (°C) (ook hier +1 gedaan, indoor week 1 % af was -0.6)
 const float KAS_HUM_OFFSET     = -6.4; // Luchtvochtigheidcorrectie kas (%)
 const float INDOOR_HUM_OFFSET  = +1.4; // Luchtvochtigheidcorrectie woning (%) (heb er + 1 gedaan, was +0.4)
+const float PRESSURE_OFFSET    = +0.9; // Barometer / Luchtdruk correctie (hPa) *(Pas aan naar -0.8 indien te hoog)*
+
 
 // =========================================================================
 // 3. KIEMGROENTEN KLIMAAT CONFIGURATIE

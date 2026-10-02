@@ -326,7 +326,6 @@ void checkClimateVelocity(float currentHum) {
     lastVelocityCheckTime = millis();
   }
 }
-
 // =========================================================================
 // 8. VENTILATIE- EN VERWARMINGSLOGICA (Hiërarchisch, 3-Klimaten & Waterdicht)
 // =========================================================================
@@ -420,20 +419,55 @@ void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTem
 
   kasAdvice = applyAntiHuntFilter(rawNewAdvice);
 
-  // Telegram alerts bij veranderingen...
+  // --- SLIMME BRON-VERGELIJKING: Woning vs. Buiten ---
+  // Bepaal of de woninglucht of buitenlucht op dit moment geschikter is om de kas te ontvochtigen/temmen
+  bool outdoorIsViable = (!isnan(outTemp) && outHum < 85.0 && outTemp < inTemp);
+  bool indoorIsViable  = (!isnan(indoorSmoothedTemp) && indoorSmoothedHum < (inHum - 5.0)); // Woning is aanzienlijk droger
+
+  // --- KLAARZETTEN VAN HET ADVIES EN TELEGRAM TEKST ---
+  
+  // Telegram alerts sturen bij veranderingen van advies met exacte actie-instructies
   if (kasAdvice != previousKasAdvice) {
     previousKasAdvice = kasAdvice;
+    
     if (kasAdvice == GREENHOUSE_VENTILATE) {
       logToSyslogAndSerialPrintf("[ADVICE] Ventileren geadviseerd. Reden: %s", kasAdviceReason.c_str());
-      sendTelegramAlert("🪟 *ADVIES: Ventileren / Afvoeren*\n" + kasAdviceReason);
-    } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+      
+      // Bepaal of het buiten of binnen betreft op basis van de reden
+      if (kasAdviceReason.indexOf("buitenlucht") >= 0 || kasAdviceReason.indexOf("buitenraam") >= 0) {
+        sendTelegramAlert("🪟 *SLIM KLIMAATADVIES: Buitenlucht inzetten*\n\n" + kasAdviceReason + "\n\n👉 *Actie:* Zet het **buitenraam** open.");
+      } else {
+        sendTelegramAlert("🪟 *SLIM KLIMAATADVIES: Ventileren*\n\n" + kasAdviceReason + "\n\n👉 *Actie:* Controleer de ventilatie.");
+      }
+    } 
+    else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
       logToSyslogAndSerialPrintf("[ADVICE] Circulatie geadviseerd. Reden: %s", kasAdviceReason.c_str());
-      sendTelegramAlert("🌀 *ADVIES: Intern circuleren*\n" + kasAdviceReason);
-    } else if (kasAdvice == OFF) {
+      
+      if (kasAdviceReason.indexOf("Woninglucht") >= 0 || kasAdviceReason.indexOf("binnendeur") >= 0) {
+        sendTelegramAlert("🌀 *SLIM KLIMAATADVIES: Woninglucht benutten*\n\n" + kasAdviceReason + "\n\n👉 *Actie:* Zet de **binnendeur** op een kier en zet de **woningventilator** aan.");
+      } else {
+        sendTelegramAlert("🌀 *SLIM KLIMAATADVIES: Interne circulatie*\n\n" + kasAdviceReason + "\n\n👉 *Actie:* Interne ventilator draait om schimmel op kiemgroentes te breken.");
+      }
+    } 
+    else if (kasAdvice == OFF) {
       logToSyslogAndSerial("[ADVIES] Systeem in rust (balans).");
-      sendTelegramAlert("✅ *De kleine Kas is in balans (dicht?)*\nIdeaal kiemklimaat behouden.");
+      sendTelegramAlert("✅ *DE KAS IS IN BALANS*\n\nAlles is rustig. Kas en deuren kunnen gesloten blijven om het kiemklimaat vast te houden.");
     }
   }
+  // // Telegram alerts bij veranderingen...
+  // if (kasAdvice != previousKasAdvice) {
+  //   previousKasAdvice = kasAdvice;
+  //   if (kasAdvice == GREENHOUSE_VENTILATE) {
+  //     logToSyslogAndSerialPrintf("[ADVICE] Ventileren geadviseerd. Reden: %s", kasAdviceReason.c_str());
+  //     sendTelegramAlert("🪟 *ADVIES: Ventileren / Afvoeren*\n" + kasAdviceReason);
+  //   } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+  //     logToSyslogAndSerialPrintf("[ADVICE] Circulatie geadviseerd. Reden: %s", kasAdviceReason.c_str());
+  //     sendTelegramAlert("🌀 *ADVIES: Intern circuleren*\n" + kasAdviceReason);
+  //   } else if (kasAdvice == OFF) {
+  //     logToSyslogAndSerial("[ADVIES] Systeem in rust (balans).");
+  //     sendTelegramAlert("✅ *De kleine Kas is in balans (dicht?)*\nIdeaal kiemklimaat behouden.");
+  //   }
+  // }
 }
 // // =========================================================================
 // // 8. VENTILATIE- EN VERWARMINGSLOGICA (Hiërarchisch & Waterdicht)

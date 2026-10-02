@@ -116,6 +116,8 @@ void updateIndoorSensors() {
       #else
         currentPressure = rawPressure;
       #endif
+
+      currentPressure += PRESSURE_OFFSET; // Past automatisch de correctie toe
     }
   }
 }

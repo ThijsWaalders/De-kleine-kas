@@ -1,35 +1,37 @@
-# 📖 Handleiding: Robuuste Klimaatregeling & MQTT-architectuur (ESP32-S3 Kiemgroenten-systeem)
+📖 Handleiding: Robuuste Klimaatregeling & MQTT-architectuur (ESP32-S3 Kiemgroenten-systeem)
 
-- [📖 Handleiding: Robuuste Klimaatregeling \& MQTT-architectuur (ESP32-S3 Kiemgroenten-systeem)](#-handleiding-robuuste-klimaatregeling--mqtt-architectuur-esp32-s3-kiemgroenten-systeem)
-  - [LED Status](#led-status)
-  - [1. Kerncomponenten van het Klimaatregelsysteem (ClimateLogic.cpp)](#1-kerncomponenten-van-het-klimaatregelsysteem-climatelogiccpp)
-    - [Prioriteiten Volgorde](#prioriteiten-volgorde)
-  - [2. Slimme Omgevingsbeoordeling (Kas vs. Binnen vs. Buiten)](#2-slimme-omgevingsbeoordeling-kas-vs-binnen-vs-buiten)
-  - [3. Telemetrie \& MQTT-integratie (Mqtt.cpp)](#3-telemetrie--mqtt-integratie-mqttcpp)
-    - [Tips voor je Grafana / Home Assistant Dashboard op basis hiervan:](#tips-voor-je-grafana--home-assistant-dashboard-op-basis-hiervan)
+    📖 Handleiding: Robuuste Klimaatregeling & MQTT-architectuur (ESP32-S3 Kiemgroenten-systeem)
 
-Deze handleiding beschrijft de opzet en werking van de klimaatsturing en de datastroom naar Home Assistant en Grafana voor de ESP32-S3 kiemgroenten-kas. Het systeem is ontworpen om robuust, betrouwbaar en 'domme-sensor-bestendig' te zijn.
+        LED Status
 
-## LED Status
+        1. Kerncomponenten van het Klimaatregelsysteem (ClimateLogic.cpp)
+
+            Prioriteiten Volgorde
+
+        2. Slimme Omgevingsbeoordeling & 3-Klimaten Keten (Kas vs. Woning vs. Buiten)
+
+        3. Telemetrie, MQTT & Telegram-integratie
+
+            Tips voor je Grafana / Home Assistant Dashboard op basis hiervan:
+
+Deze handleiding beschrijft de opzet en werking van de klimaatsturing, de datastroom naar Home Assistant/Grafana en de proactieve Telegram-notificaties voor de ESP32-S3 kiemgroenten-kas. Het systeem is ontworpen om robuust, betrouwbaar en 'domme-sensor-bestendig' te zijn.
+LED Status
 
 Door prioriteiten te stellen (kritieke meldingen boven normaal gedrag), weet de LED altijd feilloos wat te tonen.
 
 Hier is de logische volgorde van belang (van hoog naar laag):
 
-- **Blauw** = Netwerk / Wi-Fi actueel of verbinden / AP-modus.
-- **Geel** = Extern weer-alarm / waarschuwing.
-- **Oranje** = Actie vereist van JOU (als woning-actuator, bijv. het raam van de woning openzetten).
-- **Groen** = ESP regelt de kas zelfstandig / alles is optimaal.
-- **Uit** = Systeem in diepe rust.
+    Blauw = Netwerk / Wi-Fi actueel of verbinden / AP-modus.
 
-<!-- Was:
-- **Blauw** = Netwerk / Wi-Fi actueel of verbinden / AP-modus.
-- **Geel** = Extern weer-alarm (aankomends ruig weer buiten).
-- **Oranje** = Ventilatie-actie vereist (ramen open/dicht op basis van binnen/buiten klimaat).
-- **Groen** = Systeem is actief aan het regelen (ventilators draaien, verwarming aan).
-- **Uit** = Alles is stabiel en rustig, geen actie nodig. -->
+    Geel = Extern weer-alarm / waarschuwing (aankomend ruig of koud weer buiten).
 
-## 1. Kerncomponenten van het Klimaatregelsysteem (ClimateLogic.cpp)
+    Oranje = Actie vereist van JOU (als woning-actuator, bijv. binnendeur op een kier zetten of de woningventilator aanzetten).
+
+    Groen = ESP regelt de kas zelfstandig / alles is optimaal.
+
+    Uit = Systeem in diepe rust.
+
+1. Kerncomponenten van het Klimaatregelsysteem (ClimateLogic.cpp)
 
 Het klimaatregelsysteem is opgedeeld in een aantal slimme, zelfstandige lagen:
 A. Filter voor Goedkope Sensoren (Voortschrijdend Gemiddelde)
@@ -38,19 +40,15 @@ Goedkope sensoren (zoals de DHT22 of vergelijkbare modules) hebben vaak last van
 
     Hoe het werkt: De software houdt een buffer bij van de laatste 5 minuten (SENSOR_BUFFER_SIZE = 5). Elke minuut wordt er een sample toegevoegd.
 
-    Het voordeel: Het systeem reageert nooit op een willekeurige meetfout van nu, maar kijkt naar een stabiel gemiddelde over tijd. Dit voorkomt dat actuatoren onnodig gaan reageren op een piek.
+    Het voordeel: Het systeem reageert nooit op een willekeurige meetfout van nu, maar kijkt naar een stabiel gemiddelde over tijd. Dit voorkomt dat actuatoren onnodig gaan klapperen.
 
 B. Vaste, Strenge VPD-grenzen (Geen Verslonsing)
 
 VPD (Vapor Pressure Deficit) is cruciaal voor kiemgroenten; bij een te hoge VPD drogen ze uit, bij een te lage VPD ontstaat er schimmel.
 
-    Hoe het werkt: Er is bewust gekozen om geen adaptieve of zelflerende offsets op de VPD te gebruiken. Het systeem past zijn normen niet stiekem aan als de kas te lang klam of droog is.
-
-    Het voordeel: Je houdt een harde, consistente norm aan. Je Grafana-tijdlijn laat hierdoor altijd de eerlijke en onvervormde waarheid zien over de toestand van het klimaat.
+    Hoe het werkt: Er is bewust gekozen om geen adaptieve of zelflerende offsets op de VPD te gebruiken. Het systeem houdt een harde, consistente norm aan zodat je tijgerstrakke en eerlijke data in Grafana ziet.
 
 C. Anti-Hunt Beveiliging voor Ventilatoren
-
-Ventilatoren en relais kunnen gaan "klapperen" (continu aan- en uitschakelen) als de meetwaarden rond een drempelwaarde schommelen of door een windstoot.
 
     Hoe het werkt: De functie applyAntiHuntFilter dwingt een minimale looptijd af (MIN_FAN_RUN_TIME = 180000 ms / 3 minuten).
 
@@ -58,59 +56,45 @@ Ventilatoren en relais kunnen gaan "klapperen" (continu aan- en uitschakelen) al
 
 D. Proactieve Snelheidsbewaking (Velocity Check)
 
-Het systeem kijkt niet alleen naar de absolute luchtvochtigheid, maar ook naar de snelheid waarmee deze verandert.
+    Hoe het werkt: Het systeem kijkt niet alleen naar de absolute waarden, maar ook naar de stijgingssnelheid van de luchtvochtigheid (humidityVelocity). Bij plotselinge pieken grijpt het systeem in met interne circulatie.
 
-    Hoe het werkt: Als de luchtvochtigheid plotseling te snel stijgt (humidityVelocity >= 3.0 % per minuut), grijpt het systeem direct in met interne circulatie, nog voordat er sprake is van een alarmtoestand.
+Prioriteiten Volgorde (Hiërarchisch)
 
-### Prioriteiten Volgorde
+De volgorde van prioriteiten is waterdicht vastgelegd:
 
-De volgorde van prioriteiten is nu als volgt waterdicht vastgelegd:
+    Noodtoestand & Kritiek heet: Als de kas uit de hand loopt (> 28°C), grijpt het systeem direct in met maximale geforceerde ventilatie om oververhitting te voorkomen.
 
-1. **Kritiek heet / Brandgevaar:** Als de kas absoluut te heet wordt (> 28°C), grijpt het systeem direct in met geforceerde ventilatie om oververhitting te voorkomen.
-2. **Te droog / Uitdrogingsrisico (Hoge VPD):** Als de kas door de lampen te droog dreigt te worden, krijgt vochtbehoud absolute prioriteit. De kas blijft **gesloten (OFF)** om te voorkomen dat ventilatoren de laatste beetjes vocht wegbriezen.
-3. **Te klam / Schimmelrisico / Condensrisico:** Pas als de kas te nat/klam is, grijpt de ESP in met buitenlucht (als die droger/koeler is) of interne circulatie.
-4. **Te warm (Normale overschrijding door lampen):** Als de kas iets te warm is door de lampen *en* de VPD is nog acceptabel, koelt de ESP met koelere buitenlucht.
-5. **Te koud:** Circuleren met warmte uit de woning.
-6. **Balans:** Alles in orde.
+    Buffer-bewustzijn (Anticipatie): Als er een koude weersomslag buiten aankomt, maar de woningbuffer is stabiel en warm genoeg, houdt het systeem de kas gesloten om de warmte vast te houden.
 
-<!--was:
-1. Te warm? (Hogere prioriteit dan droogte): Als het te warm is én buiten koeler is, gaan de ventilatoren open om te koelen (en koele, natte buitenlucht verlaagt meteen ook de VPD).
-2. Te klam / Schimmelrisico / Lage VPD? Als de kas te nat/klam is (kasVpd < VPD_MIN_OPTIMAL of hoge LV), grijpen we in met buitenlucht (als buiten droger/koeler is) of interne circulatie.
-3. Te droog / Hoge VPD? Pas als het klimaat niet te warm of te klam is, maar de kas dreigt uit te drogen (kasVpd > VPD_MAX_OPTIMAL), gaat het systeem in rust (OFF) om verdere uitdroging door te hard blazen te voorkomen.
-4. Te koud? Circuleren met warmte uit de woning.
-5. Balans. -->
+    Schimmel-anticipatie: Als de kweeklampen uitgaan en de vochtigheid stijgt, start het systeem preventief interne circulatie tegen condens op de kiemgroentes.
 
-## 2. Slimme Omgevingsbeoordeling (Kas vs. Binnen vs. Buiten)
+    Te droog / Uitdrogingsrisico (Hoge VPD): Als de kas door de lampen of omgevingswarmte te droog dreigt te worden, krijgt vochtbehoud prioriteit en blijft de kas hermetisch gesloten (OFF).
 
-Bij het bepalen van het ventilatieadvies (updateVentilationAdvice) kijkt de software verder dan alleen de kas:
+    Te klam / Schimmel- of Condensrisico: Pas hierna kijkt de ESP of de woninglucht (via binnendeur/woningventilator) of de buitenlucht (via buitenraam) het meest geschikt is om te ontvochtigen, of start interne circulatie.
 
-    Binnenlucht (Woning): Kan er gekoeld of verwarmd worden met de lucht uit de woning? (Bijv. warmte benutten als de kas te koud is, of warme lucht afvoeren naar de woning).
+    Te warm (Normale overschrijding): Koelen met de slim gekozen buiten- of binnenlucht.
 
-    Buitenlucht: De software berekent de outdoorVpd. Voordat er ventilatie naar buiten wordt gestart, controleert het systeem of de buitenlucht wel een optimaal klimaat heeft. Zo voorkom je dat je kurkdroge of juist klamme buitenlucht de kas inblaast, wat je kiemgroenten direct zou beschadigen.
+    Te koud: Circuleren met warmte uit de woning.
 
-## 3. Telemetrie & MQTT-integratie (Mqtt.cpp)
+    Balans: Alles in orde.
 
-Om alle data netjes te loggen in Grafana en te bewaken in Home Assistant, verstuurt de ESP32-S3 elke 30 seconden een uitgebreid JSON-pakket via MQTT. Dankzij de verruimde buffer (1280 bytes) past alle data er moeiteloos in.
-Wat wordt er naar MQTT gestuurd?
+2. Slimme Omgevingsbeoordeling & 3-Klimaten Keten (Kas vs. Woning vs. Buiten)
 
-    Sensordata (Kas, Binnen, Buiten): Temperatuur, luchtvochtigheid, dauwpunt en VPD.
+Bij het bepalen van het ventilatieadvies kijkt de software in een keten van Buiten ➔ Woning ➔ Kas:
 
-    Klimaatmarges & Risico's:
+    Woningbuffer: De ESP beoordeelt of de woning stabiel en droger is dan de kas (indoorIsViable), zodat je met de binnendeur en woningventilator een veilige luchtstroom creëert.
 
-        kas_dp_marge: De dauwpuntmarge (essentieel voor condenswaarschuwingen).
+    Buitenlucht: De software controleert of de buitenlucht koeler en niet te klam is (outHum < 85.0), zodat je geen mist of klamme buitenlucht naar binnen trekt.
 
-        schimmel_risico: Boolean of er risico is.
+3. Telemetrie, MQTT & Telegram-integratie
 
-        schimmel_reden & kas_advies_reden: Nieuw! De tekstuele uitleg van waarom het systeem een bepaalde actie kiest. Dit kun je prachtig in een logboek-kaartje in Home Assistant of Grafana tonen.
+Om alle data netjes te loggen in Grafana, te bewaken in Home Assistant én jou direct op de telefoon te informeren, stuurt de ESP32-S3 telemetrie en actie-adviezen uit.
+Proactieve Telegram-notificaties met Actie-instructies
 
-    Systeemstatussen & Iconen: Tekstuele statusbadges zoals kas_vpd_status en dp_marge_status.
+Zodra de status wijzigt, stuurt de ESP een glashelder bericht naar je telefoon waarin exact staat welke fysieke handeling je moet verrichten:
 
-    Actuatoren: De actuele status van de verwarmingsmat (verwarmingsmat_aan), het gekozen advies (kas_advies: OFF, VENTILATE, CIRCULATE), en de toeren/percentages van alle drie de ventilatoren (fan_int, fan_ext1, fan_ext2).
+    Woninglucht inzetten: "Zet de binnendeur op een kier en zet de woningventilator aan."
 
-    Diagnostiek: WiFi RSSI signaalsterkte en vrij geheugen (free_heap).
+    Buitenlucht inzetten: "Zet het buitenraam open."
 
-### Tips voor je Grafana / Home Assistant Dashboard op basis hiervan:
-
-    Grafana: Maak een paneel voor de VPD met vaste kleurzones onder de 0.4 kPa (te klam) en boven de 1.0 kPa (te droog). Zo zie je in één oogopslag of het kiemklimaat optimaal bleef.
-
-    Home Assistant: Koppel een Markdown-card aan kas_advies_reden. Zo zie je op je telefoonscherm direct wat het systeem aan het doen is en waarom (bijv. "Kas te klam; buitenlucht heeft optimaal klimaat, ventileren").
+    Systeem in balans: Bevestiging dat het kiemklimaat optimaal behouden blijft.
