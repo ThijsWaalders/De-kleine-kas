@@ -15,6 +15,9 @@
 extern unsigned long totalIndoorDhtReads;
 extern unsigned long failedIndoorDhtReads;
 
+// Laat Telegram.cpp weten dat deze variabele ergens anders bestaat
+extern float espInternalTemp;
+
 // BUFFER VOOR TELEGRAM RAPPORTEN
 char advBuffer[1600];
 
@@ -339,11 +342,13 @@ void handleTelegramIncoming() {
     int fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
     int fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
     
-    char hcBuf[850];
+    // Buffer iets vergroot van 850 naar 1024 voor de extra chip-temperatuurregel
+    char hcBuf[1024];
     snprintf(hcBuf, sizeof(hcBuf),
       "🛠️ *Hardware & Sensor Check*\n\n"
       "⚙️ *Systeem:*\n"
-      "• RAM: `%.1f KB` vrije ruimte\n\n"
+      "• RAM: `%.1f KB` vrije ruimte\n"
+      "• ESP32 Chip-Temp: `%.1f°C` 🧠\n\n"
       "📊 *Sensoren:*\n"
       "• Lichtsterkte: `%.0f lx`\n"
       "• Kas (DHT): Temp `%s` | LV `%s` (Fouten: `%.1f%%`)\n"
@@ -354,6 +359,7 @@ void handleTelegramIncoming() {
       "• Extern 1 (Hoofd): `%d%%` (`%d RPM`)\n"
       "• Extern 2 (Boost): `%d%%` (`%d RPM`)\n",
       heapKb,
+      espInternalTemp, // <-- Hier wordt de chip-temperatuur ingevoegd
       currentLuxValue,
       formatVal(displayedTemp, 1, "°C").c_str(), formatVal(kasSmoothedHum, 0, "%").c_str(), failKas,
       formatVal(indoorSmoothedTemp, 1, "°C").c_str(), currentPressure,

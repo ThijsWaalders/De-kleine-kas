@@ -17,6 +17,7 @@
 #include <Wire.h>        
 #include <SSD1306Wire.h>
 #include "DHT.h"
+#include "driver/temp_sensor.h"
 #include <Adafruit_BMP085.h>
 #include <BH1750.h>
 #include <PubSubClient.h>
@@ -78,15 +79,19 @@ namespace LedConfig {
   // Formaat: { R, G, B, Helderheid, AnimatieType, Snelheid_ms }
   
   constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   5, BLINK,  300 }; // Was 15 -> nu 8
-  constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   5, BREATHE, 3000 }; // Was 10 -> nu 5
-  constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   4, SOLID,     0 }; // Was 15 -> nu 8
-  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 200,  20,   3, SOLID,     0 }; // Was 12 -> nu 6
+  constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   4, BREATHE, 3000 }; // Was 10 -> nu 5
+  constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   5, SOLID,     0 }; // Was 15 -> nu 8
+  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 200,  20,   1, SOLID,     0 }; // Was 12 -> nu 6
   constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,       0 }; // Uit
 }
 
 // --- VENTILATOR ALERTS CONFIGURATIE ---
 // Standaard TRUE. Kan op FALSE gezet worden via Telegram/commando 
 // om 0-RPM alarmen te onderdrukken als de voeding van de fans los is.
+
+// ESP temp check
+extern unsigned long lastEspTempCheck;
+
 inline bool fanAlertsEnabled = true;
 
 // =========================================================================
@@ -105,9 +110,9 @@ const float VPD_MIN_OPTIMAL = 0.40;  // Onder deze waarde: Te klam / Schimmelris
 const float VPD_MAX_OPTIMAL = 0.90;  // Boven deze waarde: Te droog / Uitdrogingsrisico (voor kiemgroenten strenger gezet max 0.9 of 1.0)
 
 // Temperatuur Grenzen Kas (°C)
-const float GREENHOUSE_MAX_TEMP = 22.5; // Maximale kas temperatuur voor ingrijpen
+const float GREENHOUSE_MAX_TEMP = 23.0; // Maximale kas temperatuur voor ingrijpen
 const float HEAT_MAT_TEMP_LOW = 16.0;   // Onder deze waarde: Warmtemat aanbevolen
-const float HEAT_MAT_TEMP_HIGH = 19.0;  // Boven deze waarde: Warmtemat uit
+const float HEAT_MAT_TEMP_HIGH = 20.0;  // Boven deze waarde: Warmtemat uit
 
 // Vochtigheid & Dauwpunt Grenzen (%)
 const float HUM_MOLD_THRESHOLD = 75.0;  // Luchtvochtigheid waarbij schimmelrisico exponentieel stijgt
@@ -148,8 +153,8 @@ const int EXT_FAN_BASE_PWM          = 70;  //65
 const int EXT_FAN_MIN_PWM           = 70;  //65 ~25% minimale startdrempel extern
 
 // Interne ventilator (Kleinere model - draait meer toeren)
-const int INT_FAN_BASE_PWM          = 118;  // Eventueel eigen basis
-const int INT_FAN_MIN_PWM           = 103;  // 55 = 750 RPM Eigen minimale startdrempel (pas aan naar wens voor de kleine fan)
+const int INT_FAN_BASE_PWM          = 119;  // Eventueel eigen basis
+const int INT_FAN_MIN_PWM           = 105;  // 55 = 750 RPM Eigen minimale startdrempel (pas aan naar wens voor de kleine fan)
 // const int CIRCULATION_PWM           = 145;  // was 90 Vaste rust-stand voor de interne fan (pas dit getal aan zodat hij fijn zacht circuleert)
 
 // Anti-hunt instellingen voor ventilatoren (minimaal aan/uit behouden om klapperen te voorkomen)

@@ -14,12 +14,12 @@
 #include "HardwareControl.h"  // Ventilator PWM, tacho en knopbediening
 #include "IndoorSensors.h"    // Binnen- en kamersensoren
 #include "KasSensors.h"       // Kas-sensoren (DHT, BMP180, BH1750)
+#include "EspSensors.h"
 #include "ClimateLogic.h"     // Klimaatberekeningen, VPD en drempelwaarden
 #include "Telegram.h"         // Telegram bot communicatie
 #include "OpenWeather.h"      // Weergegevens ophalen via internet
 #include "Display.h"          // OLED display aansturing
 #include <LittleFS.h>         // Bestandssysteem voor ESP32
-
 // Testvlag om Telegram optioneel uit te schakelen voor maximale snelheid
 #ifndef ENABLE_TELEGRAM
 #define ENABLE_TELEGRAM true
@@ -34,6 +34,9 @@ void setup() {
 
   // --- SYSLOG INITIALISEREN ---
   setupLogger();
+
+  // Start de interne temperatuursensor
+  initEspSensors(); 
   
   // 1. Status LED initialiseren en op blauw zetten (Opstarten)
   statusLed.begin();
@@ -111,6 +114,13 @@ void loop() {
   // 1. Altijd als eerste aanroepen voor Netwerk, OTA-updates en Telnet-clients
   handleNetwork(); 
 
+  // Meet de interne temperatuur en check de veiligheid elke 5 seconden
+  if (millis() - lastEspTempCheck > 5000) {
+    lastEspTempCheck = millis();
+    readEspInternalTemp();
+    checkEspTemperatureSafety(); // Blijft netjes herhalen zolang de chip te heet blijft!
+  }
+  
   // Update LED voor status
   statusLed.update(); 
 

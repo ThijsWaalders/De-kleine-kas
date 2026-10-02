@@ -33,9 +33,9 @@ void handleDisplayBrightness(float currentLux) {
   const float LIGHT_THRESHOLD = 1.0;          
 
   if (currentLux <= LIGHT_THRESHOLD) {
-    display.setBrightness(3);   // Zo gedimd mogelijk wanneer lampen uit zijn
+    display.setBrightness(1);   // Zo gedimd mogelijk wanneer lampen uit zijn
   } else {
-    display.setBrightness(90); // Half dimmend wanneer lampen aan zijn
+    display.setBrightness(110); // Half dimmend wanneer lampen aan zijn
   }
 }
 
@@ -101,16 +101,16 @@ void renderDisplay() {
 
   // 0. ABSOLUTE NOODTOESTAND: KLIMAAT CRASH
   if (isClimateCrash) {
-    statusText = "🚨 3/3 NOODKLIMATEN!!";
+    statusText = "🚨 3 v/d 3 NOODKLIMATEN!!";
     mustBlink = true; // Laat de noodmelding knipperen!
   }
   // 1. Winterslaap check
   else if (isKasSleeping) {
-    statusText = "💤 ssst de kas slaapt...";
+    statusText = "💤 ssst de kleine kas slaapt...";
   }
   // 2. Opstartfase
   else if (millis() < 180000) {
-    statusText = "⏳ Systeem kalibreert...";
+    statusText = "⏳ Kas kalibreert...";
   }
   // 3. KNIPPEREND: JIJ moet handelen (woning raam open)
   else if (houseAdvice == HOUSE_VENTILATE && moldRisk) {
@@ -124,13 +124,13 @@ void renderDisplay() {
   // 5. Wat doet de ESP automatisch in/voor de kas?
   else if (kasAdvice == GREENHOUSE_VENTILATE) {
     if (fanExt1Pct > 0) {
-      statusText = "💨 Kas AFVOEREN (" + String(fanExt1Pct) + "%)";
+      statusText = "💨 Kas voert af " + String(fanExt1Pct) + "%";
     } else {
       statusText = "🔒 De kleine kas is gesloten";
     }
   } 
   else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL || fanIntPct > 0) {
-    statusText = "🌀 De kleine kas circuleert (" + String(fanIntPct) + "%)";
+    statusText = "🌀 Kas circuleert " + String(fanIntPct) + "%";
   } 
   else if (isHeatMatRecommended) {
     statusText = "🔥 Verwarmingsmat Noodzakelijk";
