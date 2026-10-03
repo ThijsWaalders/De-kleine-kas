@@ -24,9 +24,11 @@
 #include <math.h>
 #include <LittleFS.h>
 
-// #ifndef ENABLE_TELEGRAM
 #define ENABLE_TELEGRAM true
-// #endif
+
+// True = Manual Fan override actief
+// bool mfOverrideActive = false; 
+extern bool mfOverrideActive;
 
 // Globale vlag voor de winterslaap van de kas (true = alleen data/monitoring, geen actie)
 extern bool isKasSleeping;
@@ -35,7 +37,7 @@ extern bool isKasSleeping;
 // 1. HARDWARE & PIN DEFINITIES (ESP32-S3 Indeling)
 // =========================================================================
 const int FLASH_BUTTON_PIN  = 0;  // B(oot) knop op ESP32-S3
-#define PIN_PIR 3           // HW-416-B Bewegingssensor
+#define PIN_PIR 2           // HW-416-B Bewegingssensor
 
 // I2C bus pinnen (OLED display en sensoren zoals BMP085, BH1750)
 #define PIN_SDA 4
@@ -92,28 +94,24 @@ inline bool fanAlertsEnabled = true;
 extern const float ESP_CRITICAL_TEMP;
 float readEspInternalTemp();
 
-// =========================================================================
-// 2. KLIMAAT & SENSOR CORRECTIE OFFSETS
-// =========================================================================
-const float KAS_TEMP_OFFSET    = +0.9; 
-const float INDOOR_TEMP_OFFSET = -0.1; 
-const float KAS_HUM_OFFSET     = -6.4; 
-const float INDOOR_HUM_OFFSET  = +1.4; 
-const float PRESSURE_OFFSET    = +0.9; 
+// PIR sensor Display de-/activatie
+extern bool isDisplayActiveByMotion;
+extern unsigned long lastMotionTime;
+
 
 // =========================================================================
-// 3. KIEMGROENTEN KLIMAAT CONFIGURATIE
+// 2. KIEMGROENTEN KLIMAAT CONFIGURATIE
 // =========================================================================
 const float VPD_MIN_OPTIMAL = 0.40;  
-const float VPD_MAX_OPTIMAL = 0.90;  
+const float VPD_MAX_OPTIMAL = 1.10;  //0.90;  iets verhoogd, plantjes kunnen het wel even aan, geeft esp ruimte om bij te stellen (voor de waarschuwing?)
 
 const float GREENHOUSE_MAX_TEMP = 23.0; 
-const float HEAT_MAT_TEMP_LOW = 16.0;   
-const float HEAT_MAT_TEMP_HIGH = 20.0;  
 
 const float HUM_MOLD_THRESHOLD = 75.0;  
 const float DP_MARGIN_MIN = 2.0;        
 
+const float HEAT_MAT_TEMP_LOW = 16.0;   
+const float HEAT_MAT_TEMP_HIGH = 20.0;  
 const unsigned long HEAT_MAT_DELAY  = 300000; 
 
 const int MOLD_SAMPLES              = 60;
@@ -125,6 +123,9 @@ const float TEMP_HYSTERESIS_THRESHOLD = 0.3;
 const unsigned long BUTTON_DEBOUNCE_DELAY = 50;
 const unsigned long LUX_STABILITY_TIMEOUT = 10000;
 
+// ======================================================================
+//  Fan settings
+// ======================================================================
 const int PWM_FREQ                  = 25000; 
 const int PWM_RANGE                 = 255; 
 const int FAN_MAX_PWM               = 255; 
@@ -137,6 +138,16 @@ const int INT_FAN_MIN_PWM           = 105;
 
 const unsigned long MIN_FAN_RUN_TIME = 180000; 
 const unsigned long SYSTEM_STARTUP_DELAY = 120000;
+
+// =========================================================================
+// 3. KLIMAAT & SENSOR CORRECTIE OFFSETS
+// =========================================================================
+const float KAS_TEMP_OFFSET    = +0.9; 
+const float INDOOR_TEMP_OFFSET = -0.1; 
+const float KAS_HUM_OFFSET     = -6.4; 
+const float INDOOR_HUM_OFFSET  = +1.4; 
+const float PRESSURE_OFFSET    = +0.9; 
+
 
 // =========================================================================
 // 4. NETWERK, MQTT & TELEGRAM CONFIGURATIE

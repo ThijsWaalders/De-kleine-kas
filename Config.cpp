@@ -9,12 +9,15 @@
 // ESP kritieke temperatuur
 const float ESP_CRITICAL_TEMP = 70.0;
 
+// Manual Fan Override
+bool mfOverrideActive = false;
+
 // Globale handle en vlag (veilig verborgen in Config.cpp)
 static temperature_sensor_handle_t global_temp_sensor_handle = NULL;
 static bool tempSensorInitialized = false;
 
-// Display activeren door bewegingssensor
-bool isDisplayActiveByMotion = false;
+// PIR sensor Display de-/activatie
+bool isDisplayActiveByMotion = true;
 unsigned long lastMotionTime = 0;
 
 

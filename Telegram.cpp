@@ -143,6 +143,9 @@ String buildStatusReport() {
   return String(reportBuf);
 }
 
+// =========================================================================
+// MENU (Inclusief testfans 2 en kas-slaapstand)
+// =========================================================================
 String buildHelpMenu() {
   String helpMsg = "🤖 *Beschikbare commando's:*\n\n"
                    "• *Status* (`/st`) - Bekijk direct alle sensorwaarden\n"
@@ -151,6 +154,9 @@ String buildHelpMenu() {
                    "• *Testmat* (`/tm`) - Test warmtemat (15 sec)\n"
                    "• *Testschimmel* (`/ts`) - Test schimmeltoggle (10 min)\n"
                    "• *Testfans* (`/tf`) - Test alle fans op 100% (30 sec)\n"
+                   "• *Testfans 2* (`/tf2`) - Interne fan uit, ext. fans 1 & 2 naar max (30 sec)\n"
+                   "• *Manual Ext Fans 100%* (`/mf`) - Interne fan uit, ext. fans 1 & 2 naar max (ON/OFF)\n"
+                   "• *Kas-slaap* (`/sleep`) - Zet kas op ruststand / gesloten\n"
                    "• *Hardwarecheck* (`/hc`) - Meetwaardes hardware\n"
                    "• *Fanalarm* (`/fa`) - Fan alarmering aan/uit\n"
                    "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
@@ -234,7 +240,7 @@ void handleTelegramIncoming() {
       "• LV: %s (Drempel: >`%.1f%%`)\n"
       "• Dauwpunt-marge: `%+.1f °C` %s\n"
       "• VPD: `%+.2f kPa`%s\n"
-      "• Schimmelreden: %s\n\n"
+      "• %s\n\n"
       "🏡 *WONING*\n"
       "• VPD: `%+.2f kPa` %s\n"
       "• Dauwpunt-marge: `%+.1f °C` %s\n\n"
@@ -305,6 +311,59 @@ void handleTelegramIncoming() {
     testModeStartTime = millis();
     currentTestDuration = 30000;
     sendTelegramAlert("🌀 *Alle fans (2 extern + intern) in testmodus (30s op 100%)!*");
+  }
+  else if (text == "testfans2" || text == "tf2") {
+    isTestModeActive = true;
+    testModeStartTime = millis();
+    currentTestDuration = 30000; // 30 seconden testduur
+    
+    fanIntSpeed = 0;              // Interne fan UIT
+    fanExt1Speed = 255;           // Externe fan 1 op 100%
+    fanExt2Speed = 255;           // Externe fan 2 op 100%
+    sendMqttData();
+    
+    sendTelegramAlert("🌀 *Testmodus `tf2` actief (30s):* Interne fan UIT, Externe fans 1 & 2 op maximaal vermogen!");
+  }
+  else if (text == "mf") {
+    mfOverrideActive = !mfOverrideActive; // Toggle aan/uit de echte override-vlag
+    
+    if (mfOverrideActive) {
+      // Zet direct de juiste snelheden in de variabelen
+      fanIntSpeed = 0;
+      fanExt1Speed = 255;
+      fanExt2Speed = 255;
+      
+      // Stuur direct fysiek naar de pinnen (zodat je niet op de loop hoeft te wachten)
+      ledcWrite(PIN_FAN_INT_PWM,  0);
+      ledcWrite(PIN_FAN_EXT1_PWM, 255);
+      ledcWrite(PIN_FAN_EXT2_PWM, 255);
+      
+      sendMqttData();      
+      logToSyslogAndSerial("[TFM] Handmatige TFM override INGESCHAKELD.");
+      sendTelegramAlert("🚨 *TFM OVERRIDE AAN*\nInterne fan is UITgeschakeld. Externe fans draaien **VOL GAS**!");
+    } else {
+      // Bij uitschakelen zetten we de testmodus vlaggen uit en mag de klimaatregeling het overnemen
+      mfOverrideActive = false;
+      sendMqttData();
+      logToSyslogAndSerial("[TFM] Handmatige TFM override UITGESCHAKELD.");
+      sendTelegramAlert("✅ *TFM OVERRIDE UIT*\nSysteem is teruggekeerd naar de automatische klimaatregeling.");
+    }
+  }
+  else if (text == "sleep" || text == "kasslaap" || text == "kweek") {
+    // Wissel de bestaande slaapstand om (toggle)
+    isKasSleeping = !isKasSleeping;
+    
+    if (isKasSleeping) {
+      // Alle actuatoren uit in slaapstand
+      fanIntSpeed = 0;
+      fanExt1Speed = 0;
+      fanExt2Speed = 0;
+      isHeatMatRecommended = false;
+      sendMqttData();
+      sendTelegramAlert("💤 *Kas in Slaapstand (Kweek UIT)*\n\nKlimaatregeling is **uitgeschakeld**. Sensoren en weerdata meten gewoon door.");
+    } else {
+      sendTelegramAlert("🌱 *Kas Actief (Kweek AAN)*\n\nKlimaatregeling en automatische sturing zijn weer **ingeschakeld**!");
+    }
   }
   else if (text == "reboot" || text == "rb") {
     // 1. Stuur de melding

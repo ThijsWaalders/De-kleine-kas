@@ -29,7 +29,7 @@ void setup() {
   delay(1000);
 
   // -- Setup bewegingssensor
-  setupPIR();
+  // setupPIR();
 
   // --- SYSLOG INITIALISEREN ---
   setupLogger();
@@ -110,11 +110,12 @@ void setup() {
    3. MAIN LOOP (CONTINU PROCES)
    ============================================================================ */
 void loop() {
+  // PIR Bewegingssensor continu direct uitlezen
+  handleDisplayPower();
+  
   // 1. Altijd als eerste aanroepen voor Netwerk, OTA-updates en Telnet-clients
   handleNetwork(); 
 
-  // Check bewegingssensor
-  checkPIRMotion();
 
   // Meet de interne temperatuur en check de veiligheid elke 5 seconden
   if (millis() - lastEspTempCheck > 5000) {
@@ -266,3 +267,9 @@ void loop() {
     renderDisplay();
   }
 }
+  // // 8. OLED Display verversen (max 1x per seconde)
+  // static unsigned long lastDisplayUpdate = 0;
+  // if (millis() - lastDisplayUpdate >= 1000) {
+  //   lastDisplayUpdate = millis();
+  //   renderDisplay();
+  // }
