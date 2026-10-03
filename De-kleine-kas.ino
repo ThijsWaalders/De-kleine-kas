@@ -65,23 +65,6 @@ void setup() {
   // 5. Netwerk starten (Wi-Fi, vast IP, Telnet, Syslog en ArduinoOTA)
   drawBootScreen("Netwerk starten...");
   setupNetwork();
-
-  // 6. MQTT Client instellen (optioneel inschakelen indien gewenst)
-  // drawBootScreen("MQTT config...");
-  // setupMqtt();
-
-  // // 7. Telegram SSL instellingen en veilige start (inclusief queue flush tegen boot-loops)
-  // if (ENABLE_TELEGRAM) {
-  //   telegramSslClient.setInsecure();
-  //   telegramSslClient.setTimeout(1500); // Snelle timeout
-    
-  //   // Wacht eventueel kort op Wi-Fi en wis oude openstaande commando's
-  //   if (WiFi.status() == WL_CONNECTED) {
-  //     flushTelegramQueue();
-  //   }
-    
-  //   logToSyslogAndSerial(F("[TELEGRAM] Telegram client geïnitialiseerd."));
-  // }
   
   // 7. Telegram SSL instellingen
   if (ENABLE_TELEGRAM) {
@@ -267,9 +250,3 @@ void loop() {
     renderDisplay();
   }
 }
-  // // 8. OLED Display verversen (max 1x per seconde)
-  // static unsigned long lastDisplayUpdate = 0;
-  // if (millis() - lastDisplayUpdate >= 1000) {
-  //   lastDisplayUpdate = millis();
-  //   renderDisplay();
-  // }

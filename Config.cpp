@@ -158,19 +158,6 @@ float pidOutput = 0.0;
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
-// // Ventilator variabelen
-// volatile unsigned long rpmCountInt = 0, rpmCountExt = 0;
-// // Fysieke definitie van de tacho-tellers voor alle ventilatoren
-// volatile unsigned long rpmCountInt = 0;
-// volatile unsigned long rpmCountExt1 = 0;
-// volatile unsigned long rpmCountExt2 = 0;
-// int fanIntSpeed = 0, fanIntRPM = 0;
-// int fanExt1Speed = 0, fanExt1RPM = 0;
-// int fanExt2Speed = 0, fanExt2RPM = 0;
-// float pidOutput = 0.0;
-// unsigned long lastPidTime = 0;
-// float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
-
 // Advies staten
 HouseVentState houseAdvice = HOUSE_CLOSED;
 KasVentState kasAdvice = KAS_OFF;

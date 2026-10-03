@@ -82,7 +82,7 @@ namespace LedConfig {
   constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   5, BLINK,  300 };
   constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   4, BREATHE, 3000 };
   constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   5, SOLID,     0 };
-  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 200,  20,   1, SOLID,     0 };
+  constexpr LedSetting SYSTEM_ACTIVE   = {   0, 0,  0,   0, OFF,     0 }; // was 0, 200,  20,   1, SOLID,     0        tijdelijk even uit gezet tot ik weet hoe verder te dimmen, eventueel aan/uit via luxmeter?
   constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,       0 };
 }
 
@@ -133,8 +133,8 @@ const int FAN_MAX_PWM               = 255;
 const int EXT_FAN_BASE_PWM          = 70;  
 const int EXT_FAN_MIN_PWM           = 70;  
 
-const int INT_FAN_BASE_PWM          = 122;  
-const int INT_FAN_MIN_PWM           = 105;  
+const int INT_FAN_BASE_PWM          = 126;  // 122;  
+const int INT_FAN_MIN_PWM           = 95;  // 105;  
 
 const unsigned long MIN_FAN_RUN_TIME = 180000; 
 const unsigned long SYSTEM_STARTUP_DELAY = 120000;

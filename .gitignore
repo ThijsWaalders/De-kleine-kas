@@ -2,6 +2,7 @@
 nono.h
 build/
 libraries/
+_TODO.md
 
 # Ignore all files in .vscode folder except needed esp32 project files (!= exeption on the * all files)
 .vscode/*
