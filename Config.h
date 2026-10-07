@@ -38,24 +38,21 @@ extern bool isKasSleeping;
 // =========================================================================
 const int FLASH_BUTTON_PIN  = 0;  // B(oot) knop op ESP32-S3
 #define PIN_PIR 2           // HW-416-B Bewegingssensor
-
-// I2C bus pinnen (OLED display en sensoren zoals BMP085, BH1750)
-#define PIN_SDA 4
-#define PIN_SCL 5
-
-// Ventilator PWM en Tacho pinnen
-#define PIN_FAN_INT_TACHO   13  // Tacho GROEN voor interne ventilator
-#define PIN_FAN_INT_PWM     12  // PWM-sturing BLAUW voor interne ventilator
-#define PIN_FAN_EXT2_TACHO   11  // Tacho GROEN voor externe ventilator(en)
-#define PIN_FAN_EXT2_PWM     10  // PWM-sturing BLAUW voor externe ventilator(en)
-#define PIN_FAN_EXT1_TACHO   9   // Tacho GROEN voor externe ventilator(en)
-#define PIN_FAN_EXT1_PWM     8   // PWM-sturing BLAUW voor externe ventilator(en)
+#define PIN_SCL 4
+#define PIN_SDA 5
+#define PIN_FAN_INT_TACHO   13   // Tacho GROEN voor interne ventilator
+#define PIN_FAN_INT_PWM     12   // PWM-sturing BLAUW voor interne ventilator
+#define PIN_FAN_EXT1_TACHO  11  // Tacho GROEN voor externe ventilator 1
+#define PIN_FAN_EXT1_PWM    10  // PWM-sturing BLAUW voor externe ventilator 1
+#define PIN_FAN_EXT2_TACHO  9  // Tacho GROEN voor externe ventilator 2
+#define PIN_FAN_EXT2_PWM    8  // PWM-sturing BLAUW voor externe ventilator 2
 
 // Sensor Pinnen & Typen (DHT11)
-#define KAS_DHT_PIN         6   
-#define KAS_DHT_TYPE        DHT11
-#define INDOOR_DHT_PIN      7   
+#define INDOOR_DHT_PIN      6   
 #define INDOOR_DHT_TYPE     DHT11
+#define myAltitude 21.5 // Jouw hoogte in meters boven zeeniveau ()
+#define KAS_DHT_PIN         7   
+#define KAS_DHT_TYPE        DHT11
 
 // Status LED (indien van toepassing)
 #define PIN_NEOPIXEL        21  
@@ -102,8 +99,8 @@ extern unsigned long lastMotionTime;
 // =========================================================================
 // 2. KIEMGROENTEN KLIMAAT CONFIGURATIE
 // =========================================================================
-const float VPD_MIN_OPTIMAL = 0.40;  
-const float VPD_MAX_OPTIMAL = 1.10;  //0.90;  iets verhoogd, plantjes kunnen het wel even aan, geeft esp ruimte om bij te stellen (voor de waarschuwing?)
+const float VPD_MIN_OPTIMAL = 0.60; // 0.65  
+const float VPD_MAX_OPTIMAL = 0.80;  // 0.75
 
 const float GREENHOUSE_MAX_TEMP = 23.0; 
 
@@ -124,17 +121,17 @@ const unsigned long BUTTON_DEBOUNCE_DELAY = 50;
 const unsigned long LUX_STABILITY_TIMEOUT = 10000;
 
 // ======================================================================
-//  Fan settings
+//  Fan settings    ---   Base is start (pid regeling uit), min is voor min bij pid regeling
 // ======================================================================
 const int PWM_FREQ                  = 25000; 
 const int PWM_RANGE                 = 255; 
 const int FAN_MAX_PWM               = 255; 
 
-const int EXT_FAN_BASE_PWM          = 70;  
-const int EXT_FAN_MIN_PWM           = 70;  
+const int EXT_FAN_BASE_PWM          = 111;  // 80, maar rpm signaal verstoord bij te laag rpm dus opgeschroefd 110
+const int EXT_FAN_MIN_PWM           = 100;  // 60 zelfde verhaal opgeschr naar 100
 
-const int INT_FAN_BASE_PWM          = 126;  // 122;  
-const int INT_FAN_MIN_PWM           = 95;  // 105;  
+const int INT_FAN_BASE_PWM          = 111; //43% 
+const int INT_FAN_MIN_PWM           = 65;  
 
 const unsigned long MIN_FAN_RUN_TIME = 180000; 
 const unsigned long SYSTEM_STARTUP_DELAY = 120000;
@@ -142,11 +139,14 @@ const unsigned long SYSTEM_STARTUP_DELAY = 120000;
 // =========================================================================
 // 3. KLIMAAT & SENSOR CORRECTIE OFFSETS
 // =========================================================================
-const float KAS_TEMP_OFFSET    = +0.9; 
-const float INDOOR_TEMP_OFFSET = -0.1; 
-const float KAS_HUM_OFFSET     = -6.4; 
+const float KAS_TEMP_OFFSET    = +0.8; 
+const float KAS_HUM_OFFSET     = -4.9; 
+const float INDOOR_TEMP_OFFSET = -1.5; 
 const float INDOOR_HUM_OFFSET  = +1.4; 
-const float PRESSURE_OFFSET    = +0.9; 
+const float PRESSURE_OFFSET    = -1.8; 
+
+
+
 
 
 // =========================================================================

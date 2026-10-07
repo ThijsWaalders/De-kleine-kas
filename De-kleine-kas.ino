@@ -111,7 +111,7 @@ void loop() {
   statusLed.update(); 
 
   // Controleer de fysieke BOOT-knop (voor het uitschakelen van fan-alerts)
-  checkFlashButton();
+  // checkFlashButton();
 
   // 2. Veiligheidscheck geheugenlekken (< 10KB op ESP32)
   freeHeap = ESP.getFreeHeap();
@@ -124,12 +124,24 @@ void loop() {
   isConnected = (WiFi.status() == WL_CONNECTED);
   wifiRSSI = WiFi.RSSI();
 
-  // 3. Stuur een eenmalige opstartmelding via Telegram
+  // 3. Stuur een eenmalige opstartmelding via Telegram NADAT de 3 minuten opstart/kalibratie voorbij zijn
   static bool bootMsgSent = false;
-  if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
-    sendBootNotification();
+  if (isConnected && !bootMsgSent && ENABLE_TELEGRAM && millis() > 180000) { // Wacht tot de 3 minuten voorbij zijn
     bootMsgSent = true;
+    
+    String bootMsg = "🚀 *De kleine kas is volledig opgestart en ingeregeld!*\n";
+    bootMsg += "• Sensoren en kalibratieperiode (3 min) zijn afgerond.\n";
+    bootMsg += "• Automatisering en actieve klimaatregeling draaien nu autonoom.";
+    sendTelegramAlert(bootMsg);
+    
+    logToSyslogAndSerial("[SYSTEM] 3 minuten opstartfase voorbij. Opstartmelding verzonden via Telegram.");
   }
+  // // 3. Stuur een eenmalige opstartmelding via Telegram
+  // static bool bootMsgSent = false;
+  // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
+  //   sendBootNotification();
+  //   bootMsgSent = true;
+  // }
 
   // 4. MQTT en Telegram verwerking
   if (isConnected) {

@@ -1,5 +1,25 @@
-// nono.h
+// nono.h.example
+// Wi-Fi gegevens waarmee verbinden
 #define SECRET_SSID "<PLACEHOLDER>"
 #define SECRET_PASS "<PLACEHOLDER>"
-#define API_KEY     "<PLACEHOLDER>"
-#define LOCATION    "<PLACEHOLDER>"
+
+// ESP32's Vaste netwerkinstellingen - Station mode (STA)
+#define SECRET_IP           "<PLACEHOLDER>"  // Vaste IP van de ESP32
+#define GATEWAY             "<PLACEHOLDER>"    // IP van je router/gateway
+#define SUBNET              "<PLACEHOLDER>"  // Subnetmasker
+#define PRIMARY_DNS         "<PLACEHOLDER>"  // Optioneel: primaire DNS
+#define SECONDARY_DNS       "<PLACEHOLDER>"  // Optioneel: secundaire DNS
+
+// Access Point (AP) instellingen voor als je via Telegram de AP-modus aanzet
+#define AP_SSID             "<PLACEHOLDER>"
+#define AP_PASS             "<PLACEHOLDER>"   // Minimaal 8 tekens
+#define AP_IP               "<PLACEHOLDER>"    // IP van de ESP zelf in AP-modus
+
+// OpenWeather API
+#define API_KEY   "<PLACEHOLDER>"
+#define CITY_ID     "<PLACEHOLDER>"
+// Telegram Bot
+#define BOT_TOKEN   "<PLACEHOLDER>"
+#define MY_CHAT_ID     "<PLACEHOLDER>"
+
+#define SECRET_MQTT_SERVER_IP "<PLACEHOLDER>"

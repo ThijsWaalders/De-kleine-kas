@@ -1,6 +1,6 @@
 /**
  * @file Telegram.cpp
- * @brief Geoptimaliseerde implementatie van Telegram bot interactie met veilige rate-limiting en behoud van alle commando's voor ESP32-S3.
+ * @brief Geoptimaliseerde implementatie van Telegram bot interactie met veilige rate-limiting en non-blocking achtergrondcheck voor ESP32-S3.
  */
 
 #include "Telegram.h"
@@ -28,8 +28,11 @@ void sendTelegramAlert(String message) {
   if (WiFi.status() != WL_CONNECTED) return;
 
   // --- FILTER VOOR FAN ALARMEN ---
+  // Als de gebruiker fan-alarmen heeft uitgeschakeld via /fa (fanAlertsEnabled == false),
+  // en het bericht bevat de tekst "ventilator" of "FAN", dan blokkeren we de melding.
   if (!fanAlertsEnabled) {
     if (message.indexOf("ventilator") != -1 || message.indexOf("FAN") != -1 || message.indexOf("Fan") != -1) {
+      // Dit is een ventilator-alarm, maar fan alerts staan uit. Niet verzenden!
       return;
     }
   }
@@ -48,6 +51,26 @@ void sendTelegramAlert(String message) {
     digitalWrite(LED_BUILTIN, HIGH);  
   }
 }
+// /**
+//  * @brief Stuurt een bericht via de Telegram bot met ingebouwde veiligheid en minimale vertraging.
+//  */
+// void sendTelegramAlert(String message) {
+//   if (WiFi.status() != WL_CONNECTED) return;
+
+//   yield();
+
+//   unsigned long timeSinceLastMsg = millis() - lastTelegramSentTime;
+//   if (timeSinceLastMsg < TELEGRAM_MIN_INTERVAL) {
+//     delay(50); 
+//   }
+
+//   if (bot.sendMessage(telid, message, "Markdown")) {
+//     lastTelegramSentTime = millis();
+//     digitalWrite(LED_BUILTIN, LOW);   
+//     delay(100);                        
+//     digitalWrite(LED_BUILTIN, HIGH);  
+//   }
+// }
 
 /**
  * @brief Hulpfunctie om ontbrekende sensoren netjes weer te geven als N/A.
@@ -61,9 +84,6 @@ String formatVal(float val, int decimals, const char* unit) {
   return String(buf);
 }
 
-// =========================================================================
-// 📊 /st - STATUSRAPPORT
-// =========================================================================
 String buildStatusReport() {
   int fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
   int fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
@@ -71,12 +91,14 @@ String buildStatusReport() {
 
   bool anyFanActive = (fanExt1Pct > 0 || fanExt2Pct > 0 || fanIntPct > 0);
 
+  // 1. Systeemstatus van de Kas (Wat regelt de ESP zelf?)
   String regelingStatus = "🟢 Kas-klimaat is optimaal en stabiel.";
   if (millis() < SYSTEM_STARTUP_DELAY) {
     regelingStatus = "⏳ Systeem is aan het opstarten / kalibreren.";
   } else if (kasVpd < VPD_MIN_OPTIMAL) {
     regelingStatus = moldRisk ? "⚠️ Schimmelrisico in kas (ESP stuurt bij)." : "⚠️ Kas aan de klamme kant (ESP regelt).";
   } else if (kasVpd > VPD_MAX_OPTIMAL) {
+    // Dynamische check: Ventileert hij met de woning om te corrigeren, of houdt hij hem dicht?
     if (kasAdvice == GREENHOUSE_VENTILATE) {
       regelingStatus = "🔥 Kas te droog, maar ESP benut betere woninglucht om te corrigeren.";
     } else {
@@ -86,6 +108,7 @@ String buildStatusReport() {
     regelingStatus = "🔵 ESP voert actieve kas-regulering uit.";
   }
 
+  // 2. Wat doet de ESP automatisch in de kas?
   String actuatorStatus = "";
   if (isHeatMatRecommended) actuatorStatus += "• Warmtemat (Kas): AAN 🔥\n";
   else actuatorStatus += "• Warmtemat (Kas): UIT 💤\n";
@@ -104,11 +127,13 @@ String buildStatusReport() {
     actuatorStatus += "• Externe fans (ESP): In rust.";
   }
 
+  // 3. Toelichting (Waarom doet de ESP dit?)
   String toelichtingTekst = kasAdviceReason;
   if (toelichtingTekst.length() == 0) {
     toelichtingTekst = "Geen actie vereist; de kas draait volledig zelfstandig.";
   }
 
+  // 4. Wat wordt er van JOU (de mens / woning-actuator) verwacht?
   String actieVereist = "🟢 Geen actie nodig. De ESP regelt de kas volledig zelf.";
   if (millis() < SYSTEM_STARTUP_DELAY) {
     actieVereist = "⏳ Even geduld: Systeem kalibreert nog.";
@@ -119,7 +144,8 @@ String buildStatusReport() {
   String currentIp = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "Niet verbonden";
 
   static char reportBuf[1600];
-  snprintf(reportBuf, sizeof(reportBuf),
+  
+  int written = snprintf(reportBuf, sizeof(reportBuf),
     "📊 *Statusrapport 'De Kleine Kas'*\n\n"
     "🌐 *Netwerk:* IP: `%s`\n\n"
     "🌡️ *1. Huidige Waarden:*\n"
@@ -150,9 +176,97 @@ String buildStatusReport() {
 
   return String(reportBuf);
 }
+// String buildStatusReport() {
+//   int fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
+//   int fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
+//   int fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
+
+//   bool anyFanActive = (fanExt1Pct > 0 || fanExt2Pct > 0 || fanIntPct > 0);
+
+//   // 1. Systeemstatus van de Kas (Wat regelt de ESP zelf?)
+//   String regelingStatus = "🟢 Kas-klimaat is optimaal en stabiel.";
+//   if (millis() < SYSTEM_STARTUP_DELAY) {
+//     regelingStatus = "⏳ Systeem is aan het opstarten / kalibreren.";
+//   } else if (kasVpd < VPD_MIN_OPTIMAL) {
+//     regelingStatus = moldRisk ? "⚠️ Schimmelrisico in kas (ESP stuurt bij)." : "⚠️ Kas aan de klamme kant (ESP regelt).";
+//   } else if (kasVpd > VPD_MAX_OPTIMAL) {
+//     regelingStatus = "🔥 Uitdrogingsrisico in kas (ESP houdt kas gesloten).";
+//   } else if (anyFanActive || isHeatMatRecommended) {
+//     regelingStatus = "🔵 ESP voert actieve kas-regulering uit.";
+//   }
+
+//   // 2. Wat doet de ESP automatisch in de kas?
+//   String actuatorStatus = "";
+//   if (isHeatMatRecommended) actuatorStatus += "• Warmtemat (Kas): AAN 🔥\n";
+//   else actuatorStatus += "• Warmtemat (Kas): UIT 💤\n";
+
+//   if (kasAdvice == GREENHOUSE_VENTILATE) {
+//     actuatorStatus += "• Kas-ventilatie: ESP benut buiten-/woninglucht 💨\n";
+//   } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+//     actuatorStatus += "• Kas-circulatie: ESP breekt microklimaat 🌀\n";
+//   } else {
+//     actuatorStatus += "• Kas-actuators: In rust / gesloten 🔒\n";
+//   }
+
+//   if (fanExt1Pct > 0 || fanExt2Pct > 0) {
+//     actuatorStatus += "• Externe fans (ESP): Actief (" + String(fanExt1Pct) + "% / " + String(fanExt2Pct) + "%).";
+//   } else {
+//     actuatorStatus += "• Externe fans (ESP): In rust.";
+//   }
+
+//   // 3. Toelichting (Waarom doet de ESP dit?)
+//   String toelichtingTekst = kasAdviceReason;
+//   if (toelichtingTekst.length() == 0) {
+//     toelichtingTekst = "Geen actie vereist; de kas draait volledig zelfstandig.";
+//   }
+
+//   // 4. Wat wordt er van JOU (de mens / woning-actuator) verwacht?
+//   // (Alleen als jij actie moet ondernemen tussen woning en buiten)
+//   String actieVereist = "🟢 Geen actie nodig. De ESP regelt de kas volledig zelf.";
+//   if (millis() < SYSTEM_STARTUP_DELAY) {
+//     actieVereist = "⏳ Even geduld: Systeem kalibreert nog.";
+//   } else if (houseAdvice == HOUSE_VENTILATE && moldRisk) {
+//     actieVereist = "🏠🪟 **Jouw actie vereist:** Zet het raam van de woning open (zodat de woning als buffer kan dienen).";
+//   }
+
+//   String currentIp = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "Niet verbonden";
+
+//   static char reportBuf[1600];
+  
+//   int written = snprintf(reportBuf, sizeof(reportBuf),
+//     "📊 *Statusrapport 'De Kleine Kas'*\n\n"
+//     "🌐 *Netwerk:* IP: `%s`\n\n"
+//     "🌡️ *1. Huidige Waarden:*\n"
+//     "• Kas: `%.1f°C` | LV: `%.0f%%`\n"
+//     "• Binnen: `%.1f°C` | LV: `%.0f%%`\n"
+//     "• Buiten: `%.1f°C` | LV: `%.0f%%`\n\n"
+//     "💧 *2. VPD & Dauwpunt (Kas):*\n"
+//     "• VPD: `%.2f kPa`%s\n"
+//     "• Dauwpunt: `%.1f°C` (Marge: `%.1f°C`)%s\n\n"
+//     "⚙️ *3. Wat doet de ESP (Kas-automatisering)?*\n"
+//     "%s\n"
+//     "%s\n\n"
+//     "💡 *4. Toelichting (Systeemlogica):*\n"
+//     "• %s\n\n"
+//     "👤 *5. Wat moet JIJ doen (Woning-actuator)?*\n"
+//     "%s",
+//     currentIp.c_str(),
+//     displayedTemp, kasSmoothedHum,
+//     indoorSmoothedTemp, indoorHum,
+//     outdoorTemp, outdoorHumidity,
+//     kasVpd, vpdStatusText.c_str(),
+//     kasDewPoint, (displayedTemp - kasDewPoint), dpMarginStatusText.c_str(),
+//     regelingStatus.c_str(),
+//     actuatorStatus.c_str(),
+//     toelichtingTekst.c_str(),
+//     actieVereist.c_str()
+//   );
+
+//   return String(reportBuf);
+// }
 
 // =========================================================================
-// MENU
+// MENU (Inclusief testfans 2 en kas-slaapstand)
 // =========================================================================
 String buildHelpMenu() {
   String helpMsg = "🤖 *Beschikbare commando's:*\n\n"
@@ -178,9 +292,7 @@ void sendHelpMenu() {
   sendTelegramAlert(buildHelpMenu());
 }
 
-// =========================================================================
-// INKOMENDE BERICHTEN VERWERKEN
-// =========================================================================
+
 void handleTelegramIncoming() {
   if (millis() - lastBotCheckTime <= BOT_CHECK_INTERVAL) return;
   lastBotCheckTime = millis();
@@ -192,7 +304,11 @@ void handleTelegramIncoming() {
   if (numNewMessages <= 0) return;
   yield(); 
 
+  // Verwerk uitsluitend het meest recente bericht
   int lastIdx = numNewMessages - 1;
+
+  // BELANGRIJK: Zet de offset van te voren direct goed! 
+  // Hiermee voorkom je dat Telegram bij een herstart of crash hetzelfde commando oneindig blijft spammen.
   bot.last_message_received = bot.messages[lastIdx].update_id;
 
   String senderChatId = String(bot.messages[lastIdx].chat_id);
@@ -250,7 +366,7 @@ void handleTelegramIncoming() {
       "🏡 *WONING*\n"
       "• VPD: `%+.2f kPa` %s\n"
       "• Dauwpunt-marge: `%+.1f °C` %s\n\n"
-      "⚙ *ACTIE & REGELING*\n"
+      "⚙️️ *ACTIE & REGELING*\n"
       "• Woning ventileren: %s\n"
       "• Kas ventileren: %s\n"
       "• Verwarmingsmat: %s\n"
@@ -321,23 +437,25 @@ void handleTelegramIncoming() {
   else if (text == "testfans2" || text == "tf2") {
     isTestModeActive = true;
     testModeStartTime = millis();
-    currentTestDuration = 30000;
+    currentTestDuration = 30000; // 30 seconden testduur
     
-    fanIntSpeed = 0;              
-    fanExt1Speed = 255;           
-    fanExt2Speed = 255;           
+    fanIntSpeed = 0;              // Interne fan UIT
+    fanExt1Speed = 255;           // Externe fan 1 op 100%
+    fanExt2Speed = 255;           // Externe fan 2 op 100%
     sendMqttData();
     
     sendTelegramAlert("🌀 *Testmodus `tf2` actief (30s):* Interne fan UIT, Externe fans 1 & 2 op maximaal vermogen!");
   }
   else if (text == "mf") {
-    mfOverrideActive = !mfOverrideActive;
+    mfOverrideActive = !mfOverrideActive; // Toggle aan/uit de echte override-vlag
     
     if (mfOverrideActive) {
+      // Zet direct de juiste snelheden in de variabelen
       fanIntSpeed = 0;
       fanExt1Speed = 255;
       fanExt2Speed = 255;
       
+      // Stuur direct fysiek naar de pinnen (zodat je niet op de loop hoeft te wachten)
       ledcWrite(PIN_FAN_INT_PWM,  0);
       ledcWrite(PIN_FAN_EXT1_PWM, 255);
       ledcWrite(PIN_FAN_EXT2_PWM, 255);
@@ -346,6 +464,7 @@ void handleTelegramIncoming() {
       logToSyslogAndSerial("[TFM] Handmatige TFM override INGESCHAKELD.");
       sendTelegramAlert("🚨 *TFM OVERRIDE AAN*\nInterne fan is UITgeschakeld. Externe fans draaien **VOL GAS**!");
     } else {
+      // Bij uitschakelen zetten we de testmodus vlaggen uit en mag de klimaatregeling het overnemen
       mfOverrideActive = false;
       sendMqttData();
       logToSyslogAndSerial("[TFM] Handmatige TFM override UITGESCHAKELD.");
@@ -353,9 +472,11 @@ void handleTelegramIncoming() {
     }
   }
   else if (text == "sleep" || text == "kasslaap" || text == "kweek") {
+    // Wissel de bestaande slaapstand om (toggle)
     isKasSleeping = !isKasSleeping;
     
     if (isKasSleeping) {
+      // Alle actuatoren uit in slaapstand
       fanIntSpeed = 0;
       fanExt1Speed = 0;
       fanExt2Speed = 0;
@@ -367,13 +488,21 @@ void handleTelegramIncoming() {
     }
   }
   else if (text == "reboot" || text == "rb") {
+    // 1. Stuur de melding
     bot.sendMessage(telid, "⚠ Systeem wordt herstart...", "");
     logToSyslogAndSerial(F("[TELEGRAM] Handmatige reboot aangevraagd. Wachtrij opschonen..."));
 
+    // 2. Markeer het bericht definitief als gelezen op de Telegram server
+    // Door de offset op te hogen naar messages[lastIdx].message_id + 1 haalt hij dit bericht nooit meer op
+    // bot.last_message_received = bot.messages[lastIdx].message_id;
     bot.last_message_received = bot.messages[lastIdx].update_id;
+    // 3. Forceer een lege getUpdates update om de offset op de Telegram server te synchroniseren
+    // Dit vertelt de Telegram server: "Ik heb al mijn berichten tot dit ID gelezen"
     bot.getUpdates(bot.last_message_received + 1);
 
+    // 4. Geef de netwerk-stack tijd om de verbinding netjes te verbreken
     delay(1500); 
+    
     ESP.restart();
   }
   else if (text == "flush" || text == "reflush" || text == "fl") {
@@ -394,6 +523,7 @@ void handleTelegramIncoming() {
     int fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
     int fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
     
+    // Interne chip temperatuur ophalen via de EspSensors module
     float espInternalTemp = readEspInternalTemp();
 
     char hcBuf[1024];
@@ -424,6 +554,7 @@ void handleTelegramIncoming() {
     sendTelegramAlert(String(hcBuf));
   }
   else if (text == "fanalarm" || text == "fa") {
+    // Wissel de status om (toggle aan/uit)
     fanAlertsEnabled = !fanAlertsEnabled;
 
     String statusMsg = fanAlertsEnabled 
@@ -433,17 +564,27 @@ void handleTelegramIncoming() {
     sendTelegramAlert(statusMsg);
   }
   else if (text == "ota") {
+    // Bouw het bericht dynamisch op met de echte gegevens uit Config.h
     String apMsg = "🚀 *Access Point wordt gestart...*\n\n";
     apMsg += "• *SSID:* `" + String(AP_SSID) + "`\n";
     apMsg += "• *Wachtwoord:* `" + String(AP_PASS) + "`\n\n";
     apMsg += "Verbind je PC hiermee en stuur de OTA update.";
 
+    // Markeer het bericht als gelezen zodat het niet herhaald wordt na reboot
     bot.last_message_received = bot.messages[lastIdx].update_id;
     bot.getUpdates(bot.last_message_received + 1);
+
+    // Stuur het bericht nog even snel naar Telegram (lukt nét voor de wifiverbinding wegvalt)
     bot.sendMessage(senderChatId, apMsg, "Markdown");
 
+    // Start het Access Point
     startAPMode();
   }
+  // Telegram (nog) werkt niet in AP mode
+  // else if (text == "sota") {
+  //   bot.sendMessage(senderChatId, "Access Point wordt gesloten, verbind weer met normale netwerk...", "");
+  //   stopAPMode();
+  // }
   else {
     sendTelegramAlert("❌ Onbekend commando. Typ /help");
   }

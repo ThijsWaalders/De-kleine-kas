@@ -244,113 +244,70 @@ void updateFanSpeeds(float currentVpd) {
   float dt = (currentMillis - lastPidTime) / 1000.0;
   lastPidTime = currentMillis;
 
-  // --- AGRESSIEVE & ESCALERENDE PID-REGELING ---
+  // --- GEBALANCEERDE ZELFLERENDE PID ---
   float rawError = pidSetPointVPD - currentVpd;
   float error = abs(rawError); 
 
   pError = error;
   
-  // Als de fout aanhoudt, bouwen we de integrale druk sneller op
-  if (error > 0.08) {
-    iError += error * dt * 1.2; // Veel agressievere opbouw
+  if (error > 0.15) {
+    iError += error * dt * 0.4; // Rustige opbouw, voorkomt doorschieten naar 100%
   } else {
-    iError -= dt * 0.3; // Langzamer afbouwen zodat het effect behouden blijft
+    iError -= dt * 0.8; // Snel afbouwen als het stabiel is
   }
   
-  iError = constrain(iError, 0.0, 8.0); // Grotere marge voor maximale kracht
+  iError = constrain(iError, 0.0, 4.0);
 
   dError = (dt > 0) ? (error - lastError) / dt : 0;
   lastError = error;
 
   pidOutput = (kp * pError) + (ki * iError) + (kd * dError);
 
-  // --- ESCALATIE TIMER: ALS HET TE LANG DUURT, ALLE REMMEN LOS ---
-  static unsigned long highErrorStartTime = 0;
-  bool forceMaximumPower = false;
-
-  if (error > 0.10) { // Als de VPD-afwijking groter is dan 0.10 kPa
-    if (highErrorStartTime == 0) {
-      highErrorStartTime = currentMillis;
-    } else if (currentMillis - highErrorStartTime > 90000) { // Na 1,5 minuut nog niet opgelost?
-      forceMaximumPower = true; // ESCALEREN!
-    }
-  } else {
-    highErrorStartTime = 0; // Reset als we op de goede weg zijn
-  }
-
-  // --- DYNAMISCHE STURING VAN DE EXTERNE FANS (Nu met geforceerde max) ---
+  // --- DYNAMISCHE STURING VAN DE EXTERNE FANS ---
   int targetIntSpeed  = 0;
   int targetExt1Speed = 0;
   int targetExt2Speed = 0;
 
   if (kasAdvice == GREENHOUSE_VENTILATE || kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
-    
-    int extPwm = 0;
-    int ext2Pwm = 0;
-
-    if (forceMaximumPower) {
-      // ESCALATIE: Dwing beide fans direct naar 100% (255 PWM) omdat het te lang duurt!
-      extPwm = 255;
-      ext2Pwm = 255;
-      logToSyslogAndSerial("[ESCALATIE] VPD daalt niet snel genoeg! Fans geforceerd naar 100%.");
-    } else {
-      // Normale krachtige PID-sturing (bodem opgeschroefd naar 160 i.p.v. slome start)
-      extPwm = 160 + (int)(pidOutput * 120.0); 
-      extPwm = constrain(extPwm, 140, 255);
-
-      ext2Pwm = 140 + (int)(pidOutput * 100.0); 
-      ext2Pwm = constrain(ext2Pwm, 120, 255);
-    }
-
+    // 1. Basis PID berekening voor de hoofdventilator (Ext 1)
+    int extPwm = EXT_FAN_BASE_PWM + (int)(pidOutput * 70.0); 
+    extPwm = constrain(extPwm, EXT_FAN_MIN_PWM, FAN_MAX_PWM);
     targetExt1Speed = extPwm;
-    targetExt2Speed = ext2Pwm;
+
+    // 2. Externe fan 2 (Boost/Partner fan): Moet NU GELIJK MEE DRAAIEN
+    // Zodra er ventileren gevraagd wordt, start deze direct op zijn minimum (of volgt de PID met een offset)
+    int ext2Pwm = EXT_FAN_BASE_PWM + (int)(pidOutput * 50.0); // Kan eventueel iets milder of gelijk opgaan
+    ext2Pwm = constrain(ext2Pwm, EXT_FAN_MIN_PWM, FAN_MAX_PWM);
+    
+    // Als de PID stijgt (risico daalt niet snel genoeg), helpt fan 2 direct volop mee
+    if (error > 0.15 || extPwm > 150) {
+      targetExt2Speed = ext2Pwm; // Draait nu actief mee op basis van de vraag!
+    } else {
+      targetExt2Speed = EXT_FAN_MIN_PWM; // Anders draait hij z'n veilige minimum mee i.p.v. uit te vallen
+    }
 
   } else {
     targetExt1Speed = 0;
     targetExt2Speed = 0;
-    highErrorStartTime = 0;
   }
-  // // --- GEBALANCEERDE ZELFLERENDE PID ---
-  // float rawError = pidSetPointVPD - currentVpd;
-  // float error = abs(rawError); 
-
-  // pError = error;
-  
-  // if (error > 0.15) {
-  //   iError += error * dt * 0.4; // Rustige opbouw, voorkomt doorschieten naar 100%
-  // } else {
-  //   iError -= dt * 0.8; // Snel afbouwen als het stabiel is
-  // }
-  
-  // iError = constrain(iError, 0.0, 4.0);
-
-  // dError = (dt > 0) ? (error - lastError) / dt : 0;
-  // lastError = error;
-
-  // pidOutput = (kp * pError) + (ki * iError) + (kd * dError);
-
-  // // // --- DYNAMISCHE STURING VAN DE EXTERNE FANS (Krachtig & Direct) ---
+  // // --- DYNAMISCHE STURING VAN DE EXTERNE FANS ---
   // int targetIntSpeed  = 0;
   // int targetExt1Speed = 0;
   // int targetExt2Speed = 0;
 
   // if (kasAdvice == GREENHOUSE_VENTILATE || kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
-  //   // 1. Hoofdventilator (Ext 1): Snellere en agressievere PID-respons (factor verhoogd van 70.0 naar 130.0)
-  //   int extPwm = EXT_FAN_BASE_PWM + (int)(pidOutput * 130.0); 
+  //   // Externe fans moduleren geleidelijk op basis van PID (factor 50.0 i.p.v. 90.0)
+  //   int extPwm = EXT_FAN_BASE_PWM + (int)(pidOutput * 70.0); 
   //   extPwm = constrain(extPwm, EXT_FAN_MIN_PWM, FAN_MAX_PWM);
+    
   //   targetExt1Speed = extPwm;
 
-  //   // 2. Externe fan 2 (Boost/Partner fan): Doet meteen vol krachtig mee bij correctie
-  //   int ext2Pwm = EXT_FAN_BASE_PWM + (int)(pidOutput * 110.0); 
-  //   ext2Pwm = constrain(ext2Pwm, EXT_FAN_MIN_PWM, FAN_MAX_PWM);
-    
-  //   // Zodra er ook maar een kleine afwijking is, vliegen beide fans naar een krachtig volume
-  //   if (error > 0.08 || extPwm > 120) {
-  //     targetExt2Speed = ext2Pwm; // Blaast fors mee op volle kracht
+  //   // Boost-fan (Extern 2) helpt pas mee als de hoofdventilator harder moet werken (> 200 PWM)
+  //   if (error > 0.4 || extPwm > 200) { 
+  //     targetExt2Speed = extPwm; 
   //   } else {
-  //     targetExt2Speed = EXT_FAN_MIN_PWM; 
+  //     targetExt2Speed = 0;      
   //   }
-
   // } else {
   //   targetExt1Speed = 0;
   //   targetExt2Speed = 0;
