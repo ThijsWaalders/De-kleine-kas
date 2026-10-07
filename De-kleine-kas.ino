@@ -129,12 +129,15 @@ void loop() {
   if (isConnected && !bootMsgSent && ENABLE_TELEGRAM && millis() > 180000) { // Wacht tot de 3 minuten voorbij zijn
     bootMsgSent = true;
     
-    String bootMsg = "🚀 *De kleine kas is volledig opgestart en ingeregeld!*\n";
-    bootMsg += "• Sensoren en kalibratieperiode (3 min) zijn afgerond.\n";
-    bootMsg += "• Automatisering en actieve klimaatregeling draaien nu autonoom.";
-    sendTelegramAlert(bootMsg);
-    
-    logToSyslogAndSerial("[SYSTEM] 3 minuten opstartfase voorbij. Opstartmelding verzonden via Telegram.");
+    if (!isKasSleeping) {
+      String bootMsg = "🚀 *De kleine kas is volledig opgestart en ingeregeld!*\n";
+      bootMsg += "• Sensoren en kalibratieperiode (3 min) zijn afgerond.\n";
+      bootMsg += "• Automatisering en actieve klimaatregeling draaien nu autonoom.";
+      sendTelegramAlert(bootMsg);
+      logToSyslogAndSerial("[SYSTEM] 3 minuten opstartfase voorbij. Opstartmelding verzonden via Telegram.");
+    } else {
+      logToSyslogAndSerial("[SYSTEM] 3 minuten opstartfase voorbij, maar kas staat in slaapstand. Opstartmelding onderdrukt.");
+    }
   }
   // // 3. Stuur een eenmalige opstartmelding via Telegram
   // static bool bootMsgSent = false;
