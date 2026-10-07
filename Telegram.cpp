@@ -112,8 +112,12 @@ String buildStatusReport() {
   String actieVereist = "🟢 Geen actie nodig. De ESP regelt de kas volledig zelf.";
   if (millis() < SYSTEM_STARTUP_DELAY) {
     actieVereist = "⏳ Even geduld: Systeem kalibreert nog.";
-  } else if (houseAdvice == HOUSE_VENTILATE && moldRisk) {
-    actieVereist = "🏠🪟 **Jouw actie vereist:** Zet het raam van de woning open (zodat de woning als buffer kan dienen).";
+  } else if (moldRisk) {
+    if (outdoorHumidity > 85.0) {
+      actieVereist = "🔴 Schimmelrisico, MAAR buiten/woning is te klam (>85% LV). **Houd ramen dicht!**";
+    } else {
+      actieVereist = "🏠🪟 **Jouw actie vereist:** Zet het raam/binnendeur open om drogere bufferlucht naar de kas te leiden.";
+    }
   }
 
   String currentIp = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "Niet verbonden";
@@ -228,7 +232,7 @@ void handleTelegramIncoming() {
     } else if (millis() < SYSTEM_STARTUP_DELAY) {
       statusIcon = "⏳ OPSTARTEN / KALIBREREN";
       diagnoseWaarom = "Systeem is aan het opstarten en de sensorfilters vullen zich.";
-    } else if (kasAdvice == GREENHOUSE_CRASH) {
+    } else if (kasAdvice == GREENHOUSE_CRASH_TEMP) {
       statusIcon = "🔴 KRITIEK / CLIMATE CRASH";
       diagnoseWaarom = "Extreme temperatuur- of vochtigheidspiek gedetecteerd in de kas!";
     } else if (moldRisk) {
@@ -245,8 +249,12 @@ void handleTelegramIncoming() {
       actieVoorJij = "Niets, de kas is in slaapstand.";
     } else if (millis() < SYSTEM_STARTUP_DELAY) {
       actieVoorJij = "Even geduld: Systeem kalibreert nog.";
-    } else if (woningActuatorActionRequired || (houseAdvice == HOUSE_VENTILATE && moldRisk)) {
-      actieVoorJij = "Zet de binnendeur op een kier of activeer de woningventilatie om drogere lucht aan te voeren.";
+    } else if (moldRisk) {
+      if (outdoorHumidity > 85.0) {
+        actieVoorJij = "🔴 Schimmelrisico, MAAR buiten/woning is te klam (>85% LV). **Houd ramen dicht!**";
+      } else {
+        actieVoorJij = "🏠🪟 **Jouw actie vereist:** Zet de binnendeur op een kier of activeer de woningventilatie om drogere lucht aan te voeren.";
+      }
     }
 
     // 3. Hardware & Systeemstatus

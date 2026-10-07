@@ -108,6 +108,7 @@ const float VPD_RED_OFFSET          = 0.20;  // Start Fan 2 boost (Hard min/max)
 const float GREENHOUSE_MAX_TEMP     = 23.0;  // Ultra Max temperatuur grens
 const float GREENHOUSE_CRASH_TEMP   = 28.0;  // Noodtoestand / Telegram alarm grens
 
+const float OUTDOOR_MAX_HUMIDITY_FOR_VENT = 85.0; // Harde grens: boven deze buiten-LV sluiten externe fans
 const float HUM_MOLD_THRESHOLD = 75.0;  
 const float DP_MARGIN_MIN = 2.0;        
 
