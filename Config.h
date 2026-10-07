@@ -99,10 +99,14 @@ extern unsigned long lastMotionTime;
 // =========================================================================
 // 2. KIEMGROENTEN KLIMAAT CONFIGURATIE
 // =========================================================================
-const float VPD_MIN_OPTIMAL = 0.60; // 0.65  
-const float VPD_MAX_OPTIMAL = 0.80;  // 0.75
+const float VPD_MIN_OPTIMAL = 0.40;  
+const float VPD_MAX_OPTIMAL = 1.00;  
 
-const float GREENHOUSE_MAX_TEMP = 23.0; 
+// Gelaagde drempels voor de fans en zones
+const float VPD_ORANGE_OFFSET       = 0.00;  // Start Fan 1 (Soft min/max) zodra VPD < 0.60
+const float VPD_RED_OFFSET          = 0.20;  // Start Fan 2 boost (Hard min/max) als VPD onder 0.40 zakt
+const float GREENHOUSE_MAX_TEMP     = 23.0;  // Ultra Max temperatuur grens
+const float GREENHOUSE_CRASH_TEMP   = 28.0;  // Noodtoestand / Telegram alarm grens
 
 const float HUM_MOLD_THRESHOLD = 75.0;  
 const float DP_MARGIN_MIN = 2.0;        
@@ -139,9 +143,9 @@ const unsigned long SYSTEM_STARTUP_DELAY = 120000;
 // =========================================================================
 // 3. KLIMAAT & SENSOR CORRECTIE OFFSETS
 // =========================================================================
-const float KAS_TEMP_OFFSET    = +0.8; 
-const float KAS_HUM_OFFSET     = -4.9; 
-const float INDOOR_TEMP_OFFSET = -1.5; 
+const float KAS_TEMP_OFFSET    = +0.4; 
+const float KAS_HUM_OFFSET     = -5.0; 
+const float INDOOR_TEMP_OFFSET = -1.7; 
 const float INDOOR_HUM_OFFSET  = +1.4; 
 const float PRESSURE_OFFSET    = -1.8; 
 

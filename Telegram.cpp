@@ -254,11 +254,7 @@ void handleTelegramIncoming() {
       "• Woning ventileren: %s\n"
       "• Kas ventileren: %s\n"
       "• Verwarmingsmat: %s\n"
-      "• Schimmelrisico: `%s`\n\n"
-      "🌀 *VENTILATORS (2 EXTERN + INTERN)*\n"
-      "• Intern: `%d%%` (`%d RPM`)\n"
-      "• Ext 1 (Hoofd): `%d%%` (`%d RPM`)\n"
-      "• Ext 2 (Boost): `%d%%` (`%d RPM`)",
+      "• Schimmelrisico: `%s`\n\n",
       statusIcon.c_str(),
       kasHumDisplay.c_str(), HUM_MOLD_THRESHOLD,
       kasDpMargin, kasDpIcon.c_str(),
@@ -269,10 +265,7 @@ void handleTelegramIncoming() {
       (houseAdvice == HOUSE_VENTILATE ? "JA ➡️" : "NEE 🔒"),
       (kasAdvice == GREENHOUSE_VENTILATE ? "Naar kamer 🔄" : (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL ? "Intern 🔄" : "Geen actie ✅")),
       (isHeatMatRecommended ? "❗ AAN 🔥" : "💤 UIT"),
-      (moldRisk ? "JA 🔴" : "NEE 🟢"),
-      fanIntPct, fanIntRPM,
-      fanExt1Pct, fanExt1RPM,
-      fanExt2Pct, fanExt2RPM
+      (moldRisk ? "JA 🔴" : "NEE 🟢")
     );
     
     sendTelegramAlert(String(advBufferLocal));
