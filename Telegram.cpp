@@ -218,54 +218,66 @@ void handleTelegramIncoming() {
 
     bool anyFanActive = (fanExt1Pct > 0 || fanExt2Pct > 0 || fanIntPct > 0);
 
+    // 1. Status, Kleur & Waarom
     String statusIcon = "🟢 VEILIG KLIMAAT";
-    if (millis() < SYSTEM_STARTUP_DELAY) {
-      statusIcon = "⏳ 🔵 OPSTARTEN / KALIBREREN";
-    } else if (houseAdvice == HOUSE_VENTILATE && moldRisk) {
-      statusIcon = "🚨 🔴 ZET RAAM WONING OPEN!";
+    String diagnoseWaarom = "Klimaat is stabiel binnen de VPD-marges. Geen actie vereist.";
+    
+    if (isKasSleeping) {
+      statusIcon = "💤 SLAAPSTAND";
+      diagnoseWaarom = "De kweekruimte is in rust. Sensoren meten door, ventilatie en kweekactie zijn uitgeschakeld.";
+    } else if (millis() < SYSTEM_STARTUP_DELAY) {
+      statusIcon = "⏳ OPSTARTEN / KALIBREREN";
+      diagnoseWaarom = "Systeem is aan het opstarten en de sensorfilters vullen zich.";
+    } else if (kasAdvice == GREENHOUSE_CRASH) {
+      statusIcon = "🔴 KRITIEK / CLIMATE CRASH";
+      diagnoseWaarom = "Extreme temperatuur- of vochtigheidspiek gedetecteerd in de kas!";
     } else if (moldRisk) {
-      if (anyFanActive || kasAdvice != OFF) {
-        statusIcon = "⚠️ 🟡 RISICO (ZELF-OPLOSSEND)";
-      } else {
-        statusIcon = "🚨 🔴 ACTIE VEREIST!";
-      }
-    } else if (houseAdvice == HOUSE_VENTILATE) {
-      statusIcon = "🏠 VENTILEER DE WONING";
-    } else if (isHeatMatRecommended) {
-      statusIcon = "🔥 WARMTEMAT AANBEVOLEN";
+      statusIcon = "🔴 SCHIMMELRISICO";
+      diagnoseWaarom = moldReasonText;
+    } else if (kasAdvice == GREENHOUSE_VENTILATE) {
+      statusIcon = "🟡 WACHT / INGRIJPEN VEREIST";
+      diagnoseWaarom = kasAdviceReason;
     }
 
-    String kasHumDisplay = (kasSmoothedHum > HUM_MOLD_THRESHOLD) ? "🔴 `" + String(kasSmoothedHum, 1) + "%` (Te hoog)" : "`" + String(kasSmoothedHum, 1) + "%`";
-    String schimmelRedenDisplay = moldRisk ? "🔴 _" + moldReasonText + "_" : "_" + moldReasonText + "_";
+    // 2. Wat moet JIJ doen (Actie)
+    String actieVoorJij = "Alles loopt automatisch. Geen handmatige actie nodig.";
+    if (isKasSleeping) {
+      actieVoorJij = "Niets, de kas is in slaapstand.";
+    } else if (millis() < SYSTEM_STARTUP_DELAY) {
+      actieVoorJij = "Even geduld: Systeem kalibreert nog.";
+    } else if (woningActuatorActionRequired || (houseAdvice == HOUSE_VENTILATE && moldRisk)) {
+      actieVoorJij = "Zet de binnendeur op een kier of activeer de woningventilatie om drogere lucht aan te voeren.";
+    }
 
-    static char advBufferLocal[1400];
+    // 3. Hardware & Systeemstatus
+    float heapKb = ESP.getFreeHeap() / 1024.0F;
+    float chipTemp = readEspInternalTemp();
+
+    static char advBufferLocal[1600];
     snprintf(advBufferLocal, sizeof(advBufferLocal),
-      "📊 *Klimaat & Schimmeldiagnose*\n"
-      "%s\n\n"
-      "🪴 *KAS WAARDEN*\n"
-      "• LV: %s (Drempel: >`%.1f%%`)\n"
-      "• Dauwpunt-marge: `%+.1f °C` %s\n"
-      "• VPD: `%+.2f kPa`%s\n"
+      "🌿 *Klimaat & Teeltadvies*\n\n"
+      "🚦 *Status:* %s\n"
+      "• *Waarom:* %s\n\n"
+      "👤 *Wat moet JIJ doen?*\n"
       "• %s\n\n"
-      "🏡 *WONING*\n"
-      "• VPD: `%+.2f kPa` %s\n"
-      "• Dauwpunt-marge: `%+.1f °C` %s\n\n"
-      "⚙ *ACTIE & REGELING*\n"
-      "• Woning ventileren: %s\n"
-      "• Kas ventileren: %s\n"
-      "• Verwarmingsmat: %s\n"
-      "• Schimmelrisico: `%s`\n\n",
+      "🌍 *Buitenweer (API)*\n"
+      "• Temp: `%.1f°C` | LV: `%.1f%%`\n"
+      "• *Buitenlucht:* %s\n\n"
+      "📈 *24-Uurs Extremen (Kas)*\n"
+      "• Temp Min: `%.1f°C` | Max: `%.1f°C`\n"
+      "• LV Min: `%.0f%%` | Max: `%.0f%%`\n\n"
+      "⚙️ *Hardware & Gezondheid*\n"
+      "• Vrij RAM: `%.1f KB` | Chip-Temp: `%.1f°C`\n"
+      "• Systeem: %s",
       statusIcon.c_str(),
-      kasHumDisplay.c_str(), HUM_MOLD_THRESHOLD,
-      kasDpMargin, kasDpIcon.c_str(),
-      kasVpd, vpdStatusText.c_str(),
-      schimmelRedenDisplay.c_str(),
-      indoorVpd, indoorVpdIcon.c_str(),
-      indoorDpMargin, indoorDpIcon.c_str(),
-      (houseAdvice == HOUSE_VENTILATE ? "JA ➡️" : "NEE 🔒"),
-      (kasAdvice == GREENHOUSE_VENTILATE ? "Naar kamer 🔄" : (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL ? "Intern 🔄" : "Geen actie ✅")),
-      (isHeatMatRecommended ? "❗ AAN 🔥" : "💤 UIT"),
-      (moldRisk ? "JA 🔴" : "NEE 🟢")
+      diagnoseWaarom.c_str(),
+      actieVoorJij.c_str(),
+      outdoorTemp, outdoorHumidity,
+      (outdoorHumidity < 85.0 ? "Geschikt om te ventileren ✅" : "Te klam/vochtig (>85%%), niet inzetten ❌"),
+      kasTempLow, kasTempHigh,
+      kasLowHum, kasHighHum,
+      heapKb, chipTemp,
+      (millis() < SYSTEM_STARTUP_DELAY ? "⏳ Kalibreren" : "🟢 Operationeel")
     );
     
     sendTelegramAlert(String(advBufferLocal));

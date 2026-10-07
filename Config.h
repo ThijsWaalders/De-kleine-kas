@@ -124,8 +124,17 @@ const float TEMP_HYSTERESIS_THRESHOLD = 0.3;
 const unsigned long BUTTON_DEBOUNCE_DELAY = 50;
 const unsigned long LUX_STABILITY_TIMEOUT = 10000;
 
+// =========================================================================
+// 2.1 SENSOR CORRECTIE OFFSETS
+// =========================================================================
+const float KAS_TEMP_OFFSET    = +0.1; 
+const float KAS_HUM_OFFSET     = -5.1; 
+const float INDOOR_TEMP_OFFSET = -1.9; 
+const float INDOOR_HUM_OFFSET  = +1.4; 
+const float PRESSURE_OFFSET    = -1.8; 
+
 // ======================================================================
-//  Fan settings    ---   Base is start (pid regeling uit), min is voor min bij pid regeling
+// 3. Fan settings    ---   Base is start (pid regeling uit), min is voor min bij pid regeling
 // ======================================================================
 const int PWM_FREQ                  = 25000; 
 const int PWM_RANGE                 = 255; 
@@ -139,19 +148,6 @@ const int INT_FAN_MIN_PWM           = 65;
 
 const unsigned long MIN_FAN_RUN_TIME = 180000; 
 const unsigned long SYSTEM_STARTUP_DELAY = 120000;
-
-// =========================================================================
-// 3. KLIMAAT & SENSOR CORRECTIE OFFSETS
-// =========================================================================
-const float KAS_TEMP_OFFSET    = +0.4; 
-const float KAS_HUM_OFFSET     = -5.0; 
-const float INDOOR_TEMP_OFFSET = -1.7; 
-const float INDOOR_HUM_OFFSET  = +1.4; 
-const float PRESSURE_OFFSET    = -1.8; 
-
-
-
-
 
 // =========================================================================
 // 4. NETWERK, MQTT & TELEGRAM CONFIGURATIE
