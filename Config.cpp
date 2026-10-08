@@ -7,15 +7,21 @@
 #include "Config.h"
 
 // =========================================================================
-// 1. SYSTEEM & HARDWARE STATEN
+// 1. PID REGELAAR VARIABELEN (Gekoppeld aan de instellingen in Config.h)
+// =========================================================================
+float kp = 1.5;                     // Proportioneel (directe reactie)
+float ki = 0.15;                    // Integraal (opbouw bij langdurig vocht)
+float kd = 0.6;                     // Derivatief (remming op schommeling)
+
+
+// =========================================================================
+// 2. SYSTEEM & HARDWARE STATEN
 // =========================================================================
 const float ESP_CRITICAL_TEMP = 70.0;
-// unsigned long lastEspTempCheck = 0;
 
 bool mfOverrideActive = false;
 bool isKasSleeping = false;
 bool pendingTelegramAlert = false;
-// bool homeVentActive = false;
 
 // Interne temperatuursensor handle (veilig verborgen in Config.cpp)
 static temperature_sensor_handle_t global_temp_sensor_handle = NULL;
@@ -27,7 +33,7 @@ unsigned long lastMotionTime = 0;
 
 
 // =========================================================================
-// 2. NETWERK & SERVERS (Gekoppeld aan nono.h)
+// 3. NETWERK & SERVERS (Gekoppeld aan nono.h)
 // =========================================================================
 char ssid [] = SECRET_SSID;
 char password [] = SECRET_PASS;
@@ -43,15 +49,6 @@ float espVcc = 0.0;
 int wifiRSSI = 0;
 uint32_t freeHeap = 0;
 const char* BUFFER_FILE = "/data_buffer.txt";
-
-
-// =========================================================================
-// 3. PID & VENTILATOR STREEFWAARDES (Geoptimaliseerd voor kiemgroenten)
-// =========================================================================
-float pidSetPointVPD = 0.70;        // Ideale VPD voor kiemgroenten
-float kp = 1.5;                     // Milder op directe schommelingen
-float ki = 0.15;                    // Bouwt net wat sneller op bij vasthoudend vocht
-float kd = 0.6;                     // Remt doorschieten af
 
 
 // =========================================================================
@@ -146,7 +143,7 @@ float outdoorHighHum = 0.0;
 
 
 // =========================================================================
-// 7. VENTILATOREN, TACHO & PID VARIABELEN
+// 7. VENTILATOREN, TACHO & PID RUNTIME VARIABELEN
 // =========================================================================
 volatile unsigned long rpmCountInt = 0;
 volatile unsigned long rpmCountExt1 = 0;
@@ -159,7 +156,7 @@ int fanIntPct = 0;
 int fanExt1Pct = 0;
 int fanExt2Pct = 0;
 
-float pidOutput = 0.0;
+float pidOutput = 0.0; // <-- Voeg deze hier weer toe!
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
@@ -182,13 +179,7 @@ float humidityVelocity = 0.0;
 
 
 // =========================================================================
-// 9. BUFFERS & COMMUNICATIE
-// =========================================================================
-// char advBuffer[1600];
-
-
-// =========================================================================
-// 10. HARDWARE & NETWERK OBJECTEN
+// 9. HARDWARE & NETWERK OBJECTEN
 // =========================================================================
 unsigned long lastWifiLedBlink = 0;
 bool wifiLedState = false;
