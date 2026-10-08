@@ -21,6 +21,42 @@ extern float espInternalTemp;
 // BUFFER VOOR TELEGRAM RAPPORTEN
 char advBuffer[1600];
 
+// =========================================================================
+// EASTER EGG: Unieke kiemgroenten-feitjes en humor (Vergrendeld voor /ea)
+// =========================================================================
+const char* microgreensEasterEggs[] = {
+    "🌱 *Wist je dat:* Broccolikiemen tot wel 50 keer meer sulforafaan bevatten dan volwassen broccoliroosjes? Pure anti-oxidantenbom!",
+    "🌿 *Kiem-wijsheid:* Zonnebloemkiemgroenten smaken heerlijk naar verse noten, maar vergeet niet de zaadhulpen tijdig weg te spoelen tegen schimmelvorming!",
+    "💡 *Easter Egg:* Als je te hard naar je radijskiemen blaast, gaan ze niet sneller groeien, maar worden ze wel verlegen.",
+    "🌱 *Feitje:* Erwtenkiemen (Pea Shoots) groeien zo snel dat je ze bijna kunt horen 'drinken' als je VPD-waarde exact op 0.70 kPa staat.",
+    "🪴 *Pro-tip:* Te veel water = natte voeten = ellende. Houd die wortels vochtig, niet verzopen!",
+    "🌿 *Weetje:* Luzerne (Alfalfa) wortelt zo diep in je mat dat ze bijna naar Australië proberen te boren.",
+    "🌱 *Kiem-humor:* Wat is de favoriete muziek van een kiemgroente? Soul- en funk-muziek, vanwege al die wortel-grooves.",
+    "🪴 *Feitje:* Radijskiemen hebben een pittige 'bite' omdat ze glucosinolaten aanmaken om insecten af te schrikken. Jouw smaakpapillen vinden dat gelukkig lekker.",
+    "🌱 *Weetje:* Mosterdkiemen groeien zo snel dat ze binnen een week al klaar zijn om je boterham te veroveren.",
+    "🌿 *Kiem-wijsheid:* Licht is pas nodig *nadat* je kiemen uit hun donkere kiemfase komen. Voordien willen ze alleen maar rust en duisternis.",
+    "💡 *Easter Egg:* De ESP32-S3 in 'De Kleine Kas' droomt 's nachts van elektrische schapen en perfecte VPD-curves.",
+    "🌱 *Feitje:* Tuinkers was al populair bij de oude Romeinen. Die wisten blijkbaar al dat je geen hectare grond nodig hebt voor een vitamineshot.",
+    "🪴 *Weetje:* Als je kiemgroenten te dicht op elkaar zaait, krijgen ze claustrofobie en vallen ze massaal om (damping-off). Geef ze ruimte!",
+    "🌿 *Kiem-humor:* Waarom won de taugé de hardloopwedstrijd? Omdat hij in no-time ontkiemde!",
+    "🌱 *Feitje:* Boekweitkiemen zien er futuristisch uit en smaken een beetje aards. Ideaal voor astronauten in een kleine kas.",
+    "🪴 *Weetje:* Rode kool kiemen hebben prachtige paarse steeltjes. Ze zien er op je bord uit alsof ze uit een kunstgalerie komen.",
+    "🌿 *Kiem-wijsheid:* Een stabiele temperatuur rond de 20 graden houdt je kiemen gelukkig en je energierekening laag.",
+    "💡 *Easter Egg:* Deze ESP32-S3 heeft meer liefde voor jouw kiemgroenten dan je eigen wekker voor jouw ochtendhumeur.",
+    "🌱 *Feitje:* Kiemgroenten zijn eigenlijk 'baby-plantjes' op hun piekwaarde van vitamine-concentratie. Je eet ze op hun sportiefste leeftijd!",
+    "🪴 *Slotfeit:* De beste kas is een automatische kas. Terwijl jij dit leest, regelt de ESP de rest wel weer!"
+};
+
+const int totalEasterEggs = sizeof(microgreensEasterEggs) / sizeof(microgreensEasterEggs[0]);
+
+// Functie die altijd het volgende unieke feitje pakt zonder herhaling
+const char* getNextMicrogreenEasterEgg() {
+    static int eggIndex = 0;
+    const char* selectedEgg = microgreensEasterEggs[eggIndex];
+    eggIndex = (eggIndex + 1) % totalEasterEggs; 
+    return selectedEgg;
+}
+
 /**
  * @brief Stuurt een bericht via de Telegram bot met ingebouwde veiligheid en fan-alarm filter.
  */
@@ -156,7 +192,7 @@ String buildStatusReport() {
 }
 
 // =========================================================================
-// MENU
+// MENU (Laat /ea bewust achterwege zodat het verborgen blijft)
 // =========================================================================
 String buildHelpMenu() {
   String helpMsg = "🤖 *Beschikbare commando's:*\n\n"
@@ -214,6 +250,10 @@ void handleTelegramIncoming() {
   }
   else if (text == "status" || text == "st") {
     sendTelegramAlert(buildStatusReport());
+  }
+  else if (text == "ea" || text == "easteregg") {
+    String eggMessage = "🥚 *Geheime Kiem-Easter Egg*\n\n" + String(getNextMicrogreenEasterEgg());
+    sendTelegramAlert(eggMessage);
   }
   else if (text == "advies" || text == "ad") {
     int fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);

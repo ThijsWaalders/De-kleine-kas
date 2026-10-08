@@ -10,8 +10,6 @@
 * [6. Display, PIR Motion Sensor & Automatic Lux Dimming](https://www.google.com/search?q=%236-display-pir-motion-sensor--automatic-lux-dimming)
 * [7. Telemetry, InfluxDB v1.6, Syslog & Telegram Integration](https://www.google.com/search?q=%237-telemetry-influxdb-v16-syslog--telegram-integration)
 * [Telegram Bot Commands](https://www.google.com/search?q=%23telegram-bot-commands)
-
-
 * [🇳🇱 Nederlands: Handleiding & Documentatie](https://www.google.com/search?q=%23-nederlands-handleiding--documentatie)
 * [1. Hardware-architectuur, Pinout & Tijdelijke Opzet](https://www.google.com/search?q=%231-hardware-architectuur-pinout--tijdelijke-opzet)
 * [2. Teeltlogica Kiemgroenten: Waarom VPD, Drempels & Buffers Cruciaal Zijn](https://www.google.com/search?q=%232-teeltlogica-kiemgroenten-waarom-vpd-drempels--buffers-cruciaal-zijn)
@@ -21,12 +19,6 @@
 * [6. Display, PIR-bewegingssensor & Automatische Lux-dimming](https://www.google.com/search?q=%236-display-pir-bewegingssensor--automatische-lux-dimming)
 * [7. Telemetrie, InfluxDB v1.6, Syslog & Telegram-interactie](https://www.google.com/search?q=%237-telemetrie-influxdb-v16-syslog--telegram-interactie)
 * [Telegram Bot Commando's](https://www.google.com/search?q=%23telegram-bot-commandos)
-
-
-
-
-
-
 
 ---
 
@@ -85,7 +77,7 @@ Evaluates Greenhouse vs. Indoor vs. Outdoor using local sensors and an external 
 
 ### 7. Telemetry, InfluxDB v1.6, Syslog & Telegram Integration
 
-Direct telemetry pipeline to a Raspberry Pi via Telegraf and InfluxDB v1.6, visualized in Grafana, complemented by Syslog, Telnet monitoring, OTA updates, and a rich Telegram command set (`/st`, `/ad`, `/mm`, `/tf`, `/tf2`, `/mf`, `/sleep`, `/tm`, `/ts`, `/hc`, `/fa`, `/ota`, `/rb`).
+Direct telemetry pipeline to a Raspberry Pi via Telegraf and InfluxDB v1.6, visualized in Grafana, complemented by Syslog, Telnet monitoring, OTA updates, and a complete Telegram command set including the secret rotation easter egg (`/ea`).
 
 ---
 
@@ -117,7 +109,7 @@ Het opkweken van microgreens (kiemgroenten) in een afgesloten ruimte luistert ui
 
 * **VPD (Vapor Pressure Deficit - Dampdrukverschil)**: Dit is dé graadmeter voor de verdamping.
 * Als de VPD te laag is (`< 0.60 kPa`), staat de lucht stil, is het te klam en krijgen schimmels (zoals sporen van *Botrytis* of valse meeldauw) binnen enkele uren vrij spel.
-* Als de VPD te hoge vormen aneneemt (`> 0.80 kPa`), drogen de tere worteltjes en zaadblaadjes direct uit en stopt de groei.
+* Als de VPD te hoog wordt (`> 0.80 kPa`), drogen de tere worteltjes en zaadblaadjes direct uit en stopt de groei.
 
 
 * **Dauwpuntmarge (`DP_MARGIN_MIN = 2.0°C`)**: Als de bladtemperatuur van de kiemgroenten te dicht bij het dauwpunt komt, slaat er direct condens neer op de blaadjes. Dit is funest voor kiemgroenten omdat het verstikking en rot veroorzaakt.
@@ -163,3 +155,5 @@ Het systeem communiceert direct met een Raspberry Pi via Telegraf en InfluxDB v1
 * `/fa` — Fan-alarmen dempen of aanzetten.
 * `/ota` — Wireless firmware updates via AP.
 * `/rb` — Systeemherstart.
+* `/fl` — Telegram-wachtrij opschonen.
+* `/ea` — *[Verborgen Easter Egg]* Roterende lijst met unieke kiemgroenten-feitjes en humor zonder het help-menu te vervuilen.

@@ -157,8 +157,9 @@ void sendMqttData() {
   // ⭐ Actuator advies vlaggen per component (0 = Nee / 1 = Ja)
   doc["advies_kas_actief"]   = (kasAdvice != OFF) ? 1 : 0;
   doc["advies_binnen_actief"] = (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) ? 1 : 0;
-  doc["advies_buiten_actief"] = (kasAdvice == GREENHOUSE_VENTILATE) ? 1 : 0;
-  
+  // doc["advies_buiten_actief"] = (kasAdvice == GREENHOUSE_VENTILATE) ? 1 : 0;
+  doc["advies_buiten_actief"] = homeVentActive ? 1 : 0;  
+
   // --- OVERIGE KLIMAAT & SYSTEEM DATA ---
   if (currentPressure > 0.0) doc["luchtdruk"] = currentPressure;
   doc["luchtdruk_trend"]    = baroTrendArrow;

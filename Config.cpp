@@ -6,13 +6,18 @@
 #include "nono.h" 
 #include "Config.h"
 
-// ESP kritieke temperatuur
+// =========================================================================
+// 1. SYSTEEM & HARDWARE STATEN
+// =========================================================================
 const float ESP_CRITICAL_TEMP = 70.0;
+// unsigned long lastEspTempCheck = 0;
 
-// Manual Fan Override
 bool mfOverrideActive = false;
+bool isKasSleeping = false;
+bool pendingTelegramAlert = false;
+// bool homeVentActive = false;
 
-// Globale handle en vlag (veilig verborgen in Config.cpp)
+// Interne temperatuursensor handle (veilig verborgen in Config.cpp)
 static temperature_sensor_handle_t global_temp_sensor_handle = NULL;
 static bool tempSensorInitialized = false;
 
@@ -21,14 +26,9 @@ bool isDisplayActiveByMotion = true;
 unsigned long lastMotionTime = 0;
 
 
-
-// --- KAS AAN/UIT ZETTEN, WEERDATA ALTIJD LATEN DOOR GAAN
-bool isKasSleeping = false;
-
-bool pendingTelegramAlert = false;
-
-
-// --- NETWERK & SERVERS (Gekoppeld aan nono.h) ---
+// =========================================================================
+// 2. NETWERK & SERVERS (Gekoppeld aan nono.h)
+// =========================================================================
 char ssid [] = SECRET_SSID;
 char password [] = SECRET_PASS;
 String openWeatherKey = API_KEY;
@@ -37,29 +37,26 @@ String cityID = CITY_ID;
 char telbot[] = BOT_TOKEN;
 char telid[] = MY_CHAT_ID;
 
-// --- SYSTEEM & NETWERK STATEN ---
 unsigned long lastSuccessfulNetworkActivity = 0;
 bool isConnected = false;
-
 float espVcc = 0.0;
 int wifiRSSI = 0;
 uint32_t freeHeap = 0;
-
 const char* BUFFER_FILE = "/data_buffer.txt";
 
-// --- PID & VENTILATOR STREEFWAARDES ---
-// --- NIEUW/SLIM, LEERT EN OPBOUWT IN PLAATS VAN ABRUPT TE REAGEREN IVM KIEMGROENTES / KLEINE MINI KAS
-float pidSetPointVPD = 0.70;        // Ideale VPD voor kiemgroenten
-float kp = 1.5;                     // Iets milder op directe schommelingen
-float ki = 0.15;                    // Bouwt net wat sneller op als het vocht in de kas blijft hangen
-float kd = 0.6;                     // Houdt de rem er goed op tegen doorschieten
-// --- OUD, IS WAT ABRUPTER
-// float pidSetPointVPD = 0.70;        
-// float kp = 2.0;                     
-// float ki = 0.1;                     
-// float kd = 0.5;                     
 
-// --- SENSOR & KLIMAAT VARIABELEN ---
+// =========================================================================
+// 3. PID & VENTILATOR STREEFWAARDES (Geoptimaliseerd voor kiemgroenten)
+// =========================================================================
+float pidSetPointVPD = 0.70;        // Ideale VPD voor kiemgroenten
+float kp = 1.5;                     // Milder op directe schommelingen
+float ki = 0.15;                    // Bouwt net wat sneller op bij vasthoudend vocht
+float kd = 0.6;                     // Remt doorschieten af
+
+
+// =========================================================================
+// 4. SENSOR & KLIMAAT VARIABELEN
+// =========================================================================
 unsigned long totalKasDhtReads = 0;
 unsigned long failedKasDhtReads = 0;
 unsigned long lastValidKasDhtTime = 0;
@@ -102,8 +99,9 @@ bool isLuxShiftPending = false;
 bool isDisplayOff = false;
 unsigned long darkStartTime = 0;
 
+
 // =========================================================================
-// 4. GLOBALE KLIMAAT & MARGE VARIABELEN
+// 5. GLOBALE KLIMAAT & MARGE VARIABELEN
 // =========================================================================
 float kasDewPoint = -999.0, kasVpd = -999.0, indoorDewPoint = -999.0, indoorVpd = -999.0, currentPressure = 0.0, currentLuxValue = 0.0, outdoorVpd = -999.0;
 bool moldRisk = false;
@@ -130,7 +128,10 @@ unsigned long lastButtonPressTime = 0;
 unsigned long lastBotCheckTime = 0;
 unsigned long lastTelegramSentTime = 0;
 
-// --- VOCHTIGHEID & MIN/MAX STATISTIEKEN ---
+
+// =========================================================================
+// 6. VOCHTIGHEID & MIN/MAX STATISTIEKEN
+// =========================================================================
 float indoorHum = 0.0;
 float indoorTemp = 0.0;
 float kasHum = 0.0;
@@ -143,22 +144,29 @@ float indoorHighHum = 0.0;
 float outdoorLowHum = 100.0;
 float outdoorHighHum = 0.0;
 
-// Fysieke definitie van de tacho-tellers voor alle ventilatoren
+
+// =========================================================================
+// 7. VENTILATOREN, TACHO & PID VARIABELEN
+// =========================================================================
 volatile unsigned long rpmCountInt = 0;
 volatile unsigned long rpmCountExt1 = 0;
 volatile unsigned long rpmCountExt2 = 0;
-// Fan speed, procent en PID gegevens
+
 int fanIntSpeed = 0, fanIntRPM = 0;
 int fanExt1Speed = 0, fanExt1RPM = 0;
 int fanExt2Speed = 0, fanExt2RPM = 0;
 int fanIntPct = 0;
 int fanExt1Pct = 0;
 int fanExt2Pct = 0;
+
 float pidOutput = 0.0;
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
-// Advies staten
+
+// =========================================================================
+// 8. ADVIEZEN & BESTURING
+// =========================================================================
 HouseVentState houseAdvice = HOUSE_CLOSED;
 KasVentState kasAdvice = KAS_OFF;
 HouseVentState previousHouseAdvice = HOUSE_CLOSED;
@@ -172,15 +180,22 @@ float previousHumForVelocity = -999.0;
 unsigned long lastVelocityCheckTime = 0;
 float humidityVelocity = 0.0;
 
-// --- HARDWARE & NETWERK OBJECTEN ---
-// --- LED ---
+
+// =========================================================================
+// 9. BUFFERS & COMMUNICATIE
+// =========================================================================
+// char advBuffer[1600];
+
+
+// =========================================================================
+// 10. HARDWARE & NETWERK OBJECTEN
+// =========================================================================
 unsigned long lastWifiLedBlink = 0;
 bool wifiLedState = false;
-// NETWERK OBJECTEN
+
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 WiFiClientSecure telegramSslClient;
 UniversalTelegramBot bot(BOT_TOKEN, telegramSslClient);
 
-// Daadwerkelijke initialisatie van het display-object
 SSD1306Wire display(0x3c, PIN_SDA, PIN_SCL);
