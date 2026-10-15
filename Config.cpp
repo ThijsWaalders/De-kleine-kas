@@ -100,11 +100,10 @@ unsigned long darkStartTime = 0;
 // =========================================================================
 // 5. GLOBALE KLIMAAT & MARGE VARIABELEN
 // =========================================================================
-// Lampstatus & Transitie timer
+// LAMP-TRANSITIE & PREDICTIVE CONTROL VARIABELEN
 bool lampsAreOn = false;
 bool isLampTransitionActive = false;
 unsigned long lampTransitionStartTime = 0;
-const unsigned long LAMP_TRANSITION_DURATION = 900000; // 15 minuten warmte/afkoel-transitie
 
 float kasDewPoint = -999.0, kasVpd = -999.0, indoorDewPoint = -999.0, indoorVpd = -999.0, currentPressure = 0.0, currentLuxValue = 0.0, outdoorVpd = -999.0;
 bool moldRisk = false;
@@ -200,5 +199,6 @@ SSD1306Wire display(0x3c, PIN_SDA, PIN_SCL);
 // Nieuwe I2C Sensor Objecten
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 Adafruit_BME280 bme; // Gebruikt standaard I2C adres (0x76 of 0x77)
-bool bmeConnected = false;
+bool lightMeterConnected = false;
 bool sht31Connected = false;
+bool bmeConnected = false;

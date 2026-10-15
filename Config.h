@@ -152,10 +152,14 @@ extern const float ESP_CRITICAL_TEMP;
 extern unsigned long lastEspTempCheck;
 inline bool fanAlertsEnabled = true;
 
-// Lampstatus & Transitietimer
+// LAMP-TRANSITIE & PREDICTIVE CONTROL CONFIGURATIE
+extern bool lightMeterConnected;
+extern bool sht31Connected;
+extern bool bmeConnected;
 extern bool lampsAreOn;
 extern bool isLampTransitionActive;
 extern unsigned long lampTransitionStartTime;
+// constexpr unsigned long LAMP_TRANSITION_DURATION = 900000UL; // 15 minuten (900.000 ms)
 
 extern bool mfOverrideActive;
 extern bool isKasSleeping;

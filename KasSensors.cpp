@@ -1,6 +1,6 @@
 /**
  * @file KasSensors.cpp
- * @brief Implementatie van de kas-sensoren (SHT31 en BH1750) voor ESP32-S3.
+ * @brief Implementatie van de kas-sensoren (SHT31 en BH1750) met lamp-transitie detectie voor ESP32-S3.
  */
 
 #include "Config.h"
@@ -11,12 +11,7 @@
 #include <Adafruit_SHT31.h>
 #include <BH1750.h>
 
-// Globale variabelen
-bool lightMeterConnected = false;
-// bool sht31Connected = false;
-
 // Hardware objecten voor de kas
-// Adafruit_SHT31 sht31 = Adafruit_SHT31();
 BH1750 lightMeter;
 
 static unsigned long lastKasReadTime = 0;
@@ -56,14 +51,14 @@ void updateKasSensors() {
     if (tempValid && humValid) {
       lastValidKasTime = millis();
 
-      // DIRECT de pure waarde + je vaste offset. Geen fan-offsets of smoothing meer!
+      // Rauwe meting + vaste kalibratie-offset
       float t = rawTemp + KAS_TEMP_OFFSET;
       float h = rawHum + KAS_HUM_OFFSET;
 
       kasTemp = t;
       kasHum = h;
-      kasSmoothedTemp = t; // Direct doorzetten zonder vertraging
-      kasSmoothedHum  = h;  // Direct doorzetten zonder vertraging
+      kasSmoothedTemp = t; 
+      kasSmoothedHum  = h; 
 
       kasDewPoint = calcDewPoint(kasSmoothedTemp, kasSmoothedHum);
       kasVpd = calcVPD(kasSmoothedTemp, kasSmoothedHum);
@@ -74,28 +69,24 @@ void updateKasSensors() {
       logToSyslogAndSerial("[KAS WARNING] SHT31 leest ongeldige data uit (NAN)!");
     }
 
+    // --- LICHTSENSOR & LAMP-TRANSITIE DETECTIE ---
     if (lightMeterConnected && !isnan(rawLux) && rawLux >= 0.0) {
       currentLuxValue = rawLux;
-      
-      // Lamp-status detectie & transitie trigger
+
       bool currentLightState = (currentLuxValue > 1.0);
       if (currentLightState != lampsAreOn) {
         lampsAreOn = currentLightState;
         lampTransitionStartTime = millis();
-        logToSyslogAndSerial(lampsAreOn ? "[PREDICTIVE] Lampen AANGESLAGEN. Start 15m warmte-transitie." : "[PREDICTIVE] Lampen UITGESCHAKELD. Start afkoel-transitie.");
+        isLampTransitionActive = true; // Start de adaptieve transitiefase
+
+        if (lampsAreOn) {
+          logToSyslogAndSerial("[PREDICTIVE] 💡 Lampen AANGESLAGEN. Start adaptieve warmte-transitie.");
+          sendTelegramAlert("💡 *Lampen AANGESLAGEN*\nDe kleine kas start de adaptieve transitie.");
+        } else {
+          logToSyslogAndSerial("[PREDICTIVE] 🌙 Lampen UITGESCHAKELD. Start adaptieve afkoel-transitie.");
+          sendTelegramAlert("🌙 *Lampen UITGESCHAKELD*\nDe kleine kas start de afkoel-transitie.");
+        }
       }
     }
-
-    // Controleer of de transitie-tijd inmiddels verstreken is
-    if (isLampTransitionActive && (millis() - lampTransitionStartTime >= LAMP_TRANSITION_DURATION)) {
-      isLampTransitionActive = false;
-      logToSyslogAndSerial("[PREDICTIVE] Lamp-transitie periode afgerond. Klimaat gestabiliseerd.");
-    } else if (!isLampTransitionActive && (millis() - lampTransitionStartTime < LAMP_TRANSITION_DURATION) && (millis() > lampTransitionStartTime)) {
-      isLampTransitionActive = true;
-    }
-    // if (lightMeterConnected && !isnan(rawLux) && rawLux >= 0.0) {
-    //   currentLuxValue = rawLux;
-      
-    // }
   }
 }
