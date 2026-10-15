@@ -59,7 +59,7 @@ const float HEAT_MAT_TEMP_HIGH              = 20.0;
 
 // --- 1.5 Sensor Correctie Offsets ---
 const float KAS_TEMP_OFFSET                 = +0.2;  // Kalibratie offset kas SHT31 temperatuur
-const float INDOOR_TEMP_OFFSET              = -1.4;  // Kalibratie offset woning BME280 temperatuur
+const float INDOOR_TEMP_OFFSET              = -1.3;  // Kalibratie offset woning BME280 temperatuur
 const float KAS_HUM_OFFSET                  = +0.1;  // Kalibratie offset kas SHT31 luchtvochtigheid
 const float INDOOR_HUM_OFFSET               = +8.4; //+5.3 // Kalibratie offset woning BME280 luchtvochtigheid
 
