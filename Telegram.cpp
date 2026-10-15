@@ -10,10 +10,12 @@
 #include "MQTT.h"
 #include "Logger.h"
 #include <WiFi.h>
-#include <esp_random.h>
 
 // Tellers voor nieuwe sensoren
 extern unsigned long totalIndoorReads, failedIndoorReads;
+// // Externe tellers voor de 2e DHT (Woning)
+// extern unsigned long totalIndoorDhtReads;
+// extern unsigned long failedIndoorDhtReads;
 
 // Laat Telegram.cpp weten dat deze variabele ergens anders bestaat
 extern float espInternalTemp;
@@ -22,7 +24,7 @@ extern float espInternalTemp;
 char advBuffer[1600];
 
 // =========================================================================
-// EASTER EGG: Unieke kiemgroenten-feitjes en humor (Vergrendeld voor /pe)
+// EASTER EGG: Unieke kiemgroenten-feitjes en humor (Vergrendeld voor /ea)
 // =========================================================================
 const char* microgreensEasterEggs[] = {
     "🌱 *Wist je dat:* Broccolikiemen tot wel 50 keer meer sulforafaan bevatten dan volwassen broccoliroosjes? Pure anti-oxidantenbom!",
@@ -50,14 +52,10 @@ const char* microgreensEasterEggs[] = {
 const int totalEasterEggs = sizeof(microgreensEasterEggs) / sizeof(microgreensEasterEggs[0]);
 
 const char* getNextMicrogreenEasterEgg() {
-    static int eggIndex = -1;
-    if (eggIndex == -1) {
-      // Gebruik Hardware TRNG (True Random Number Generator) van ESP32 bij de eerste keer
-      eggIndex = esp_random() % totalEasterEggs;
-    } else {
-      eggIndex = (eggIndex + 1) % totalEasterEggs;
-    }
-    return microgreensEasterEggs[eggIndex];
+    static int eggIndex = 0;
+    const char* selectedEgg = microgreensEasterEggs[eggIndex];
+    eggIndex = (eggIndex + 1) % totalEasterEggs; 
+    return selectedEgg;
 }
 
 void sendTelegramAlert(String message) {
@@ -103,6 +101,7 @@ String buildStatusReport() {
 
   bool anyFanActive = (fanExt1Pct > 0 || fanExt2Pct > 0 || fanIntPct > 0);
 
+  // Samengevoegde logica voor Wat doet De kleine kas (Kopje 3 & 4 gecombineerd)
   String kasActieLogica = "🟢 Kas-klimaat is optimaal en stabiel.";
   if (!isSystemReady()) {
     kasActieLogica = "⏳ Systeem is aan het opstarten / kalibreren.";
@@ -110,48 +109,50 @@ String buildStatusReport() {
     kasActieLogica = moldRisk ? "🌧️ Schimmelrisico in kas (De kleine kas stuurt bij)." : "💧 Kas aan de klamme kant (De kleine kas regelt actief).";
   } else if (kasVpd > VPD_MAX_OPTIMAL) {
     if (kasAdvice == GREENHOUSE_VENTILATE) {
-      kasActieLogica = "🔥 Kas te droog; De kleine kas benut drogere woninglucht om te ventileren.";
+      kasActieLogica = "🔥 Kas te droog, maar De kleine kas benut betere woninglucht om te corrigeren.";
     } else {
-      kasActieLogica = "🔥 Uitdrogingsrisico in kas (De kleine kas houdt de kas gesloten om vocht vast te houden).";
+      kasActieLogica = "🔥 Uitdrogingsrisico in kas (De kleine kas houdt kas gesloten).";
     }
   } else if (anyFanActive || isHeatMatRecommended) {
     kasActieLogica = "🔵 De kleine kas voert actieve klimaatregulering uit.";
   }
 
-  // Actuator details toevoegen
-  kasActieLogica += isHeatMatRecommended ? "\nWarmtemat (Kas): AAN 🔥" : "\nWarmtemat (Kas): UIT 💤";
+  // Actuator details toevoegen aan de logica
+  if (isHeatMatRecommended) kasActieLogica += "\n• Warmtemat (Kas): AAN 🔥";
+  else kasActieLogica += "\n• Warmtemat (Kas): UIT 💤";
 
   if (kasAdvice == GREENHOUSE_VENTILATE) {
-    kasActieLogica += "\nKas-ventilatie: Actief via Woninglucht 💨";
+    kasActieLogica += "\n• Kas-ventilatie: De kleine kas benut buiten-/woninglucht 💨";
   } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
-    kasActieLogica += "\nKas-circulatie: Interne circulatie (breekt microklimaat) 🌀";
+    kasActieLogica += "\n• Kas-circulatie: De kleine kas breekt microklimaat 🌀";
   } else {
-    kasActieLogica += "\nKas-actuators: In rust / gesloten 🔒";
+    kasActieLogica += "\n• Kas-actuators: In rust / gesloten 🔒";
   }
 
   if (fanExt1Pct > 0 || fanExt2Pct > 0) {
-    kasActieLogica += "\nExterne fans: Actief (" + String(fanExt1Pct) + "% / " + String(fanExt2Pct) + "%).";
+    kasActieLogica += "\n• Externe fans: Actief (" + String(fanExt1Pct) + "% / " + String(fanExt2Pct) + "%).";
   } else {
-    kasActieLogica += "\nExterne fans: In rust.";
+    kasActieLogica += "\n• Externe fans: In rust.";
   }
 
   if (kasAdviceReason.length() > 0) {
-    kasActieLogica += "\n*Toelichting:* " + kasAdviceReason;
+    kasActieLogica += "\n• *Toelichting:* " + kasAdviceReason;
   }
 
   String actieVereist = "🟢 Geen actie nodig. De kleine kas regelt alles volledig zelf.";
   if (!isSystemReady()) {
     actieVereist = "⏳ Even geduld: Systeem kalibreert nog.";
   } else if (moldRisk) {
-    if (indoorHum > 85.0) {
-      actieVereist = "🔴 Schimmelrisico, MAAR woninglucht is te klam (>85% LV). **Houd woning droog!**";
+    if (outdoorHumidity > 85.0) {
+      actieVereist = "🔴 Schimmelrisico, MAAR buiten/woning is te klam (>85% LV). **Houd ramen dicht!**";
     } else {
-      actieVereist = "🏠🪟 **Jouw actie vereist:** Ventileer de woning zodat er schone bufferlucht voor de kas is.";
+      actieVereist = "🏠🪟 **Jouw actie vereist:** Zet het raam/binnendeur open om drogere bufferlucht naar de kas te leiden.";
     }
   }
 
   String currentIp = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "Niet verbonden";
 
+  // Woning VPD schatting (optioneel of N/A als druksensor ontbreekt, hier op basis van temp/lv)
   static char reportBuf[1600];
   snprintf(reportBuf, sizeof(reportBuf),
     "📊 *Statusrapport 'De Kleine Kas'*\n\n"
@@ -182,23 +183,23 @@ String buildStatusReport() {
 // MENU
 // =========================================================================
 String buildHelpMenu() {
-  return "🤖 *Beschikbare commando's:*\n\n"
-         "• *Status* (`/st`) - Bekijk direct alle sensorwaarden\n"
-         "• *Advies* (`/ad`) - Uitgebreid ventilatie & schimmeladvies\n"
-         "• *Minmax* (`/mm`) - Hoogste/laagste dagtemperatuur\n"
-         "• *Paasei* (`/pe`) - Random kiemgroenten-feitje of humor\n"
-         "• *Testmat* (`/tm`) - Test warmtemat (15 sec)\n"
-         "• *Testschimmel* (`/ts`) - Test schimmeltoggle (10 min)\n"
-         "• *Testfans* (`/tf`) - Test alle fans op 100% (30 sec)\n"
-         "• *Testfans 2* (`/tf2`) - Interne fan uit, ext. fans 1 & 2 naar max (30 sec)\n"
-         "• *Manual Ext Fans 100%* (`/mf`) - Interne fan uit, ext. fans 1 & 2 naar max (ON/OFF)\n"
-         "• *Kas-slaap* (`/sl`) - Zet kas op ruststand / gesloten\n"
-         "• *Hardwarecheck* (`/hc`) - Meetwaardes hardware\n"
-         "• *Fanalarm* (`/fa`) - Fan alarmering aan/uit\n"
-         "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
-         "• *Flush* (`/fl`) - Wis Telegram wachtrij\n"
-         "• *Reboot* (`/rb`) - Herstart het systeem\n"
-         "• *Help* (`/h`) - Dit menu\n";
+  String helpMsg = "🤖 *Beschikbare commando's:*\n\n"
+                   "• *Status* (`/st`) - Bekijk direct alle sensorwaarden\n"
+                   "• *Advies* (`/ad`) - Uitgebreid ventilatie & schimmeladvies\n"
+                   "• *Minmax* (`/mm`) - Hoogste/laagste dagtemperatuur\n"
+                   "• *Testmat* (`/tm`) - Test warmtemat (15 sec)\n"
+                   "• *Testschimmel* (`/ts`) - Test schimmeltoggle (10 min)\n"
+                   "• *Testfans* (`/tf`) - Test alle fans op 100% (30 sec)\n"
+                   "• *Testfans 2* (`/tf2`) - Interne fan uit, ext. fans 1 & 2 naar max (30 sec)\n"
+                   "• *Manual Ext Fans 100%* (`/mf`) - Interne fan uit, ext. fans 1 & 2 naar max (ON/OFF)\n"
+                   "• *Kas-slaap* (`/sl`) - Zet kas op ruststand / gesloten\n"
+                   "• *Hardwarecheck* (`/hc`) - Meetwaardes hardware\n"
+                   "• *Fanalarm* (`/fa`) - Fan alarmering aan/uit\n"
+                   "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
+                   "• *Flush* (`/fl`) - Wis Telegram wachtrij\n"
+                   "• *Reboot* (`/rb`) - Herstart het systeem\n"
+                   "• *Help* (`/h`) - Dit menu\n";
+  return helpMsg;
 }
 
 void sendHelpMenu() {
@@ -238,11 +239,12 @@ void handleTelegramIncoming() {
   else if (text == "status" || text == "st") {
     sendTelegramAlert(buildStatusReport());
   }
-  else if (text == "pe" || text == "paasei" || text == "ea") {
+  else if (text == "pe" || text == "paasei") {
     String eggMessage = "🥚 *Geheime Kiem-Easter Egg*\n\n" + String(getNextMicrogreenEasterEgg());
     sendTelegramAlert(eggMessage);
   }
   else if (text == "advies" || text == "ad") {
+    // 1. Status met nat/klam icoon i.p.v. gele waarschuwing
     String statusIcon = "🟢 VEILIG KLIMAAT";
     String diagnoseWaarom = "Geen actie vereist. Klimaat is stabiel binnen de VPD-marges.";
     
@@ -260,7 +262,7 @@ void handleTelegramIncoming() {
       diagnoseWaarom = moldReasonText;
     } else if (kasVpd < VPD_MIN_OPTIMAL) {
       statusIcon = "💧 KLAM / TE VOCHTIG";
-      diagnoseWaarom = "Kasvochtigheid is aan de hoge kant, De kleine kas stuurt bij via Woninglucht.";
+      diagnoseWaarom = "Kasvochtigheid is aan de hoge kant, De kleine kas stuurt bij.";
     } else if (kasAdvice == GREENHOUSE_VENTILATE) {
       statusIcon = "🟡 De kas stelt bij";
       diagnoseWaarom = kasAdviceReason;
@@ -272,10 +274,10 @@ void handleTelegramIncoming() {
     } else if (!isSystemReady()) {
       actieVoorJij = "Even geduld: Systeem kalibreert nog.";
     } else if (moldRisk || kasVpd < VPD_MIN_OPTIMAL) {
-      if (indoorHum > 85.0) {
-        actieVoorJij = "🔴 **Houd woningdroog!** Schimmelrisico ***EN*** Woning-LV is >85%.";
+      if (outdoorHumidity > 85.0) {
+        actieVoorJij = "🔴 **Houd ramen dicht!** Schimmelrisico ***EN*** buiten is LV nog > dan KasLV.";
       } else {
-        actieVoorJij = "🏠🪟 **Ventileer de woning** om drogere bufferlucht aan te voeren.";
+        actieVoorJij = "🏠🪟 **Ventileer de woning** om drogere lucht aan te voeren.";
       }
     }
 
