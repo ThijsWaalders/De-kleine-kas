@@ -1,14 +1,13 @@
 /**
  * @file IndoorSensors.h
- * @brief Headerbestand voor kamersensoren (ESP32-S3).
+ * @brief Headerbestand voor kamersensoren (BME280 en PIR) voor ESP32-S3.
  */
 
 #ifndef INDOORSENSORS_H
 #define INDOORSENSORS_H
 
 #include <Arduino.h>
-#include <DHT.h>
-#include <Adafruit_BMP085.h>
+#include <Adafruit_BME280.h>
 
 // Externe variabelen
 extern float indoorTemp;
@@ -18,8 +17,9 @@ extern float indoorSmoothedHum;
 extern float indoorDewPoint;
 extern float indoorVpd;
 extern float currentPressure;
-extern bool bmpConnected;
+extern bool bmeConnected;
 
+// Tellers (behouden voor compatibiliteit met elders in de code)
 extern unsigned long totalIndoorDhtReads;
 extern unsigned long failedIndoorDhtReads;
 
@@ -31,4 +31,4 @@ void updateIndoorSensors();
 void setupPIR();
 void checkPIRMotion();
 
-#endif 
+#endif

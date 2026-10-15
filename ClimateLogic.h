@@ -11,9 +11,13 @@
 
 // Externe objecten uit andere modules
 extern PicoSyslog::Logger syslog;
-extern SSD1306Wire display; 
-extern DHT dht; 
-extern Adafruit_BMP085 bmp;
+extern SSD1306Wire display;
+// Nieuwe sensors 
+extern Adafruit_SHT31 sht31;
+extern Adafruit_BME280 bme;
+// OUDE SENSOREN
+// extern DHT dht; 
+// extern Adafruit_BMP085 bmp;
 extern BH1750 lightMeter;
 extern UniversalTelegramBot bot;
 
@@ -104,6 +108,8 @@ inline float calcVPD(float tempC, float hum) {
   return svp - avp;
 }
 
+// Functie prototypes
+bool isSystemReady();
 void evaluateClimateState(float tempC, float hum);
 void checkClimateVelocity(float currentHum);
 void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp);

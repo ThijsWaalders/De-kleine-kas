@@ -1,27 +1,33 @@
 /**
  * @file KasSensors.cpp
- * @brief Implementatie van de kas-sensoren (DHT en optioneel BH1750 lichtsensor) meting, smoothing, offsets, dauwpunt en VPD voor ESP32-S3.
+ * @brief Implementatie van de kas-sensoren (SHT31 en BH1750) voor ESP32-S3.
  */
 
 #include "Config.h"
 #include "KasSensors.h"
 #include "ClimateLogic.h"
 #include "Logger.h"
+#include <Wire.h>
+#include <Adafruit_SHT31.h>
+#include <BH1750.h>
 
-// Daadwerkelijke definitie van de globale variabele voor de kas lichtsensor
+// Globale variabelen
 bool lightMeterConnected = false;
+// bool sht31Connected = false;
 
 // Hardware objecten voor de kas
-DHT kasDht(KAS_DHT_PIN, KAS_DHT_TYPE);
+// Adafruit_SHT31 sht31 = Adafruit_SHT31();
 BH1750 lightMeter;
 
 static unsigned long lastKasReadTime = 0;
 
-/**
- * @brief Initialiseert de kas sensoren.
- */
 void setupKasSensors() {
-  kasDht.begin();
+  if (sht31.begin(0x44)) {
+    sht31Connected = true;
+    logToSyslogAndSerial("[KAS] SHT31 sensor gedetecteerd.");
+  } else {
+    logToSyslogAndSerial("[KAS WARNING] SHT31 niet gevonden op 0x44!");
+  }
 
   if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
     lightMeterConnected = true;
@@ -34,159 +40,62 @@ void setupKasSensors() {
   logToSyslogAndSerial("[KAS] Kassensoren geïnitialiseerd.");
 }
 
-/**
- * @brief Leest periodiek de kas-sensoren uit, past dynamische fan-offsets en smoothing toe.
- */
 void updateKasSensors() {
   if (millis() - lastKasReadTime >= 3000 || lastKasReadTime == 0) {
     lastKasReadTime = millis();
     
-    totalKasDhtReads++;
+    totalKasReads++;
 
-    float rawHum = kasDht.readHumidity();
-    float rawTemp = kasDht.readTemperature();
-    float rawLux = lightMeterConnected ? lightMeter.readLightLevel() : 0.0;
+    float rawTemp = sht31Connected ? sht31.readTemperature() : NAN;
+    float rawHum  = sht31Connected ? sht31.readHumidity() : NAN;
+    float rawLux  = lightMeterConnected ? lightMeter.readLightLevel() : 0.0;
 
-    bool humValid = !isnan(rawHum) && (rawHum >= 0.0 && rawHum <= 100.0);
     bool tempValid = !isnan(rawTemp);
+    bool humValid  = !isnan(rawHum) && (rawHum >= 0.0 && rawHum <= 100.0);
 
-    if (humValid && tempValid) {
-      // --- DYNAMISCHE FAN-OFFSET VOOR AIRFLOW CORRECTIE ---
-      // Map de PWM-snelheden van de externe fans naar percentages (0 tot 100)
-      int fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
-      int fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
-      int averageFanPct = (fanExt1Pct + fanExt2Pct) / 2;
+    if (tempValid && humValid) {
+      lastValidKasTime = millis();
 
-      float fanTempOffset = 0.0;
-      float fanHumOffset = 0.0;
-
-      // Zodra de fans harder dan 10% blazen, corrigeren we voor de windchill/sensor-verstoring
-      if (averageFanPct > 10) {
-        float factor = (float)averageFanPct / 100.0; // Schaal van 0.0 tot 1.0
-        
-        // Pas deze waarden subtiel aan op basis van hoe erg jouw sensor reageert op de wind
-        fanTempOffset = 0.3 * factor; // Bijv. tot +0.3°C correctie bij volle bak
-        fanHumOffset  = 2.0 * factor; // Bijv. tot +2.0% LV correctie bij volle bak
-      }
-
-      // 1. Basis offsets uit config.h + de dynamische fan-offset toepassen
-      float t = rawTemp + KAS_TEMP_OFFSET + fanTempOffset;
-      float h = rawHum + KAS_HUM_OFFSET - fanHumOffset; // Minus of plus afhankelijk van je opstelling
+      // DIRECT de pure waarde + je vaste offset. Geen fan-offsets of smoothing meer!
+      float t = rawTemp + KAS_TEMP_OFFSET;
+      float h = rawHum + KAS_HUM_OFFSET;
 
       kasTemp = t;
       kasHum = h;
+      kasSmoothedTemp = t; // Direct doorzetten zonder vertraging
+      kasSmoothedHum  = h;  // Direct doorzetten zonder vertraging
 
-      // 2. Smoothing toepassen
-      if (kasSmoothedTemp == -999.0 || kasSmoothedTemp == 0.0) {
-        kasSmoothedTemp = t;
-        kasSmoothedHum = h;
-      } else {
-        kasSmoothedTemp = (kasSmoothedTemp * 0.8) + (t * 0.2);
-        kasSmoothedHum  = (kasSmoothedHum * 0.8) + (h * 0.2);
-      }
-
-      // 3. Afgeleide waardes berekenen
       kasDewPoint = calcDewPoint(kasSmoothedTemp, kasSmoothedHum);
       kasVpd = calcVPD(kasSmoothedTemp, kasSmoothedHum);
-      
-      // Weergave temperatuur bijwerken
       displayedTemp = kasSmoothedTemp;
 
     } else {
-      failedKasDhtReads++;
+      failedKasReads++;
+      logToSyslogAndSerial("[KAS WARNING] SHT31 leest ongeldige data uit (NAN)!");
     }
 
-    // Lichtsensor bijwerken indien verbonden
     if (lightMeterConnected && !isnan(rawLux) && rawLux >= 0.0) {
       currentLuxValue = rawLux;
+      
+      // Lamp-status detectie & transitie trigger
+      bool currentLightState = (currentLuxValue > 1.0);
+      if (currentLightState != lampsAreOn) {
+        lampsAreOn = currentLightState;
+        lampTransitionStartTime = millis();
+        logToSyslogAndSerial(lampsAreOn ? "[PREDICTIVE] Lampen AANGESLAGEN. Start 15m warmte-transitie." : "[PREDICTIVE] Lampen UITGESCHAKELD. Start afkoel-transitie.");
+      }
     }
+
+    // Controleer of de transitie-tijd inmiddels verstreken is
+    if (isLampTransitionActive && (millis() - lampTransitionStartTime >= LAMP_TRANSITION_DURATION)) {
+      isLampTransitionActive = false;
+      logToSyslogAndSerial("[PREDICTIVE] Lamp-transitie periode afgerond. Klimaat gestabiliseerd.");
+    } else if (!isLampTransitionActive && (millis() - lampTransitionStartTime < LAMP_TRANSITION_DURATION) && (millis() > lampTransitionStartTime)) {
+      isLampTransitionActive = true;
+    }
+    // if (lightMeterConnected && !isnan(rawLux) && rawLux >= 0.0) {
+    //   currentLuxValue = rawLux;
+      
+    // }
   }
 }
-// /**
-//  * @file KasSensors.cpp
-//  * @brief Implementatie van de kas-sensoren (DHT en optioneel BH1750 lichtsensor) meting, smoothing, offsets, dauwpunt en VPD voor ESP32-S3.
-//  */
-
-// #include "Config.h"
-// #include "KasSensors.h"
-// #include "ClimateLogic.h"
-// #include "Logger.h"
-
-// // Daadwerkelijke definitie van de globale variabele voor de kas lichtsensor
-// bool lightMeterConnected = false;
-
-// // Hardware objecten voor de kas
-// DHT kasDht(KAS_DHT_PIN, KAS_DHT_TYPE);
-// BH1750 lightMeter;
-
-// static unsigned long lastKasReadTime = 0;
-
-// /**
-//  * @brief Initialiseert de kas sensoren.
-//  */
-// void setupKasSensors() {
-//   kasDht.begin();
-
-//   // Als je de lichtsensor weer wilt aanzetten, kun je hieronder de coderegel activeren:
-//   if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-//     lightMeterConnected = true;
-//     logToSyslogAndSerial("[KAS] BH1750 lichtsensor gedetecteerd.");
-//   } else {
-//     lightMeterConnected = false;
-//     logToSyslogAndSerial("[KAS WARNING] BH1750 lichtsensor niet gevonden.");
-//   }
-  
-//   // lightMeterConnected = true; // Forceer op false tot je hem fysiek aansluit
-//   logToSyslogAndSerial("[KAS] Kassensoren geïnitialiseerd.");
-// }
-
-// /**
-//  * @brief Leest periodiek de kas-sensoren uit, past offsets en smoothing toe.
-//  */
-// void updateKasSensors() {
-//   if (millis() - lastKasReadTime >= 3000 || lastKasReadTime == 0) {
-//     lastKasReadTime = millis();
-    
-//     totalKasDhtReads++;
-
-//     float rawHum = kasDht.readHumidity();
-//     float rawTemp = kasDht.readTemperature();
-//     float rawLux = lightMeterConnected ? lightMeter.readLightLevel() : 0.0;
-
-//     bool humValid = !isnan(rawHum) && (rawHum >= 0.0 && rawHum <= 100.0);
-//     bool tempValid = !isnan(rawTemp);
-
-//     if (humValid && tempValid) {
-//       // 1. Offsets toepassen vanuit config.h
-//       float t = rawTemp + KAS_TEMP_OFFSET;
-//       float h = rawHum + KAS_HUM_OFFSET;
-
-//       kasTemp = t;
-//       kasHum = h;
-
-//       // 2. Smoothing toepassen
-//       if (kasSmoothedTemp == -999.0 || kasSmoothedTemp == 0.0) {
-//         kasSmoothedTemp = t;
-//         kasSmoothedHum = h;
-//       } else {
-//         kasSmoothedTemp = (kasSmoothedTemp * 0.8) + (t * 0.2);
-//         kasSmoothedHum  = (kasSmoothedHum * 0.8) + (h * 0.2);
-//       }
-
-//       // 3. Afgeleide waardes berekenen
-//       kasDewPoint = calcDewPoint(kasSmoothedTemp, kasSmoothedHum);
-//       kasVpd = calcVPD(kasSmoothedTemp, kasSmoothedHum);
-      
-//       // Weergave temperatuur bijwerken
-//       displayedTemp = kasSmoothedTemp;
-
-//     } else {
-//       failedKasDhtReads++;
-//     }
-
-//     // Lichtsensor bijwerken indien verbonden
-//     if (lightMeterConnected && !isnan(rawLux) && rawLux >= 0.0) {
-//       currentLuxValue = rawLux;
-//     }
-//   }
-// }

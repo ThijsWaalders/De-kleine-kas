@@ -7,11 +7,11 @@
 #include "Config.h"
 
 // =========================================================================
-// 1. PID REGELAAR VARIABELEN (Gekoppeld aan de instellingen in Config.h)
+// 1. PID REGELAAR VARIABELEN
 // =========================================================================
-float kp = 1.5;                     // Proportioneel (directe reactie)
-float ki = 0.15;                    // Integraal (opbouw bij langdurig vocht)
-float kd = 0.6;                     // Derivatief (remming op schommeling)
+float kp = 1.5;                     
+float ki = 0.15;                    
+float kd = 0.6;                     
 
 
 // =========================================================================
@@ -23,7 +23,7 @@ bool mfOverrideActive = false;
 bool isKasSleeping = false;
 bool pendingTelegramAlert = false;
 
-// Interne temperatuursensor handle (veilig verborgen in Config.cpp)
+// Interne temperatuursensor handle
 static temperature_sensor_handle_t global_temp_sensor_handle = NULL;
 static bool tempSensorInitialized = false;
 
@@ -33,7 +33,7 @@ unsigned long lastMotionTime = 0;
 
 
 // =========================================================================
-// 3. NETWERK & SERVERS (Gekoppeld aan nono.h)
+// 3. NETWERK & SERVERS
 // =========================================================================
 char ssid [] = SECRET_SSID;
 char password [] = SECRET_PASS;
@@ -54,12 +54,12 @@ const char* BUFFER_FILE = "/data_buffer.txt";
 // =========================================================================
 // 4. SENSOR & KLIMAAT VARIABELEN
 // =========================================================================
-unsigned long totalKasDhtReads = 0;
-unsigned long failedKasDhtReads = 0;
-unsigned long lastValidKasDhtTime = 0;
-unsigned long totalIndoorDhtReads = 0;
-unsigned long failedIndoorDhtReads = 0;
-unsigned long lastValidIndoorDhtTime = 0;
+unsigned long totalKasReads = 0;
+unsigned long failedKasReads = 0;
+unsigned long lastValidKasTime = 0;
+unsigned long totalIndoorReads = 0;
+unsigned long failedIndoorReads = 0;
+unsigned long lastValidIndoorTime = 0;
 
 float kasSmoothedTemp = -999.0, kasSmoothedHum = -999.0, indoorSmoothedTemp = -999.0, indoorSmoothedHum = -999.0, displayedTemp = -999.0;
 unsigned long lastTempUpdate = 0;
@@ -100,6 +100,12 @@ unsigned long darkStartTime = 0;
 // =========================================================================
 // 5. GLOBALE KLIMAAT & MARGE VARIABELEN
 // =========================================================================
+// Lampstatus & Transitie timer
+bool lampsAreOn = false;
+bool isLampTransitionActive = false;
+unsigned long lampTransitionStartTime = 0;
+const unsigned long LAMP_TRANSITION_DURATION = 900000; // 15 minuten warmte/afkoel-transitie
+
 float kasDewPoint = -999.0, kasVpd = -999.0, indoorDewPoint = -999.0, indoorVpd = -999.0, currentPressure = 0.0, currentLuxValue = 0.0, outdoorVpd = -999.0;
 bool moldRisk = false;
 String moldReasonText = "";
@@ -156,7 +162,7 @@ int fanIntPct = 0;
 int fanExt1Pct = 0;
 int fanExt2Pct = 0;
 
-float pidOutput = 0.0; // <-- Voeg deze hier weer toe!
+float pidOutput = 0.0; 
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
@@ -190,3 +196,9 @@ WiFiClientSecure telegramSslClient;
 UniversalTelegramBot bot(BOT_TOKEN, telegramSslClient);
 
 SSD1306Wire display(0x3c, PIN_SDA, PIN_SCL);
+
+// Nieuwe I2C Sensor Objecten
+Adafruit_SHT31 sht31 = Adafruit_SHT31();
+Adafruit_BME280 bme; // Gebruikt standaard I2C adres (0x76 of 0x77)
+bool bmeConnected = false;
+bool sht31Connected = false;

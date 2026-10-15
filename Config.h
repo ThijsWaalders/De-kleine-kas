@@ -16,9 +16,9 @@
 #include <UniversalTelegramBot.h>
 #include <Wire.h>        
 #include <SSD1306Wire.h>
-#include "DHT.h"
+#include <Adafruit_SHT31.h>
+#include <Adafruit_BME280.h>
 #include "driver/temperature_sensor.h"
-#include <Adafruit_BMP085.h>
 #include <BH1750.h>
 #include <PubSubClient.h>
 #include <math.h>
@@ -31,38 +31,39 @@
 // =========================================================================
 
 // --- 1.1 VPD & Klimaat Doelen (Kiemgroenten) ---
-const float VPD_MAX_OPTIMAL                 = 0.85;  // Maximale optimale VPD
-const float VPD_MIN_OPTIMAL                 = 0.55;  // Minimale optimale VPD
-const float pidSetPointVPD                  = 0.70;  // Ideale streefwaarde voor de PID-regeling
+const float VPD_MAX_OPTIMAL                 = 0.94;  
+const float VPD_MIN_OPTIMAL                 = 0.46;  
+const float pidSetPointVPD                  = 0.50;  
 
 // --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
-extern float kp;                                     // Proportioneel (directe reactie op fout)
-extern float ki;                                     // Integraal (opbouw bij langdurig vocht)
-extern float kd;                                     // Derivatief (remming op snelle schommelingen)
+extern float kp;                                     
+extern float ki;                                     
+extern float kd;                                     
 
 // --- 1.3 Ventilator PWM Snelheden & Grenzen ---
-const int FAN_MAX_PWM                       = 255;   // 100% snelheid
-const int EXT_FAN_MIN_PWM                   = 120;   // Minimale start-PWM externe fans (~47%)
-const int EXT_FAN_BASE_PWM                  = 123;   // Basis PWM externe fans
-const int INT_FAN_BASE_PWM                  = 111;   // Interne circulatie fan PWM
-const int INT_FAN_MIN_PWM                   = 65;    // Minimale PWM interne fan
+const int FAN_MAX_PWM                       = 255;   
+const int EXT_FAN_MIN_PWM                   = 120;   
+const int EXT_FAN_BASE_PWM                  = 123;   
+const int INT_FAN_BASE_PWM                  = 111;   
+const int INT_FAN_MIN_PWM                   = 65;    
 
 // --- 1.4 Klimaat Drempelwaarden & Veiligheid ---
-const float GREENHOUSE_MAX_TEMP             = 26.0;  // Max temperatuur kas voor waarschuwing
-const float GREENHOUSE_CRASH_TEMP           = 28.0;  // Kritieke crash temperatuur kas
-const float OUTDOOR_MAX_HUMIDITY_FOR_VENT   = 85.0;  // Max buitenlucht vochtigheid om te mogen luchten
-const float HUM_MOLD_THRESHOLD              = 75.0;  // Schimmel risico luchtvochtigheid drempel
-const float DP_MARGIN_MIN                   = 2.0;   // Minimale dauwpunt marge in °C
+const float GREENHOUSE_MAX_TEMP             = 26.0;  
+const float GREENHOUSE_CRASH_TEMP           = 28.0;  
+const float OUTDOOR_MAX_HUMIDITY_FOR_VENT   = 85.0;  
+const float HUM_MOLD_THRESHOLD              = 75.0;  
+const float DP_MARGIN_MIN                   = 2.0;   
 
-const float HEAT_MAT_TEMP_LOW               = 16.0;  // Ondergrens verwarmingsmat
-const float HEAT_MAT_TEMP_HIGH              = 20.0;  // Bovengrens verwarmingsmat
+const float HEAT_MAT_TEMP_LOW               = 16.0;  
+const float HEAT_MAT_TEMP_HIGH              = 20.0;  
 
 // --- 1.5 Sensor Correctie Offsets ---
-const float KAS_TEMP_OFFSET                 = +0.3;  // Kalibratie offset kas temperatuur
-const float KAS_HUM_OFFSET                  = -5.0;  // Kalibratie offset kas luchtvochtigheid
-const float INDOOR_TEMP_OFFSET              = -1.8;  // Kalibratie offset woning temperatuur
-const float INDOOR_HUM_OFFSET               = +1.4;  // Kalibratie offset woning luchtvochtigheid
-const float PRESSURE_OFFSET                 = -1.8;  // Kalibratie offset luchtdruk
+const float KAS_TEMP_OFFSET                 = +0.2;  // Kalibratie offset kas SHT31 temperatuur
+const float INDOOR_TEMP_OFFSET              = -1.4;  // Kalibratie offset woning BME280 temperatuur
+const float KAS_HUM_OFFSET                  = +0.1;  // Kalibratie offset kas SHT31 luchtvochtigheid
+const float INDOOR_HUM_OFFSET               = +8.4; //+5.3 // Kalibratie offset woning BME280 luchtvochtigheid
+
+const float PRESSURE_OFFSET                 = -2.2; //-2.2 // Kalibratie offset luchtdruk (BME280)
 
 
 // =========================================================================
@@ -70,8 +71,8 @@ const float PRESSURE_OFFSET                 = -1.8;  // Kalibratie offset luchtd
 // =========================================================================
 const int FLASH_BUTTON_PIN                  = 0;     // Boot knop op ESP32-S3
 #define PIN_PIR                             2        // HW-416-B Bewegingssensor
-#define PIN_SCL                             4        // I2C Clock
-#define PIN_SDA                             5        // I2C Data
+#define PIN_SCL                             4        // I2C Clock (Gedeeld voor SHT31, BME280, BH1750)
+#define PIN_SDA                             5        // I2C Data  (Gedeeld voor SHT31, BME280, BH1750)
 
 // Pinnen voor Ventilatoren (PWM & Tacho pulsen)
 #define PIN_FAN_INT_TACHO                   13   
@@ -81,12 +82,8 @@ const int FLASH_BUTTON_PIN                  = 0;     // Boot knop op ESP32-S3
 #define PIN_FAN_EXT2_TACHO                  9  
 #define PIN_FAN_EXT2_PWM                    8  
 
-// Sensor Pinnen & Typen
-#define INDOOR_DHT_PIN                      6   
-#define INDOOR_DHT_TYPE                     DHT11
-#define KAS_DHT_PIN                         7   
-#define KAS_DHT_TYPE                        DHT11
-#define myAltitude                          21.5 // Hoogte in meters boven zeeniveau
+// Hoogte boven zeeniveau voor luchtdrukcorrectie (BME280)
+#define myAltitude                          21.5 
 
 // Status LED (NeoPixel)
 #define PIN_NEOPIXEL                        21  
@@ -94,7 +91,7 @@ const int FLASH_BUTTON_PIN                  = 0;     // Boot knop op ESP32-S3
 #define LED_BRIGHTNESS                      5
 
 // PWM & Timing Hardware Configuratie
-const int PWM_FREQ                          = 25000; // 25kHz voor computer ventilatoren
+const int PWM_FREQ                          = 25000; 
 const int PWM_RANGE                         = 255; 
 const unsigned long MIN_FAN_RUN_TIME        = 180000; 
 const unsigned long SYSTEM_STARTUP_DELAY    = 120000;
@@ -155,6 +152,11 @@ extern const float ESP_CRITICAL_TEMP;
 extern unsigned long lastEspTempCheck;
 inline bool fanAlertsEnabled = true;
 
+// Lampstatus & Transitietimer
+extern bool lampsAreOn;
+extern bool isLampTransitionActive;
+extern unsigned long lampTransitionStartTime;
+
 extern bool mfOverrideActive;
 extern bool isKasSleeping;
 extern bool pendingTelegramAlert;
@@ -169,8 +171,8 @@ extern unsigned long lastWifiLedBlink;
 extern bool wifiLedState;
 
 extern SSD1306Wire display; 
-extern DHT dht; 
-extern Adafruit_BMP085 bmp;
+extern Adafruit_SHT31 sht31; 
+extern Adafruit_BME280 bme;
 extern BH1750 lightMeter;
 extern WiFiClientSecure telegramSslClient;
 extern UniversalTelegramBot bot;
@@ -205,8 +207,9 @@ extern float kasTempLow, kasTempHigh, indoorTempHigh, indoorTempLow;
 extern float kasSmoothedTemp, kasSmoothedHum, indoorSmoothedTemp, indoorSmoothedHum, displayedTemp;
 extern unsigned long lastTempUpdate;
 
-extern unsigned long totalKasDhtReads, failedKasDhtReads, lastValidKasDhtTime;
-extern unsigned long totalIndoorDhtReads, failedIndoorDhtReads, lastValidIndoorDhtTime;
+// Sensor uitlees- en foutentellers (SHT31 & BME280)
+extern unsigned long totalKasReads, failedKasReads, lastValidKasTime;
+extern unsigned long totalIndoorReads, failedIndoorReads, lastValidIndoorTime;
 
 extern float outdoorTempMax, outdoorTempMin;
 extern bool outdoorMoldRisk, hasOutdoorAlert;
@@ -218,7 +221,8 @@ extern bool isTempDroppingSoon;
 
 extern HouseVentState houseAdvice;
 extern KasVentState kasAdvice;
-extern bool bmpConnected;
+extern bool bmeConnected;
+extern bool sht31Connected;
 extern bool lightMeterConnected;
 extern bool isSpaceHeatingNeeded;
 extern bool isHeatMatRecommended;
