@@ -212,10 +212,11 @@ void updateHomeVentilationAdvice(float inTemp, float inHum, float outTemp, float
   if (isnan(inHum) || isnan(outHum)) return;
 
   bool outdoorTooHumid = (outHum > 85.0);       
-  bool indoorMoreHumid = (inHum > 62.0);         
+  // Maak de drempel iets ruimer (bijv. 55%) of betrek indoor VPD erbij
+  bool indoorUseful    = (inHum > 55.0) || (indoorVpd < VPD_MAX_OPTIMAL);         
   bool tempAcceptable  = (outTemp > 8.0 && outTemp < 32.0); 
 
-  if (indoorMoreHumid && !outdoorTooHumid && tempAcceptable) {
+  if (indoorUseful && !outdoorTooHumid && tempAcceptable) {
     homeVentActive = true;
   } else {
     homeVentActive = false;

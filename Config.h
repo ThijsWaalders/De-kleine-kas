@@ -31,9 +31,9 @@
 // =========================================================================
 
 // --- 1.1 VPD & Klimaat Doelen (Kiemgroenten) ---
-const float VPD_MAX_OPTIMAL                 = 0.94;  
+const float VPD_MAX_OPTIMAL                 = 1.00;  
 const float VPD_MIN_OPTIMAL                 = 0.46;  
-const float pidSetPointVPD                  = 0.50;  
+const float pidSetPointVPD                  = 0.70;  
 
 // --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
 extern float kp;                                     
