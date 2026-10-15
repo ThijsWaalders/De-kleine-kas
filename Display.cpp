@@ -1,6 +1,6 @@
 /**
  * @file Display.cpp
- * @brief Definitieve implementatie van het OLED-scherm met PIR-bewegingssensor en lux-dimming voor ESP32-S3-Zero.
+ * @brief Definitieve implementatie van het OLED-scherm met PIR-bewegingssensor, lux-dimming en heldere statusweergave voor ESP32-S3-Zero.
  */
 
 #include "Config.h"
@@ -9,7 +9,7 @@
 
 // --- GLOBALE VARIABELEN ---
 extern bool isClimateCrash;
-extern float currentLuxValue; // Haal de lux-waarde op uit de globale scope (bijv. uit je sensorbestand)
+extern float currentLuxValue; // Haal de lux-waarde op uit de globale scope
 
 // Externe functies die elders in je project gedefinieerd zijn
 const char* shortenWeather(const String& text);
@@ -22,9 +22,9 @@ String buildStatusReport();
  */
 void applyBrightness() {
   if (currentLuxValue <= 1.0) {
-    display.setBrightness(10);  // Zacht gedimd in het donker (geen bouwlamp-effect meer)
+    display.setBrightness(10);  // Zacht gedimd in het donker
   } else {
-    display.setBrightness(100); // Normale helderheid overdag of bij brandende verlichting
+    display.setBrightness(100); // Normale helderheid overdag of bij verlichting
   }
 }
 
@@ -48,12 +48,12 @@ void handleDisplayPower() {
   
   // 1. Als de sensor beweging ziet, ververs de timer direct
   if (motionState == HIGH) {
-    lastMotionTime = currentMillis; // Reset de timer naar NU
+    lastMotionTime = currentMillis; 
     
     if (!isDisplayActiveByMotion) {
       isDisplayActiveByMotion = true;
-      display.displayOn();            // Scherm hardware-matig aanzetten
-      applyBrightness();              // Pas direct de juiste helderheid toe op basis van lux!
+      display.displayOn();            
+      applyBrightness();              
       logToSyslogAndSerial("[PIR] Beweging gedetecteerd! Display ingeschakeld.");
     }
   }
@@ -62,7 +62,6 @@ void handleDisplayPower() {
   if (isDisplayActiveByMotion && (currentMillis - lastMotionTime > 30000)) {
     isDisplayActiveByMotion = false;
     
-    // Maak het scherm leeg en schakel hardware-matig uit
     display.clear();
     display.display();
     display.displayOff();
@@ -72,12 +71,10 @@ void handleDisplayPower() {
 }
 
 void renderDisplay() {
-  // Als de timer nog op 0 staat (net opgestart), zet hem dan meteen op het huidige moment
   if (lastMotionTime == 0) {
     lastMotionTime = millis();
   }
 
-  // Als het display uit staat door inactiviteit, teken dan helemaal niets
   if (!isDisplayActiveByMotion) {
     return;
   }
@@ -86,15 +83,14 @@ void renderDisplay() {
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   display.setFont(ArialMT_Plain_10);
   
-  // Pas hier de helderheid dynamisch toe in plaats van een hardcoded 120!
   applyBrightness();
 
-  // --- 1. BOVENSTE ZONE: Buitenweer & Knipperende Waarschuwingen ---
+  // --- 1. BOVENSTE ZONE: Buitenweer ---
   display.setColor(BLACK);
   display.fillRect(0, 0, 128, 12);
   display.setColor(WHITE);
 
-  bool blinkState = (millis() / 400) % 2 == 0; // Knippert actief (0.4s)
+  bool blinkState = (millis() / 400) % 2 == 0;
 
   if (!isConnected) {
     if (blinkState) display.drawString(0, 0, F("⚠ GEEN WIFI"));
@@ -110,32 +106,27 @@ void renderDisplay() {
 
   display.drawLine(0, 13, 128, 13);
 
-  // --- 2. MIDDEN ZONE: Grote Kas vs Woning Vergelijking ---
+  // --- 2. MIDDEN ZONE: Kas vs Woning ---
   display.drawLine(64, 14, 64, 50);
 
-  // --- LINKERKOLOM: KAS ---
+  // LINKERKOLOM: KAS
   display.setFont(ArialMT_Plain_10);
   display.drawString(0, 14, F("🪴 KAS"));
-
   String kasTempStr = (displayedTemp <= -900) ? "N/A" : String(displayedTemp, 1) + "C";
   display.drawString(0, 26, kasTempStr);
-
   String kasHumStr = (kasSmoothedHum <= -900) ? "N/A" : String(kasSmoothedHum, 0) + "%";
   display.drawString(0, 38, "LV:" + kasHumStr);
 
-  // --- RECHTERKOLOM: WONING ---
+  // RECHTERKOLOM: WONING
   display.setFont(ArialMT_Plain_10);
   display.drawString(68, 14, F("🏡 WONING"));
-
   String houseTempStr = (indoorSmoothedTemp <= -900) ? "N/A" : String(indoorSmoothedTemp, 1) + "C";
   display.drawString(68, 26, houseTempStr);
-
   String houseHumStr = (indoorHum <= -900) ? "N/A" : String(indoorHum, 0) + "%";
   display.drawString(68, 38, "LV:" + houseHumStr);
 
-  // --- 3. ONDERSTE ZONE: Directe Status & Alarmering ---
+  // --- 3. ONDERSTE ZONE: Roterend Informatielint (Elke 2.5 seconden) ---
   display.drawLine(0, 51, 128, 51);
-  
   display.setColor(BLACK);
   display.fillRect(0, 52, 128, 12);
   display.setColor(WHITE);
@@ -143,47 +134,62 @@ void renderDisplay() {
   int fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
   int fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
 
-  String normalStatus = "🟢 Kas stabiel";
+  // Bepaal schermfase: 0, 1 of 2 (wisselt elke 2500ms)
+  int displayPhase = (millis() / 2500) % 3;
+  String statusLine = "";
 
-  if (millis() < 180000) {
-    normalStatus = "⏳ Kalibreren...";
+  if (millis() < 5000) { // Slechts 5 sec opstarten i.p.v. 3 minuten!
+    statusLine = "⏳ Opstarten...";
   }
   else if (isKasSleeping) {
-    normalStatus = "💤 Winterslaap";
+    statusLine = "💤 Winterslaap";
   }
   else if (isTestModeActive) {
-    normalStatus = "⚡ TESTMODUS";
+    statusLine = "⚡ TESTMODUS";
   }
-  else if (kasAdvice == GREENHOUSE_VENTILATE) {
-    if (fanExt1Pct > 0) {
-      normalStatus = "💨 Afvoer: " + String(fanExt1Pct) + "%";
-    } else {
-      normalStatus = "🔒 Kas gesloten";
+  else if (isClimateCrash || kasVpd > VPD_CRITICAL_HIGH) {
+    statusLine = blinkState ? "🔥 ALARM: UITDROGING!" : "🚨 INGRIJPEN VEREIST";
+  }
+  else {
+    // --- Bepaal Risico en Actie ---
+    bool hasRisk = (kasVpd > VPD_MAX_OPTIMAL || moldRisk || kasVpd < VPD_MIN_OPTIMAL);
+    
+    String riskText = "";
+    if (kasVpd > VPD_MAX_OPTIMAL)     riskText = "🔥 Risico: Uitdroging";
+    else if (moldRisk)                 riskText = "🌧️ Risico: Schimmel";
+    else if (kasVpd < VPD_MIN_OPTIMAL) riskText = "💧 Risico: Te klam";
+
+    String actionText = "🔒 Kas rust / dicht";
+    if (kasAdvice == GREENHOUSE_VENTILATE && fanExt1Pct > 0) {
+      actionText = "💨 Ext Vent: " + String(fanExt1Pct) + "%";
+    } else if (fanIntPct > 0) {
+      actionText = "🌀 Int Circ: " + String(fanIntPct) + "%";
+    } else if (isHeatMatRecommended) {
+      actionText = "🔥 Warmtemat AAN";
     }
-  } 
-  else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL || fanIntPct > 0) {
-    normalStatus = "🌀 Circulatie: " + String(fanIntPct) + "%";
-  } 
-  else if (isHeatMatRecommended) {
-    normalStatus = "🔥 Mat aan";
-  }
-  else if (moldRisk) {
-    normalStatus = "⚠️ Schimmelrisico";
-  }
 
-  String finalStatusText = normalStatus;
-  bool isEmergencyAlarm = (isClimateCrash || kasVpd > VPD_MAX_OPTIMAL);
-
-  if (isEmergencyAlarm) {
-    if (blinkState) {
-      finalStatusText = "🔥 ALARM: DROOGTE!";
+    // --- Roterende Carrousel Logica ---
+    if (!hasRisk) {
+      // Klimaat is 100% OK -> Wissel alleen tussen Status en Actie
+      if (displayPhase % 2 == 0) {
+        statusLine = "🟢 Klimaat OK";
+      } else {
+        statusLine = actionText;
+      }
     } else {
-      finalStatusText = normalStatus; 
+      // Er is een Risico -> Roteer netjes langs 1, 2 en 3
+      if (displayPhase == 0) {
+        statusLine = "🟡 Wordt bijgesteld";
+      } else if (displayPhase == 1) {
+        statusLine = riskText;
+      } else {
+        statusLine = actionText;
+      }
     }
   }
 
   display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 52, finalStatusText);
+  display.drawString(0, 52, statusLine);
 
   display.display();
 }

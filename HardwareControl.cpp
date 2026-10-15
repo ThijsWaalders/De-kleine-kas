@@ -14,6 +14,7 @@
 extern float indoorSmoothedHum;
 extern float kasSmoothedHum;
 extern KasVentState kasAdvice;
+extern bool isClimateCrash;
 
 // Globale regeltanden (lampen) voor MQTT / Grafana
 bool regMoldActive = false;
@@ -169,156 +170,6 @@ void setupFans() {
 }
 
 /**
- * @brief Regelt de ventilator-snelheden dynamisch op basis van VPD-fout en PID (synchroon voor externe fans).
- */
-void updateFanSpeeds(float currentVpd) {
-  unsigned long currentMillis = millis();
-
-  // --- TFM MANUAL OVERRIDE ---
-  if (mfOverrideActive) {
-    fanIntSpeed  = 0;          
-    fanExt1Speed = FAN_MAX_PWM; 
-    fanExt2Speed = FAN_MAX_PWM; 
-    
-    ledcWrite(PIN_FAN_INT_PWM,  0);
-    ledcWrite(PIN_FAN_EXT1_PWM, FAN_MAX_PWM);
-    ledcWrite(PIN_FAN_EXT2_PWM, FAN_MAX_PWM);
-    return; 
-  }
-
-  // --- KAS WINTERSLAAP CHECK ---
-  if (isKasSleeping) {
-    fanIntSpeed  = 0;
-    fanExt1Speed = 0;
-    fanExt2Speed = 0;
-    fanIntPct  = 0;
-    fanExt1Pct = 0;
-    fanExt2Pct = 0;
-    
-    ledcWrite(PIN_FAN_INT_PWM,  0);
-    ledcWrite(PIN_FAN_EXT1_PWM, 0);
-    ledcWrite(PIN_FAN_EXT2_PWM, 0);
-    
-    regMoldActive    = false;
-    regExtVentActive = false;
-    regIntCircActive = false;
-    regHeatMatActive = false;
-    return; 
-  }
-
-  // --- TESTMODUS OVERRIDE ---
-  if (isTestModeActive) {
-    if (currentMillis - testModeStartTime > currentTestDuration) {
-      isTestModeActive = false;
-      logToSyslogAndSerial("[TESTMODE] Testmodus automatisch beëindigd.");
-    } else {
-      fanIntSpeed  = FAN_MAX_PWM;
-      fanExt1Speed = FAN_MAX_PWM;
-      fanExt2Speed = FAN_MAX_PWM;
-      fanIntPct  = 100;
-      fanExt1Pct = 100;
-      fanExt2Pct = 100;
-
-      ledcWrite(PIN_FAN_INT_PWM, FAN_MAX_PWM);
-      ledcWrite(PIN_FAN_EXT1_PWM, FAN_MAX_PWM);
-      ledcWrite(PIN_FAN_EXT2_PWM, FAN_MAX_PWM);
-      return; 
-    }
-  }
-
-  // Voer de PID-berekening elke 2 seconden uit
-  if (currentMillis - lastPidTime < 2000) return; 
-  
-  float dt = (currentMillis - lastPidTime) / 1000.0;
-  lastPidTime = currentMillis;
-  yield(); 
-
-  // --- PID-REGELING BEREKENEN ---
-  float error = pidSetPointVPD - currentVpd; 
-  float absError = abs(error); // De grootte van de afwijking, ongeacht of te nat of te droog
-  
-  pError = absError; // Gebruik de absolute fout voor de regeling
-  
-  if (absError > 0.05) {
-    iError += absError * dt * 2.0; 
-  } else {
-    iError -= dt * 0.2; 
-  }
-  iError = constrain(iError, 0.0, 10.0);
-
-  dError = (dt > 0) ? (absError - lastError) / dt : 0;
-  lastError = absError;
-
-  pidOutput = ((kp * 1.8) * pError) + (ki * iError) + ((kd * 1.5) * dError);
-  pidOutput = constrain(pidOutput, 0.0, 1.0);
-
-  // --- DOEL-SNELHEDEN BEREKENEN OP BASIS KAS ADVIES ---
-  int targetIntSpeed  = 0;
-  int targetExt1Speed = 0;
-  int targetExt2Speed = 0;
-
-  if (kasAdvice == GREENHOUSE_VENTILATE) {
-    int extPwm;
-    
-    // --- RODE ZONE / KRITIEK KLIMAAT DIRECT VOL GAS (Zowel te nat als te droog!) ---
-    if (absError > 0.25 || moldRisk) {
-      extPwm = FAN_MAX_PWM; // Direct 255 (100%)!
-    } 
-    else {
-      // Normale/oranje zone: opschalen via PID vanaf EXT_FAN_MIN_PWM
-      int pwmSpan = FAN_MAX_PWM - EXT_FAN_MIN_PWM;
-      extPwm = EXT_FAN_MIN_PWM + (int)(pidOutput * (float)pwmSpan); 
-    }
-
-    extPwm = constrain(extPwm, 0, 255);
-
-    targetExt1Speed = extPwm;
-    targetExt2Speed = extPwm; 
-    targetIntSpeed  = 0;      
-  }
-  else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
-    // Alleen binnen circuleren -> Externe fans blijven keurig op 0!
-    targetExt1Speed = 0;
-    targetExt2Speed = 0;
-    targetIntSpeed  = INT_FAN_BASE_PWM; 
-  } 
-  else {
-    // Kas staat uit / geen actie vereist -> Alles uit behalve eventuele basis
-    targetExt1Speed = 0;
-    targetExt2Speed = 0;
-    targetIntSpeed  = INT_FAN_BASE_PWM; 
-  }
-
-  // --- INTERNE FAN LOGICA (Strikt gescheiden van externe fans) ---
-  if (targetExt1Speed == 0 && targetExt2Speed == 0) {
-    targetIntSpeed = INT_FAN_BASE_PWM; 
-  } else {
-    targetIntSpeed = 0; 
-  }
-
-  // Globale variabelen bijwerken
-  fanIntSpeed  = targetIntSpeed;
-  fanExt1Speed = targetExt1Speed;
-  fanExt2Speed = targetExt2Speed;
-
-  // Percentages berekenen
-  fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
-  fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
-  fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
-
-  // Regeltanden bijwerken voor MQTT / Grafana
-  regMoldActive    = moldRisk;
-  regExtVentActive = (kasAdvice == GREENHOUSE_VENTILATE && fanExt1Speed > 0);
-  regIntCircActive = (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL && fanIntSpeed > 0);
-  regHeatMatActive = isHeatMatRecommended;
-
-  // Fysieke pinnen aansturen
-  ledcWrite(PIN_FAN_INT_PWM,  fanIntSpeed);
-  ledcWrite(PIN_FAN_EXT1_PWM, fanExt1Speed);
-  ledcWrite(PIN_FAN_EXT2_PWM, fanExt2Speed);
-}
-
-/**
  * @brief Berekent de RPM voor de fans, vangt stoorpieken op en voorkomt valse '0 RPM' meldingen bij actieve PWM.
  */
 void calculateRPM() {
@@ -357,7 +208,7 @@ void calculateRPM() {
       rawExt1RPM = (fanExt1Speed > 0) ? 100 : 0;
     }
     if (rawExt2RPM > MAX_REAL_RPM) {
-      rawExt2RPM = (fanExt1Speed > 0) ? 100 : 0; // Kleine correctie voor ext2
+      rawExt2RPM = (fanExt2Speed > 0) ? 100 : 0;
     }
 
     fanIntRPM  = rawIntRPM;
@@ -409,15 +260,168 @@ void calculateRPM() {
   }
 }
 
-void toggleFanAlerts(bool enable) {
-  fanAlertsEnabled = enable;
-  if (fanAlertsEnabled) {
-    sendTelegramAlert("🟢 *Ventilator waarschuwingen weer INGESCHAKELD.*");
-  } else {
-    sendTelegramAlert("🟡 *Ventilator waarschuwingen UITGESCHAKELD.*");
-  }
-}
+/**
+ * @brief Regelt de ventilator-snelheden dynamisch op basis van VPD-fout en kas-advies,
+ * inclusief 100% kickstart vanuit stilstand, schaling vanaf EXT_FAN_BASE_PWM en 0-255 PWM domein.
+ */
+void updateFanSpeeds(float currentVpd) {
+  unsigned long currentMillis = millis();
 
-bool getFanAlertsStatus() {
-  return fanAlertsEnabled;
+  // --- TFM MANUAL OVERRIDE ---
+  if (mfOverrideActive) {
+    fanIntSpeed  = 0;          
+    fanExt1Speed = FAN_MAX_PWM; 
+    fanExt2Speed = FAN_MAX_PWM; 
+    fanIntPct    = 0;
+    fanExt1Pct   = 100;
+    fanExt2Pct   = 100;
+    
+    ledcWrite(PIN_FAN_INT_PWM,  0);
+    ledcWrite(PIN_FAN_EXT1_PWM, FAN_MAX_PWM);
+    ledcWrite(PIN_FAN_EXT2_PWM, FAN_MAX_PWM);
+    return; 
+  }
+
+  // --- KAS WINTERSLAAP CHECK ---
+  if (isKasSleeping) {
+    fanIntSpeed  = 0;
+    fanExt1Speed = 0;
+    fanExt2Speed = 0;
+    fanIntPct    = 0;
+    fanExt1Pct   = 0;
+    fanExt2Pct   = 0;
+    
+    ledcWrite(PIN_FAN_INT_PWM,  0);
+    ledcWrite(PIN_FAN_EXT1_PWM, 0);
+    ledcWrite(PIN_FAN_EXT2_PWM, 0);
+    
+    regMoldActive    = false;
+    regExtVentActive = false;
+    regIntCircActive = false;
+    regHeatMatActive = false;
+    return; 
+  }
+
+  // --- TESTMODUS OVERRIDE ---
+  if (isTestModeActive) {
+    if (currentMillis - testModeStartTime > currentTestDuration) {
+      isTestModeActive = false;
+      logToSyslogAndSerial("[TESTMODE] Testmodus automatisch beëindigd.");
+    } else {
+      fanIntSpeed  = FAN_MAX_PWM;
+      fanExt1Speed = FAN_MAX_PWM;
+      fanExt2Speed = FAN_MAX_PWM;
+      fanIntPct    = 100;
+      fanExt1Pct   = 100;
+      fanExt2Pct   = 100;
+
+      ledcWrite(PIN_FAN_INT_PWM, FAN_MAX_PWM);
+      ledcWrite(PIN_FAN_EXT1_PWM, FAN_MAX_PWM);
+      ledcWrite(PIN_FAN_EXT2_PWM, FAN_MAX_PWM);
+      return; 
+    }
+  }
+
+  // Voer de berekening elke 2 seconden uit
+  if (currentMillis - lastPidTime < 2000) return; 
+  lastPidTime = currentMillis;
+  yield(); 
+
+  // --- DOEL-SNELHEDEN BEREKENEN OP BASIS KAS ADVIES ---
+  int targetIntSpeed  = 0;
+  int targetExt1Speed = 0;
+  int targetExt2Speed = 0;
+
+  if (kasAdvice == GREENHOUSE_VENTILATE) {
+    static unsigned long fanStartTime = 0;
+    static bool kickActive = false;
+    static unsigned long lastAdaptTime = 0;
+    static int adaptivePwm = EXT_FAN_BASE_PWM;
+    static float previousVpd = kasVpd;
+
+    // Detecteer of de fans net aangaan vanuit stilstand (0)
+    if (fanExt1Speed == 0 && !kickActive) {
+      fanStartTime = currentMillis;
+      kickActive = true;
+      adaptivePwm = EXT_FAN_BASE_PWM; // Begin rustig op de base na de kick
+    }
+
+    int extPwm = EXT_FAN_BASE_PWM;
+
+    // STAP 1: Korte start-kick (1 seconde vol vermogen om los te komen)
+    if (kickActive && (currentMillis - fanStartTime < 1000)) {
+      extPwm = FAN_MAX_PWM; 
+    } 
+    else {
+      kickActive = false; // Kick voorbij
+
+      // STAP 2: Adaptieve zelflerende regeling (elke 15 seconden evalueren)
+      if (currentMillis - lastAdaptTime >= 15000) {
+        lastAdaptTime = currentMillis;
+
+        float vpdDelta = kasVpd - previousVpd; // Positief = VPD stijgt (slecht), Negatief = VPD daalt (goed)
+        float vpdExcess = kasVpd - VPD_MAX_OPTIMAL;
+
+        if (vpdExcess > 0.0f) {
+          // Als de VPD nog steeds te hoog is OF niet snel genoeg daalt (bijv. daling < 0.01 kPa), 
+          // dan schroeven we het vermogen automatisch adaptief op!
+          if (vpdDelta >= -0.01f) {
+            adaptivePwm += 15; // Doe er automatisch een schepje bovenop
+          } else {
+            adaptivePwm -= 5;  // Gaat de goede kant op? Bouw heel langzaam af voor stabiliteit
+          }
+        } else {
+          // VPD is inmiddels optimaal, zak langzaam terug naar base
+          adaptivePwm -= 10;
+        }
+
+        // Houd binnen de veilige grenzen (tussen base en max)
+        adaptivePwm = constrain(adaptivePwm, EXT_FAN_BASE_PWM, FAN_MAX_PWM);
+        previousVpd = kasVpd;
+      }
+
+      extPwm = adaptivePwm;
+    }
+
+    // Noodstop overrule bij klimaatcrash
+    if (isClimateCrash) {
+      extPwm = FAN_MAX_PWM;
+      adaptivePwm = FAN_MAX_PWM;
+    }
+
+    // Ultieme hardware borging
+    extPwm = constrain(extPwm, EXT_FAN_MIN_PWM, FAN_MAX_PWM);
+
+    targetExt1Speed = extPwm;
+    targetExt2Speed = extPwm; 
+    targetIntSpeed  = 0;      
+  }
+
+  // Interne fan logica borging
+  if (targetExt1Speed == 0 && targetExt2Speed == 0) {
+    targetIntSpeed = INT_FAN_BASE_PWM; 
+  } else {
+    targetIntSpeed = 0; 
+  }
+
+  // Globale variabelen bijwerken
+  fanIntSpeed  = targetIntSpeed;
+  fanExt1Speed = targetExt1Speed;
+  fanExt2Speed = targetExt2Speed;
+
+  // Percentages berekenen (voor display/Grafana)
+  fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
+  fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
+  fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
+
+  // Regeltanden bijwerken voor MQTT / Grafana
+  regMoldActive    = moldRisk;
+  regExtVentActive = (kasAdvice == GREENHOUSE_VENTILATE && fanExt1Speed > 0);
+  regIntCircActive = (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL && fanIntSpeed > 0);
+  regHeatMatActive = isHeatMatRecommended;
+
+  // Fysieke pinnen aansturen
+  ledcWrite(PIN_FAN_INT_PWM,  fanIntSpeed);
+  ledcWrite(PIN_FAN_EXT1_PWM, fanExt1Speed);
+  ledcWrite(PIN_FAN_EXT2_PWM, fanExt2Speed);
 }

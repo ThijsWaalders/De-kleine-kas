@@ -29,9 +29,11 @@
 // =========================================================================
 // 🎛️ DEEL 1: GEBRUIKERSINSTELLINGEN (HIER AFSTELLEN WAT JE WILT WIJZIGEN)
 // =========================================================================
+// Kritieke VPD drempels voor alarmering en weergave
+#define VPD_CRITICAL_HIGH 1.15f  // Vanaf hier springt het scherm op hard alarm (Uitdroging)
 
 // --- 1.1 VPD & Klimaat Doelen (Kiemgroenten) ---
-const float VPD_MAX_OPTIMAL                 = 1.00;  
+const float VPD_MAX_OPTIMAL                 = 0.94;  
 const float VPD_MIN_OPTIMAL                 = 0.46;  
 const float pidSetPointVPD                  = 0.70;  
 
@@ -41,15 +43,19 @@ extern float ki;
 extern float kd;                                     
 
 // --- 1.3 Ventilator PWM Snelheden & Grenzen ---
+// FAN_MIN = De absolute harde ondergrens (hardware-bescherming om te voorkomen dat ze stilvallen).
+// FAN_BASE = Het startpunt van de schaling zodra er geventileerd moet worden, waarna ze opschalen naar FAN_MAX_PWM
 const int FAN_MAX_PWM                       = 255;   
-const int EXT_FAN_MIN_PWM                   = 120;   
-const int EXT_FAN_BASE_PWM                  = 123;   
-const int INT_FAN_BASE_PWM                  = 111;   
-const int INT_FAN_MIN_PWM                   = 65;    
+
+const int EXT_FAN_MIN_PWM                   = 65; //120;  om extreme tacho waardes te voorkomen ivm ruis e.d. 
+const int EXT_FAN_BASE_PWM                  = 95; //123;  om extreme tacho waardes te voorkomen ivm ruis e.d.
+
+const int INT_FAN_BASE_PWM                  = 111; // 111 = ~1600 rpm   
+const int INT_FAN_MIN_PWM                   = 110; //65;     
 
 // --- 1.4 Klimaat Drempelwaarden & Veiligheid ---
 const float GREENHOUSE_MAX_TEMP             = 26.0;  
-const float GREENHOUSE_CRASH_TEMP           = 28.0;  
+const float GREENHOUSE_CRASH_TEMP           = 28.0;   
 const float OUTDOOR_MAX_HUMIDITY_FOR_VENT   = 85.0;  
 const float HUM_MOLD_THRESHOLD              = 75.0;  
 const float DP_MARGIN_MIN                   = 2.0;   
@@ -225,9 +231,9 @@ extern bool isTempDroppingSoon;
 
 extern HouseVentState houseAdvice;
 extern KasVentState kasAdvice;
-extern bool bmeConnected;
-extern bool sht31Connected;
-extern bool lightMeterConnected;
+// extern bool bmeConnected;
+// extern bool sht31Connected;
+// extern bool lightMeterConnected;
 extern bool isSpaceHeatingNeeded;
 extern bool isHeatMatRecommended;
 extern bool isTestModeActive;

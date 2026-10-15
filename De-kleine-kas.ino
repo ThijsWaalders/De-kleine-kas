@@ -19,7 +19,6 @@
 #include "Telegram.h"         // Telegram bot communicatie
 #include "OpenWeather.h"      // Weergegevens ophalen via internet
 #include "Display.h"          // OLED display aansturing
-// #include <LittleFS.h>         // Bestandssysteem voor ESP32 (deze kan er waarschijnlijk uit)
 
 /* ============================================================================
    2. SETUP FUNCTIE (EENMALIGE INITIALISATIE)

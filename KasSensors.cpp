@@ -64,6 +64,24 @@ void updateKasSensors() {
       kasVpd = calcVPD(kasSmoothedTemp, kasSmoothedHum);
       displayedTemp = kasSmoothedTemp;
 
+      // --- 24-UURS EXTREMEN BORGING (Geen -999.0 meer!) ---
+      // Wacht 3 seconden na boot voor opstartstabilisatie
+      if (millis() > 3000) {
+        static bool kasExtremesInit = false;
+        if (!kasExtremesInit || kasTempLow == 999.0f || kasTempLow == -999.0f) {
+          kasTempLow = t;
+          kasTempHigh = t;
+          kasLowHum  = h;
+          kasHighHum  = h;
+          kasExtremesInit = true;
+        } else {
+          if (t < kasTempLow)  kasTempLow = t;
+          if (t > kasTempHigh) kasTempHigh = t;
+          if (h < kasLowHum)   kasLowHum  = h;
+          if (h > kasHighHum)  kasHighHum  = h;
+        }
+      }
+
     } else {
       failedKasReads++;
       logToSyslogAndSerial("[KAS WARNING] SHT31 leest ongeldige data uit (NAN)!");

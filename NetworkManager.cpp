@@ -119,30 +119,60 @@ void startAPMode() {
     apStartTime = millis(); 
     apTimedOut = false;     
 
-    ArduinoOTA.end();
-    ArduinoOTA.setHostname("ESP32-S3-Zero-1");
-    ArduinoOTA.begin();
-    // Voeg dit toe waar je ArduinoOTA instelt (zowel in setupNetwork als in startAPMode):
-    ArduinoOTA.onStart([]() {
-      otaInProgress = true;
-      logToSyslogAndSerial(F("[OTA] Update gestart! AP-timeout wordt tijdelijk gepauzeerd."));
-    });
-    
-    ArduinoOTA.onEnd([]() {
-      otaInProgress = false;
-      logToSyslogAndSerial(F("[OTA] Update voltooid!"));
-    });
-
-    ArduinoOTA.onError([](ota_error_t error) {
-      otaInProgress = false;
-      logToSyslogAndSerialPrintf("[OTA ERROR] Foutcode: %u", error);
-    });
+    // GEEN ArduinoOTA.end() en .begin() hier nodig! 
+    // De Core 0 achtergrondtaak pakt het AP-netwerk automatisch op.
 
     logToSyslogAndSerialPrintf("[AP MODE] Succes! SSID: %s | IP: %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   } else {
     logToSyslogAndSerial(F("[AP MODE ERROR] Kon Access Point niet starten!"));
   }
 }
+// void startAPMode() {
+//   logToSyslogAndSerial(F("[AP MODE] Schakelt over naar Access Point modus..."));
+  
+//   WiFi.disconnect(true);
+//   WiFi.mode(WIFI_OFF);
+//   delay(200);
+
+//   WiFi.mode(WIFI_AP);
+//   delay(100);
+
+//   IPAddress apIP(192, 168, 2, 1);
+//   IPAddress apGateway(192, 168, 2, 1);
+//   IPAddress apSubnet(255, 255, 255, 0);
+//   WiFi.softAPConfig(apIP, apGateway, apSubnet);
+
+//   bool success = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4);
+  
+//   if (success) {
+//     apModeActive = true;
+//     apStartTime = millis(); 
+//     apTimedOut = false;     
+
+//     ArduinoOTA.end();
+//     ArduinoOTA.setHostname("ESP32-S3-Zero-1");
+//     ArduinoOTA.begin();
+//     // Voeg dit toe waar je ArduinoOTA instelt (zowel in setupNetwork als in startAPMode):
+//     ArduinoOTA.onStart([]() {
+//       otaInProgress = true;
+//       logToSyslogAndSerial(F("[OTA] Update gestart! AP-timeout wordt tijdelijk gepauzeerd."));
+//     });
+    
+//     ArduinoOTA.onEnd([]() {
+//       otaInProgress = false;
+//       logToSyslogAndSerial(F("[OTA] Update voltooid!"));
+//     });
+
+//     ArduinoOTA.onError([](ota_error_t error) {
+//       otaInProgress = false;
+//       logToSyslogAndSerialPrintf("[OTA ERROR] Foutcode: %u", error);
+//     });
+
+//     logToSyslogAndSerialPrintf("[AP MODE] Succes! SSID: %s | IP: %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+//   } else {
+//     logToSyslogAndSerial(F("[AP MODE ERROR] Kon Access Point niet starten!"));
+//   }
+// }
 
 /**
  * @brief Stopt het AP handmatig.
