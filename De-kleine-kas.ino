@@ -136,6 +136,23 @@ void loop() {
     sendTelegramAlert(bootMsg);
     logToSyslogAndSerial("[SYSTEM] Opstartmelding verzonden via Telegram.");
   }
+  // // 3. Directe opstartmelding via Telegram na succesvolle boot en netwerkverbinding
+  // static bool bootMsgSent = false;
+  // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
+  //   bootMsgSent = true;
+    
+  //   String bootMsg = "🚀 *De kleine kas is opgestart, je code werkt!*\n";
+  //   bootMsg += "• *IP-adres:* `" + WiFi.localIP().toString() + "`\n";
+  //   if (currentLuxValue > 1.0) {
+  //     bootMsg += "• *Boot-bypass:* Kweeklampen gedetecteerd, direct actief!\n";
+  //   } else {
+  //     bootMsg += "• *Status:* Kalibratie / opstartfase gestart.\n";
+  //   }
+  //   bootMsg += "• Automatisering en actieve klimaatregeling draaien.";
+    
+  //   sendTelegramAlert(bootMsg);
+  //   logToSyslogAndSerial("[SYSTEM] Opstartmelding verzonden via Telegram.");
+  // }
   // // 3. Stuur een eenmalige opstartmelding via Telegram ZODRA het systeem klaar is (normaal na 3 min, of direct bij lampen aan)
   // static bool bootMsgSent = false;
   // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM && isSystemReady()) {

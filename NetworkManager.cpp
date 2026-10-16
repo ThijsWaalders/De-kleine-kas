@@ -21,6 +21,7 @@ unsigned long apStartTime = 0;
 const unsigned long AP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minuten timeout
 bool apTimedOut = false; // Houdt bij of we door een timeout zijn herstart
 bool otaInProgress = false;
+bool triggerOtaApMode = false;
 
 // --- TELNET CONFIGURATIE ---
 WiFiServer telnetServer(23);
@@ -119,14 +120,47 @@ void startAPMode() {
     apStartTime = millis(); 
     apTimedOut = false;     
 
-    // GEEN ArduinoOTA.end() en .begin() hier nodig! 
-    // De Core 0 achtergrondtaak pakt het AP-netwerk automatisch op.
+    // HIER MOET ARDUINOOTA WEL OPNIEUW WORDEN OPGESTART VOOR HET AP IP (192.168.2.1)
+    ArduinoOTA.end();
+    ArduinoOTA.setHostname("ESP32-S3-Zero-1");
+    ArduinoOTA.begin();
 
     logToSyslogAndSerialPrintf("[AP MODE] Succes! SSID: %s | IP: %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   } else {
     logToSyslogAndSerial(F("[AP MODE ERROR] Kon Access Point niet starten!"));
   }
 }
+
+// void startAPMode() {
+//   logToSyslogAndSerial(F("[AP MODE] Schakelt over naar Access Point modus..."));
+  
+//   WiFi.disconnect(true);
+//   WiFi.mode(WIFI_OFF);
+//   delay(200);
+
+//   WiFi.mode(WIFI_AP);
+//   delay(100);
+
+//   IPAddress apIP(192, 168, 2, 1);
+//   IPAddress apGateway(192, 168, 2, 1);
+//   IPAddress apSubnet(255, 255, 255, 0);
+//   WiFi.softAPConfig(apIP, apGateway, apSubnet);
+
+//   bool success = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4);
+  
+//   if (success) {
+//     apModeActive = true;
+//     apStartTime = millis(); 
+//     apTimedOut = false;     
+
+//     // GEEN ArduinoOTA.end() en .begin() hier nodig! 
+//     // De Core 0 achtergrondtaak pakt het AP-netwerk automatisch op.
+
+//     logToSyslogAndSerialPrintf("[AP MODE] Succes! SSID: %s | IP: %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+//   } else {
+//     logToSyslogAndSerial(F("[AP MODE ERROR] Kon Access Point niet starten!"));
+//   }
+// }
 // void startAPMode() {
 //   logToSyslogAndSerial(F("[AP MODE] Schakelt over naar Access Point modus..."));
   
@@ -370,9 +404,15 @@ void setupNetwork() {
 }
 
 /**
- * @brief Hoofdlus om de netwerkstatus, timeout en inkomende Telnet-clients te beheren.
+ * @brief Hoofdlus om de netwerkstatus, timeout, AP-trigger en inkomende Telnet-clients te beheren.
  */
 void handleNetwork() {
+  // Veilige AP-modus trigger vanuit Telegram
+  if (triggerOtaApMode) {
+    triggerOtaApMode = false;
+    startAPMode();
+  }
+
   // Beheer inkomende Telnet-clients (beperk tot 1 actieve client tegelijk)
   if (telnetServer.hasClient()) {
     if (!telnetClient || !telnetClient.connected()) {

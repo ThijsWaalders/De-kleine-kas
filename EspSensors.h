@@ -8,5 +8,6 @@ float readEspInternalTemp();
 void checkEspTemperatureSafety();
 
 extern float espInternalTemp;
+extern bool isFakeEspOverheatActive;
 
 #endif

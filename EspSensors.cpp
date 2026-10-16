@@ -18,6 +18,9 @@ static unsigned long lastEspAlertTime = 0;
 const unsigned long ESP_ALERT_INTERVAL = 900000; // 15 minuten in milliseconden
 // const float ESP_CRITICAL_TEMP = 75.0;            // Veiligheidsgrens chip-temperatuur
 
+// --- TEST VLAG VOOR CHIP OVERVERHITTING ---
+bool isFakeEspOverheatActive = false;
+
 void initEspSensors() {
   // Installeer de interne temperatuursensor voor de ESP32-S3 (meetbereik ingesteld op 20°C tot 100°C)
   temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
@@ -28,6 +31,12 @@ void initEspSensors() {
 }
 
 float readEspInternalTemp() {
+  // Als de testmodus actief is, sturen we een virtuele oververhittingswaarde terug
+  if (isFakeEspOverheatActive) {
+    espInternalTemp = 72.0f;
+    return espInternalTemp;
+  }
+
   if (temp_sensor_handle == NULL) return 0.0;
 
   float result = 0.0;

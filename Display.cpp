@@ -10,6 +10,7 @@
 // --- GLOBALE VARIABELEN ---
 extern bool isClimateCrash;
 extern float currentLuxValue; // Haal de lux-waarde op uit de globale scope
+extern bool isSystemReady();
 
 // Externe functies die elders in je project gedefinieerd zijn
 const char* shortenWeather(const String& text);
@@ -138,8 +139,8 @@ void renderDisplay() {
   int displayPhase = (millis() / 2500) % 3;
   String statusLine = "";
 
-  if (millis() < 5000) { // Slechts 5 sec opstarten i.p.v. 3 minuten!
-    statusLine = "⏳ Opstarten...";
+  if (!isSystemReady()) {
+    statusLine = "⏳ Kalibreren...";
   }
   else if (isKasSleeping) {
     statusLine = "💤 Winterslaap";

@@ -9,6 +9,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+extern bool triggerOtaApMode;
+
 // Vereenvoudigde statussen voor het automatische herverbindingsmechanisme
 enum WifiReconnectState { 
   WIFI_IDLE, 
