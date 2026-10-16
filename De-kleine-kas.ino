@@ -24,6 +24,7 @@
    2. SETUP FUNCTIE (EENMALIGE INITIALISATIE)
    ============================================================================ */
 void setup() {
+  setCpuFrequencyMhz(160); // CPU op 160 MHz in plaats van 240 MHz  ⚡ Minder hitte bij LDO!
   Serial.begin(115200);
   delay(1000);
 
@@ -136,42 +137,6 @@ void loop() {
     sendTelegramAlert(bootMsg);
     logToSyslogAndSerial("[SYSTEM] Opstartmelding verzonden via Telegram.");
   }
-  // // 3. Directe opstartmelding via Telegram na succesvolle boot en netwerkverbinding
-  // static bool bootMsgSent = false;
-  // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
-  //   bootMsgSent = true;
-    
-  //   String bootMsg = "🚀 *De kleine kas is opgestart, je code werkt!*\n";
-  //   bootMsg += "• *IP-adres:* `" + WiFi.localIP().toString() + "`\n";
-  //   if (currentLuxValue > 1.0) {
-  //     bootMsg += "• *Boot-bypass:* Kweeklampen gedetecteerd, direct actief!\n";
-  //   } else {
-  //     bootMsg += "• *Status:* Kalibratie / opstartfase gestart.\n";
-  //   }
-  //   bootMsg += "• Automatisering en actieve klimaatregeling draaien.";
-    
-  //   sendTelegramAlert(bootMsg);
-  //   logToSyslogAndSerial("[SYSTEM] Opstartmelding verzonden via Telegram.");
-  // }
-  // // 3. Stuur een eenmalige opstartmelding via Telegram ZODRA het systeem klaar is (normaal na 3 min, of direct bij lampen aan)
-  // static bool bootMsgSent = false;
-  // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM && isSystemReady()) {
-  //   bootMsgSent = true;
-    
-  //   if (!isKasSleeping) {
-  //     String bootMsg = "🚀 *De kleine kas is volledig opgestart en ingeregeld!*\n";
-  //     if (currentLuxValue > 1.0) {
-  //       bootMsg += "• *Boot-bypass:* Kweeklampen gedetecteerd, kalibratie overgeslagen.\n";
-  //     } else {
-  //       bootMsg += "• Sensoren en kalibratieperiode (3 min) zijn afgerond.\n";
-  //     }
-  //     bootMsg += "• Automatisering en actieve klimaatregeling draaien nu autonoom.";
-  //     sendTelegramAlert(bootMsg);
-  //     logToSyslogAndSerial("[SYSTEM] Systeem operationeel. Opstartmelding verzonden via Telegram.");
-  //   } else {
-  //     logToSyslogAndSerial("[SYSTEM] Systeem operationeel, maar kas staat in slaapstand. Opstartmelding onderdrukt.");
-  //   }
-  // }
 
   // 4. MQTT en Telegram verwerking
   if (isConnected) {
@@ -179,7 +144,9 @@ void loop() {
     
     if (ENABLE_TELEGRAM) {
       static unsigned long lastTelegramCheck = 0;
-      if (millis() - lastTelegramCheck >= 4000 || lastTelegramCheck == 0) { 
+      unsigned long currentTelegramInterval = isKasSleeping ? 10000 : 4000; // 4s normaal, 10s in slaapstand
+      
+      if (millis() - lastTelegramCheck >= currentTelegramInterval || lastTelegramCheck == 0) { 
         lastTelegramCheck = millis();
         handleTelegramIncoming();
       }
@@ -217,9 +184,10 @@ void loop() {
   // Snelheidstoename kas controleren
   checkClimateVelocity(kasSmoothedHum);
 
-  // 7. Sensor uitleescyclus (elke 5 seconden)
+  // 7. Sensor uitleescyclus (dynamisch: 5s normaal, 15s in slaapstand)
+  unsigned long currentSensorInterval = isKasSleeping ? 15000 : 5000;
   static unsigned long lastSensorRead = 0;
-  if (millis() - lastSensorRead >= 5000 || lastSensorRead == 0) {
+  if (millis() - lastSensorRead >= currentSensorInterval || lastSensorRead == 0) {
     lastSensorRead = millis();
 
     updateKasSensors();
@@ -293,189 +261,3 @@ void loop() {
     renderDisplay();
   }
 }
-
-// /* ============================================================================
-//    3. MAIN LOOP (CONTINU PROCES)
-//    ============================================================================ */
-// void loop() {
-//   // PIR Bewegingssensor continu direct uitlezen
-//   handleDisplayPower();
-  
-//   // 1. Altijd als eerste aanroepen voor Netwerk, OTA-updates en Telnet-clients
-//   handleNetwork(); 
-
-
-//   // Meet de interne temperatuur en check de veiligheid elke 5 seconden
-//   if (millis() - lastEspTempCheck > 5000) {
-//     lastEspTempCheck = millis();
-//     readEspInternalTemp();
-//     checkEspTemperatureSafety(); // Blijft netjes herhalen zolang de chip te heet blijft!
-//   }
-  
-//   // Update LED voor status
-//   statusLed.update(); 
-
-//   // Controleer de fysieke BOOT-knop (voor het uitschakelen van fan-alerts)
-//   // checkFlashButton();
-
-//   // 2. Veiligheidscheck geheugenlekken (< 10KB op ESP32)
-//   freeHeap = ESP.getFreeHeap();
-//   if (freeHeap < 10000) { 
-//     logToSyslogAndSerial(F("[CRITICAL] Geheugen te laag (< 10KB), systeem herstart direct..."));
-//     delay(100);
-//     ESP.restart();
-//   }
-
-//   isConnected = (WiFi.status() == WL_CONNECTED);
-//   wifiRSSI = WiFi.RSSI();
-
-//   // 3. Stuur een eenmalige opstartmelding via Telegram NADAT de 3 minuten opstart/kalibratie voorbij zijn
-//   static bool bootMsgSent = false;
-//   if (isConnected && !bootMsgSent && ENABLE_TELEGRAM && isSystemReady()) {
-//     bootMsgSent = true;
-//     if (!isKasSleeping) {
-//       String bootMsg = "🚀 *De kleine kas is opgestart en direct actief* (Lampen gedetecteerd)!\n";
-//       bootMsg += "• Automatisering en actieve klimaatregeling draaien nu autonoom.";
-//       sendTelegramAlert(bootMsg);
-//     }
-//   }
-//   // static bool bootMsgSent = false;
-//   // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM && millis() > 180000) { // Wacht tot de 3 minuten voorbij zijn
-//   //   bootMsgSent = true;
-    
-//   //   if (!isKasSleeping) {
-//   //     String bootMsg = "🚀 *De kleine kas is volledig opgestart en ingeregeld!*\n";
-//   //     bootMsg += "• Sensoren en kalibratieperiode (3 min) zijn afgerond.\n";
-//   //     bootMsg += "• Automatisering en actieve klimaatregeling draaien nu autonoom.";
-//   //     sendTelegramAlert(bootMsg);
-//   //     logToSyslogAndSerial("[SYSTEM] 3 minuten opstartfase voorbij. Opstartmelding verzonden via Telegram.");
-//   //   } else {
-//   //     logToSyslogAndSerial("[SYSTEM] 3 minuten opstartfase voorbij, maar kas staat in slaapstand. Opstartmelding onderdrukt.");
-//   //   }
-//   // }
-//   // // 3. Stuur een eenmalige opstartmelding via Telegram
-//   // static bool bootMsgSent = false;
-//   // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
-//   //   sendBootNotification();
-//   //   bootMsgSent = true;
-//   // }
-
-//   // 4. MQTT en Telegram verwerking
-//   if (isConnected) {
-//     handleMqtt(); 
-    
-//     if (ENABLE_TELEGRAM) {
-//       static unsigned long lastTelegramCheck = 0;
-//       if (millis() - lastTelegramCheck >= 4000 || lastTelegramCheck == 0) { // Maximaal 1x per 4 seconden peilen
-//         lastTelegramCheck = millis();
-//         handleTelegramIncoming();
-//       }
-//     }
-//   }
-
-//   if (pendingTelegramAlert) {
-//     pendingTelegramAlert = false;
-//     if (isConnected && ENABLE_TELEGRAM) {
-//       logToSyslogAndSerial(F("[TELEGRAM] Handmatig statusrapport versturen via knop..."));
-//       sendTelegramAlert(buildStatusReport());
-//     } else {
-//       logToSyslogAndSerial(F("[TELEGRAM WARNING] Kan geen statusrapport sturen: Geen Wi-Fi."));
-//     }
-//   }
-
-//   // 5. Testmodus timer bewaking
-//   if (isTestModeActive && (millis() - testModeStartTime > currentTestDuration)) {
-//     isTestModeActive = false;
-//     sendTelegramAlert("🧪 *Testmodus afgelopen.*\nSysteem draait weer volledig automatisch op basis van sensoren.");
-//     logToSyslogAndSerial(F("[TESTMODE] Testmodus automatisch uitgeschakeld."));
-//   }
-
-//   // 6. OpenWeather update interval (elke 15 minuten)
-//   if (millis() - lastWeatherUpdate > 900000 || lastWeatherUpdate == 0) {
-//     lastWeatherUpdate = millis(); 
-//     if (isConnected) {
-//       logToSyslogAndSerial("[WEATHER] Actueel weer en voorspelling ophalen...");
-//       fetchInternetWeather();
-//       delay(500); 
-//       fetchWeatherForecast();
-//     }
-//   }
-
-//   // Snelheidstoename kas controleren
-//   checkClimateVelocity(kasSmoothedHum);
-
-//   // 7. Sensor uitleescyclus (elke 5 seconde, stond op 2,5s maar testen of dht fouten minder worden en metingen betrouwbaarder worden) 
-//   static unsigned long lastSensorRead = 0;
-//   if (millis() - lastSensorRead >= 5000 || lastSensorRead == 0) {
-//     lastSensorRead = millis();
-
-//     updateKasSensors();
-//     updateIndoorSensors();
-    
-//     // Kas Logica
-//     if (kasSmoothedTemp > -15.0 && kasSmoothedTemp < 60.0) {
-//       if (displayedTemp == -999.0) displayedTemp = kasSmoothedTemp;
-
-//       if (millis() - lastTempUpdate >= TEMP_UPDATE_INTERVAL || abs(kasSmoothedTemp - displayedTemp) >= TEMP_HYSTERESIS_THRESHOLD) {
-//         displayedTemp = kasSmoothedTemp;
-//         lastTempUpdate = millis();
-//       }
-
-//       if (millis() < SYSTEM_STARTUP_DELAY) {
-//         moldRisk = false;
-//         moldReasonText = "⏳ Systeem kalibreert / leert...";
-//         vpdStatusText = " `(⏳ Opstarten)`";
-//         dpMarginStatusText = " `(⏳ Kalibreren)`";
-//       } else {
-//         if (!isTestModeActive) {
-//           evaluateClimateState(kasSmoothedTemp, kasSmoothedHum);
-//           updateMoldRiskHistory(moldRisk);
-//           updateHeatingAdvice(kasSmoothedTemp, outdoorTemp);
-//         }
-
-//         updateVentilationAdvice(kasSmoothedTemp, kasSmoothedHum, kasDewPoint, outdoorTemp, outdoorHumidity, outdoorDewPoint);
-//       }
-
-//       checkKasTrends(kasSmoothedTemp, kasSmoothedHum, currentPressure);
-
-//       if (kasSmoothedHum < kasLowHum) kasLowHum = kasSmoothedHum;
-//       if (kasSmoothedHum > kasHighHum) kasHighHum = kasSmoothedHum;
-      
-//       updateFanSpeeds(kasVpd);
-//       calculateRPM();
-//     }
-
-//     // Woning logica
-//     if (indoorSmoothedTemp > -15.0 && indoorSmoothedTemp < 60.0) {
-//       if (indoorSmoothedTemp < indoorTempLow) indoorTempLow = indoorSmoothedTemp;
-//       if (indoorSmoothedTemp > indoorTempHigh) indoorTempHigh = indoorSmoothedTemp;
-//       if (indoorSmoothedHum < indoorLowHum) indoorLowHum = indoorSmoothedHum;
-//       if (indoorSmoothedHum > indoorHighHum) indoorHighHum = indoorSmoothedHum;
-//     }
-
-//     updateHighLow(kasSmoothedTemp);
-//     updateHumidityHighLow(kasSmoothedHum, indoorSmoothedHum, outdoorHumidity);
-//   }
-
-//   // MQTT data verzenden (elke 30 seconden)
-//   if (millis() - lastMqttUpdate >= MQTT_INTERVAL || lastMqttUpdate == 0) {
-//     lastMqttUpdate = millis();
-//     if (isConnected) {
-//       if (!mqttClient.connected()) {
-//         reconnectMqtt();
-//       }
-//       if (mqttClient.connected()) {
-//         sendMqttData(); 
-//       } else {
-//         logToSyslogAndSerial("[MQTT] Kan geen data versturen: Geen verbinding met broker.");
-//       }
-//     }
-//   }
-
-//   // 8. OLED Display verversen (max 1x per seconde)
-//   static unsigned long lastDisplayUpdate = 0;
-//   if (millis() - lastDisplayUpdate >= 1000) {
-//     lastDisplayUpdate = millis();
-//     renderDisplay();
-//   }
-// }

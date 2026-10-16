@@ -21,9 +21,6 @@ extern bool isClimateCrash;
 extern bool isFakeEspOverheatActive;
 extern void checkEspTemperatureSafety();
 
-// BUFFER VOOR TELEGRAM RAPPORTEN
-char advBuffer[1600];
-
 // =========================================================================
 // EASTER EGG: Unieke kiemgroenten-feitjes en humor
 // =========================================================================
@@ -149,12 +146,9 @@ String buildStatusReport() {
     }
   }
 
-  String currentIp = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "Niet verbonden";
-
   static char reportBuf[1600];
   snprintf(reportBuf, sizeof(reportBuf),
     "📊 *Statusrapport 'De Kleine Kas'*\n\n"
-    // "🌐 *Netwerk:* IP: `%s`\n\n"
     "🌡️ *1. Huidige Waarden (VPD / Temp / LV):*\n"
     "• Kas: `%.2f kPa` | `%.1f°C` | `%.0f%%`\n"
     "• Woning: `%.2f kPa` | `%.1f°C` | `%.0f%%`\n"
@@ -163,7 +157,6 @@ String buildStatusReport() {
     "%s\n\n"
     "👤 *4. Wat moet JIJ doen (Woning-actuator)?*\n"
     "%s",
-    currentIp.c_str(),
     kasVpd, displayedTemp, kasSmoothedHum,
     indoorVpd, indoorSmoothedTemp, indoorHum,
     outdoorVpd, outdoorTemp, outdoorHumidity,
@@ -190,9 +183,10 @@ String buildHelpMenu() {
                    "• *Test Chip Temp* (`/tc`) - Test chip temp te hoog alert\n\n"
 
                    "• *Testschimmel* (`/ts`) - Test schimmeltoggle (10 min)\n"
-                   "• *Testmat* (`/tm`) - Test warmtemat (15 sec)\n\n"
+                   "• *Testmat* (`/tm`) - Test warmtemat (15 sec)\n"
+                   "• *Fanalarm* (`/fa`) - Fan alarmering aan/uit\n\n"
 
-                   "• *Fanalarm* (`/fa`) - Fan alarmering aan/uit\n"
+                   "• *Netwerkinfo* (`/ni`) - Toon IP, RSSI en netwerkstatus\n"
                    "• *Flush* (`/fl`) - Wis Telegram wachtrij\n"
                    "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
                    "• *Kas-slaap* (`/sl`) - Zet kas op ruststand / gesloten\n"
@@ -297,7 +291,6 @@ void handleTelegramIncoming() {
       }
     }
 
-    // --- 3. BUITENWEER STATUS (API met reden) ---
     String buitenKleur = "🟢";
     String buitenStatus = "Geschikt om in te zetten als ventilatielucht.";
 
@@ -439,24 +432,6 @@ void handleTelegramIncoming() {
       sendTelegramAlert("🌱 *Kas Actief (Kweek AAN)*\n\nKlimaatregeling en automatische sturing zijn weer **ingeschakeld**!");
     }
   }
-  else if (text == "reboot" || text == "rb") {
-    bot.sendMessage(telid, "⚠ Systeem wordt herstart...", "");
-    logToSyslogAndSerial(F("[TELEGRAM] Handmatige reboot aangevraagd. Wachtrij opschonen..."));
-
-    bot.last_message_received = bot.messages[lastIdx].update_id;
-    bot.getUpdates(bot.last_message_received + 1);
-
-    delay(1500); 
-    ESP.restart();
-  }
-  else if (text == "flush" || text == "reflush" || text == "fl") {
-    int updates = bot.getUpdates(-1); 
-    if (updates > 0) {
-      bot.last_message_received = bot.messages[lastIdx].update_id;
-      bot.getUpdates(bot.last_message_received + 1);
-    }
-    sendTelegramAlert("🧹 *Wachtrij opgeschoond!*");
-  }
   else if (text == "hwcheck" || text == "hc") {
     float heapKb = ESP.getFreeHeap() / 1024.0F;
     
@@ -505,6 +480,38 @@ void handleTelegramIncoming() {
       
     sendTelegramAlert(statusMsg);
   }
+  else if (text == "netwerkinfo" || text == "ni") {
+    String wifiStatusStr = (WiFi.status() == WL_CONNECTED) ? "Verbonden ✅" : "Niet verbonden ❌";
+    long rssi = WiFi.RSSI();
+    String signalQuality = "Uitstekend 🟢";
+    if (rssi < -70) signalQuality = "Matig 🟡";
+    if (rssi < -85) signalQuality = "Slecht 🔴";
+
+    char niBuf[400];
+    snprintf(niBuf, sizeof(niBuf),
+      "🌐 *Netwerkinformatie 'De Kleine Kas'*\n\n"
+      "• *Status:* %s\n"
+      "• *SSID:* `%s`\n"
+      "• *IP-adres:* `%s`\n"
+      "• *Signaalsterkte (RSSI):* `%ld dBm` (%s)\n"
+      "• *Gateway:* `%s`",
+      wifiStatusStr.c_str(),
+      WiFi.SSID().c_str(),
+      WiFi.localIP().toString().c_str(),
+      rssi,
+      signalQuality.c_str(),
+      WiFi.gatewayIP().toString().c_str()
+    );
+    sendTelegramAlert(String(niBuf));
+  }
+  else if (text == "flush" || text == "reflush" || text == "fl") {
+    int updates = bot.getUpdates(-1); 
+    if (updates > 0) {
+      bot.last_message_received = bot.messages[lastIdx].update_id;
+      bot.getUpdates(bot.last_message_received + 1);
+    }
+    sendTelegramAlert("🧹 *Wachtrij opgeschoond!*");
+  }
   else if (text == "ota") {
     String apMsg = "🚀 *Access Point wordt gestart...*\n\n";
     apMsg += "• *SSID:* `" + String(AP_SSID) + "`\n";
@@ -516,6 +523,16 @@ void handleTelegramIncoming() {
     bot.sendMessage(senderChatId, apMsg, "Markdown");
 
     triggerOtaApMode = true; 
+  }
+  else if (text == "reboot" || text == "rb") {
+    bot.sendMessage(telid, "⚠ Systeem wordt herstart...", "");
+    logToSyslogAndSerial(F("[TELEGRAM] Handmatige reboot aangevraagd. Wachtrij opschonen..."));
+
+    bot.last_message_received = bot.messages[lastIdx].update_id;
+    bot.getUpdates(bot.last_message_received + 1);
+
+    delay(1500); 
+    ESP.restart();
   }
   else {
     sendTelegramAlert("❌ Onbekend commando. Typ /help");
