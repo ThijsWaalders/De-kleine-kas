@@ -148,7 +148,7 @@ String buildStatusReport() {
     kasActieLogica += "\n*Toelichting:* " + kasAdviceReason;
   }
 
-  String actieVereist = "🟢 Geen actie nodig. De kleine kas regelt alles volledig zelf.";
+  String actieVereist = "🟢 Geen actie nodig. De kleine kas kan het helemaal zelf aan!";
   if (isKasSleeping) {
     actieVereist = "😴 Geen actie nodig, de kas is in slaapstand.";
   } else if (!isSystemReady()) {
@@ -384,20 +384,14 @@ void handleTelegramIncoming() {
     snprintf(mmBuffer, sizeof(mmBuffer),
       "📊 *Min / Max Extremen per Locatie*\n\n"
       "🪴 *Kas:*\n"
-      "• Temp:\n"
-      "`%.1f°C` | `%.1f°C`\n"
-      "• LV:\n"
-      "`%.0f%%` | `%.0f%%`\n\n"
+      "• Temp: `%.1f°C` | `%.1f°C`\n"
+      "• LV: `%.0f%%` | `%.0f%%`\n\n"
       "🏡 *Woning:*\n"
-      "• Temp:\n"
-      "`%.1f°C` | `%.1f°C`\n"
-      "• LV:\n"
-      "`%.0f%%` | `%.0f%%`\n\n"
+      "• Temp `%.1f°C` | `%.1f°C`\n"
+      "• LV: `%.0f%%` | `%.0f%%`\n\n"
       "🌤️ *Buiten:*\n"
-      "• Temp:\n"
-      "`%.1f°C` | `%.1f°C`\n"
-      "• LV:\n"
-      "`%.0f%%` | `%.0f%%`",
+      "• Temp `%.1f°C` | `%.1f°C`\n"
+      "• LV: `%.0f%%` | `%.0f%%`",
       kasTempLow, kasTempHigh, kasLowHum, kasHighHum,
       indoorTempLow, indoorTempHigh, indoorLowHum, indoorHighHum,
       outdoorTempMin, outdoorTempMax, outdoorLowHum, outdoorHighHum
