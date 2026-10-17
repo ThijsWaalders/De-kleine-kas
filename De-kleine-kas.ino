@@ -20,19 +20,15 @@
 #include "OpenWeather.h"      // Weergegevens ophalen via internet
 #include "Display.h"          // OLED display aansturing
 
-Preferences preferences;// "                                                        "
-
+Preferences preferences;
 
 /* ============================================================================
    2. SETUP FUNCTIE (EENMALIGE INITIALISATIE)
    ============================================================================ */
 void setup() {
-  setCpuFrequencyMhz(160); // CPU op 160 MHz in plaats van 240 MHz  ⚡ Minder hitte bij LDO!
+  setCpuFrequencyMhz(160); // CPU op 160 MHz  ⚡ Minder hitte bij LDO!
   Serial.begin(115200);
   delay(1000);
-
-  // -- Setup bewegingssensor
-  // setupPIR();
 
   // --- SYSLOG INITIALISEREN ---
   setupLogger();
@@ -61,7 +57,7 @@ void setup() {
 
   // 4. Bestandssysteem initialiseren (LittleFS voor ESP32)
   drawBootScreen("Bestandssysteem...");
-  if (!LittleFS.begin(true)) { // 'true' zorgt voor automatische opmaak (format) indien beschadigd
+  if (!LittleFS.begin(true)) {
     logToSyslogAndSerial(F("[FS WARNING] LittleFS kon niet worden gestart."));
   } else {
     logToSyslogAndSerial(F("[FS] LittleFS succesvol gestart."));
@@ -75,18 +71,19 @@ void setup() {
   if (ENABLE_TELEGRAM) {
     telegramSslClient.setInsecure();
     telegramSslClient.setTimeout(1500); // Snelle timeout
-    
     logToSyslogAndSerial(F("[TELEGRAM] Telegram client geïnitialiseerd."));
   }
 
-  // 8. Controleer of de esp is herstart doordat het AP te lang aan stond
+  // 8. Controleer of de ESP is herstart doordat het AP te lang aan stond
   if (apTimedOut) {
-    bot.sendMessage(telid, "⚠️ *Waarschuwing:* De AP-modus is automatisch uitgeschakeld vanwege inactiviteit (5 minuten limiet). Het weerstation is herstart naar de normale netwerkmodus.", "Markdown");
-    apTimedOut = false; // Reset de vlag
+    if (WiFi.status() == WL_CONNECTED && ENABLE_TELEGRAM) {
+      bot.sendMessage(telid, "⚠️ *Waarschuwing:* De AP-modus is automatisch uitgeschakeld vanwege inactiviteit (5 minuten limiet). Het weerstation is herstart naar de normale netwerkmodus.", "Markdown");
+    }
+    apTimedOut = false;
   }
 
   // 9. Slaapstand ophalen uit NVS
-  preferences.begin("kas_config", true); // Read-only modus
+  preferences.begin("kas_config", true);
   isKasSleeping = preferences.getBool("sleeping", false);
   preferences.end();
 
@@ -96,10 +93,12 @@ void setup() {
   
   lastSuccessfulNetworkActivity = millis(); 
   
+  // Zorg dat de eerste weer-fetch pas over 30 sec gebeurt i.p.v. direct bij boot
+  lastWeatherUpdate = millis(); 
+
   drawBootScreen("Klaar!");
   delay(300);
 
-  // Systeem operationeel -> LED uit (of groen indien gewenst: statusLed.setColor(0, 255, 0);)
   statusLed.setColor(0, 0, 0);
 }
 
@@ -107,7 +106,6 @@ void setup() {
    3. MAIN LOOP (CONTINU PROCES)
    ============================================================================ */
 void loop() {
-  // PIR Bewegingssensor continu direct uitlezen
   handleDisplayPower();
   
   // 1. Altijd als eerste aanroepen voor Netwerk, OTA-updates en Telnet-clients
@@ -139,7 +137,8 @@ void loop() {
   if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
     bootMsgSent = true;
     
-    String bootMsg = "🚀 *De kleine kas is opgestart, je code werkt!*\n";
+    String bootMsg = "🚀 *De kleine kas is opgestart!*\n";
+    bootMsg += "• *Versie:* `" + String(FIRMWARE_VERSION) + " (" + String(BUILD_TIMESTAMP) + ")`\n";
     bootMsg += "• *IP-adres:* `" + WiFi.localIP().toString() + "`\n";
     if (currentLuxValue > 1.0) {
       bootMsg += "• *Boot-bypass:* Kweeklampen gedetecteerd, direct actief!\n";
@@ -149,16 +148,32 @@ void loop() {
     bootMsg += "• Automatisering en actieve klimaatregeling draaien.";
     
     sendTelegramAlert(bootMsg);
-    logToSyslogAndSerial("[SYSTEM] Opstartmelding verzonden via Telegram.");
+    logToSyslogAndSerial("[SYSTEM] Opstartmelding met versie " + String(FIRMWARE_VERSION) + " verzonden.");
   }
+  // static bool bootMsgSent = false;
+  // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
+  //   bootMsgSent = true;
+    
+  //   String bootMsg = "🚀 *De kleine kas is opgestart, je code werkt!*\n";
+  //   bootMsg += "• *IP-adres:* `" + WiFi.localIP().toString() + "`\n";
+  //   if (currentLuxValue > 1.0) {
+  //     bootMsg += "• *Boot-bypass:* Kweeklampen gedetecteerd, direct actief!\n";
+  //   } else {
+  //     bootMsg += "• *Status:* Kalibratie / opstartfase gestart.\n";
+  //   }
+  //   bootMsg += "• Automatisering en actieve klimaatregeling draaien.";
+    
+  //   sendTelegramAlert(bootMsg);
+  //   logToSyslogAndSerial("[SYSTEM] Opstartmelding verzonden via Telegram.");
+  // }
 
-  // 4. MQTT en Telegram verwerking
+  // 4. MQTT en Telegram verwerking (Achtergrondtaken)
   if (isConnected) {
     handleMqtt(); 
     
     if (ENABLE_TELEGRAM) {
       static unsigned long lastTelegramCheck = 0;
-      unsigned long currentTelegramInterval = isKasSleeping ? 10000 : 4000; // 4s normaal, 10s in slaapstand
+      unsigned long currentTelegramInterval = isKasSleeping ? 10000 : 4000;
       
       if (millis() - lastTelegramCheck >= currentTelegramInterval || lastTelegramCheck == 0) { 
         lastTelegramCheck = millis();
@@ -184,13 +199,13 @@ void loop() {
     logToSyslogAndSerial(F("[TESTMODE] Testmodus automatisch uitgeschakeld."));
   }
 
-  // 6. OpenWeather update interval (elke 15 minuten)
-  if (millis() - lastWeatherUpdate > 900000 || lastWeatherUpdate == 0) {
+  // 6. OpenWeather update interval (elke 15 minuten, voor het eerst na 30s)
+  if (millis() - lastWeatherUpdate > 900000) {
     lastWeatherUpdate = millis(); 
     if (isConnected) {
       logToSyslogAndSerial("[WEATHER] Actueel weer en voorspelling ophalen...");
       fetchInternetWeather();
-      delay(500); 
+      delay(200); 
       fetchWeatherForecast();
     }
   }
@@ -216,7 +231,6 @@ void loop() {
         lastTempUpdate = millis();
       }
 
-      // GEBRUIK HIER DE SLIMME BYPASS IN PLAATS VAN HARD 3 MINUTEN WACHTEN
       if (!isSystemReady()) {
         moldRisk = false;
         moldReasonText = "⏳ Systeem kalibreert / leert...";
@@ -232,7 +246,7 @@ void loop() {
         updateVentilationAdvice(kasSmoothedTemp, kasSmoothedHum, kasDewPoint, outdoorTemp, outdoorHumidity, outdoorDewPoint);
       }
 
-      checkKasTrends(kasSmoothedTemp, kasSmoothedHum, currentPressure);
+      checkKasTrends(kasSmoothedHum, kasSmoothedHum, currentPressure);
 
       if (kasSmoothedHum < kasLowHum) kasLowHum = kasSmoothedHum;
       if (kasSmoothedHum > kasHighHum) kasHighHum = kasSmoothedHum;
@@ -253,25 +267,13 @@ void loop() {
     updateHumidityHighLow(kasSmoothedHum, indoorSmoothedHum, outdoorHumidity);
   }
 
-  // MQTT data verzenden (elke 30 seconden)
-  if (millis() - lastMqttUpdate >= MQTT_INTERVAL || lastMqttUpdate == 0) {
-    lastMqttUpdate = millis();
-    if (isConnected) {
-      if (!mqttClient.connected()) {
-        reconnectMqtt();
-      }
-      if (mqttClient.connected()) {
-        sendMqttData(); 
-      } else {
-        logToSyslogAndSerial("[MQTT] Kan geen data versturen: Geen verbinding met broker.");
-      }
-    }
-  }
-
   // 8. OLED Display verversen (max 1x per seconde)
   static unsigned long lastDisplayUpdate = 0;
   if (millis() - lastDisplayUpdate >= 1000) {
     lastDisplayUpdate = millis();
     renderDisplay();
   }
+
+  // Adempauze voor de ESP32 RTOS en Watchdog
+  delay(1);
 }

@@ -14,7 +14,7 @@ void setupMqtt();
 void handleMqtt();
 
 // Interne helpers
-void savePayloadToBuffer(String payload);
+void savePayloadToBuffer(const String& payload);
 void flushBufferToMqtt();
 void reconnectMqtt();
 void sendMqttData();

@@ -17,59 +17,118 @@ BH1750 lightMeter;
 
 static unsigned long lastKasReadTime = 0;
 
-// Variabelen voor de automatische SHT31 condens-heater check
+// Variabelen voor de automatische & handmatige SHT31 condens-heater check
 static unsigned long lightsOutTimestamp = 0;
 static bool heaterExecutedTonight = false;
 static bool isHeaterCheckRunning = false;
 
+// State Machine voor Non-Blocking Heater Routine
+enum HeaterState {
+  HEATER_IDLE,
+  HEATER_PREPARE_FANS,
+  HEATER_HEATING,
+  HEATER_COOLING
+};
+
+static HeaterState currentHeaterState = HEATER_IDLE;
+static unsigned long heaterStateTimer = 0;
+static int savedFanInt = 0, savedFanExt1 = 0, savedFanExt2 = 0;
+
 /**
- * @brief Voert de SHT31 heater-check uit om condens weg te branden.
- * Schakelt tijdens de test tijdelijk de ventilatoren uit om koeling door luchtstroom te voorkomen.
+ * @brief Handmatige trigger voor SHT31 heater (bijv. via /cal)
  */
-void checkAndRunShtHeater() {
-  if (isHeaterCheckRunning) return;
+bool triggerManualShtHeater() {
+  if (lampsAreOn) {
+    logToSyslogAndSerial("[HEATER] Handmatige trigger afgewezen: Kweeklampen branden nog.");
+    return false; // Mislukt omdat lampen aan staan
+  }
 
-  // Controleer of de lampen uit staan en de wachttijd van 30 minuten (1800000 ms) verstreken is
-  if (!lampsAreOn && lightsOutTimestamp > 0 && !heaterExecutedTonight) {
-    if (millis() - lightsOutTimestamp >= 1800000UL) {
-      isHeaterCheckRunning = true;
-      logToSyslogAndSerial("[HEATER] ⚡ Automatische SHT31 condens-heater gestart...");
+  if (isHeaterCheckRunning) {
+    logToSyslogAndSerial("[HEATER] Heater-check draait al.");
+    return true;
+  }
 
-      // 1. Bewaar de huidige ventilator-snelheden
-      int prevFanInt  = fanIntSpeed;
-      int prevFanExt1 = fanExt1Speed;
-      int prevFanExt2 = fanExt2Speed;
+  isHeaterCheckRunning = true;
+  currentHeaterState = HEATER_PREPARE_FANS;
+  heaterStateTimer = millis();
+  logToSyslogAndSerial("[HEATER] ⚡ Handmatige SHT31 condens-heater gestart via /cal...");
+  return true;
+}
 
-      // 2. Schakel alle fans tijdelijk uit (geen luchtstroom die de chip koelt)
+/**
+ * @brief Non-blocking afhandeling van de SHT31 heater cyclus
+ */
+void handleShtHeaterStateMachine() {
+  if (!isHeaterCheckRunning) return;
+
+  switch (currentHeaterState) {
+    case HEATER_PREPARE_FANS:
+      // 1. Bewaar fan-snelheden en zet alles uit
+      savedFanInt  = fanIntSpeed;
+      savedFanExt1 = fanExt1Speed;
+      savedFanExt2 = fanExt2Speed;
+
       fanIntSpeed  = 0;
       fanExt1Speed = 0;
       fanExt2Speed = 0;
       ledcWrite(PIN_FAN_INT_PWM,  0);
       ledcWrite(PIN_FAN_EXT1_PWM, 0);
       ledcWrite(PIN_FAN_EXT2_PWM, 0);
-      delay(1000); // Wacht kort tot de luchtstroom stilstaat
 
-      // 3. Schakel de SHT31 heater in voor 60 seconden
+      heaterStateTimer = millis();
+      currentHeaterState = HEATER_HEATING;
+      
       if (sht31Connected) {
         sht31.heater(true);
         logToSyslogAndSerial("[HEATER] SHT31 verwarmingselement ACTIEF (1 minuut)...");
-        delay(60000); // 1 minuut verwarmen
-        sht31.heater(false);
-        logToSyslogAndSerial("[HEATER] SHT31 verwarmingselement UITGESCHAKELD.");
       }
+      break;
 
-      // 4. Geef de sensor 2 minuten de tijd om af te koelen naar de echte omgevingstemperatuur
-      delay(120000);
+    case HEATER_HEATING:
+      // 2. Laat de heater 60 seconden branden zonder de CPU te blokkeren
+      if (millis() - heaterStateTimer >= 60000UL) {
+        if (sht31Connected) {
+          sht31.heater(false);
+          logToSyslogAndSerial("[HEATER] SHT31 verwarmingselement UITGESCHAKELD. Start 2 min afkoelfase...");
+        }
+        heaterStateTimer = millis();
+        currentHeaterState = HEATER_COOLING;
+      }
+      break;
 
-      // 5. Herstel de ventilator-snelheden
-      fanIntSpeed  = prevFanInt;
-      fanExt1Speed = prevFanExt1;
-      fanExt2Speed = prevFanExt2;
+    case HEATER_COOLING:
+      // 3. Laat de sensor 2 minuten (120 seconden) afkoelen
+      if (millis() - heaterStateTimer >= 120000UL) {
+        // Herstel de originele ventilator snelheden
+        fanIntSpeed  = savedFanInt;
+        fanExt1Speed = savedFanExt1;
+        fanExt2Speed = savedFanExt2;
 
+        isHeaterCheckRunning = false;
+        currentHeaterState = HEATER_IDLE;
+        logToSyslogAndSerial("[HEATER] ✅ Condens-check afgerond, normale klimaatregeling hervat.");
+      }
+      break;
+
+    default:
+      break;
+  }
+}
+
+/**
+ * @brief Automatische periodieke check
+ */
+void checkAndRunShtHeater() {
+  // Verwerk eerst eventuele lopende stappen van de heater
+  handleShtHeaterStateMachine();
+
+  if (isHeaterCheckRunning) return;
+
+  // Automatische trigger (30 min na lampen uit)
+  if (!lampsAreOn && lightsOutTimestamp > 0 && !heaterExecutedTonight) {
+    if (millis() - lightsOutTimestamp >= 1800000UL) {
       heaterExecutedTonight = true;
-      lightsOutTimestamp = 0;
-      isHeaterCheckRunning = false;
-      logToSyslogAndSerial("[HEATER] ✅ Condens-check afgerond, normale klimaatregeling hervat.");
+      triggerManualShtHeater();
     }
   }
 }
@@ -123,7 +182,7 @@ void updateKasSensors() {
       kasVpd = calcVPD(kasSmoothedTemp, kasSmoothedHum);
       displayedTemp = kasSmoothedTemp;
 
-      // --- 24-UURS EXTREMEN BORGING (Geen -999.0 meer!) ---
+      // --- 24-UURS EXTREMEN BORGING ---
       if (millis() > 3000) {
         static bool kasExtremesInit = false;
         if (!kasExtremesInit || kasTempLow == 999.0f || kasTempLow == -999.0f) {
@@ -153,7 +212,7 @@ void updateKasSensors() {
       if (currentLightState != lampsAreOn) {
         lampsAreOn = currentLightState;
         lampTransitionStartTime = millis();
-        isLampTransitionActive = true; // Start de adaptieve transitiefase
+        isLampTransitionActive = true; 
 
         if (lampsAreOn) {
           logToSyslogAndSerial("[PREDICTIVE] 💡 Lampen AANGESLAGEN. Start adaptieve warmte-transitie.");
@@ -167,7 +226,7 @@ void updateKasSensors() {
       }
     }
 
-    // Controleer of de automatische heater-check uitgevoerd moet worden
+    // Controleer & verwerk de SHT31 heater-check (non-blocking)
     checkAndRunShtHeater();
   }
 }

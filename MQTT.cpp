@@ -6,7 +6,9 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
-const char* BUFFER_FILE = "/mqtt_queue.json";
+// extern const char* BUFFER_FILE;
+
+// const char* BUFFER_FILE = "/mqtt_queue.json";
 const int MAX_BUFFER_LINES = 50; // Bewaar max 50 meet-updates tijdens netwerkuitval
 
 // --- HELPER: BEWAAR METING BIJ GEEN VERBINDING ---
@@ -96,13 +98,29 @@ void setupMqtt() {
 // Netwerk & verbinding onderhouden + buffer verwerken (NON-BLOCKING)
 void handleMqtt() {
   if (WiFi.status() == WL_CONNECTED) {
+    // Zorg dat de server en buffermaat altijd goed staan zodra WiFi actief is
+    static bool mqttInitialized = false;
+    if (!mqttInitialized) {
+      mqttClient.setServer(mqtt_server, mqtt_port);
+      mqttClient.setBufferSize(1536);
+      mqttClient.setCallback(mqttCallback);
+      mqttInitialized = true;
+    }
+
     if (!mqttClient.connected()) {
       reconnectMqtt();
     }
     mqttClient.loop();
 
-    // Verwerk gebufferde berichten (indien aanwezig) op een non-blocking manier
+    // Verwerk gebufferde berichten (indien aanwezig)
     processBufferedMqtt();
+
+    // Stuur elke 30 seconden nieuwe MQTT data naar de broker
+    static unsigned long lastMqttSend = 0;
+    if (millis() - lastMqttSend >= 30000) {
+      lastMqttSend = millis();
+      sendMqttData();
+    }
   }
 }
 
