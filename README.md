@@ -1,83 +1,102 @@
-# ESP32-S3-Zero Microgreens System
+# ESP32-S3 Microgreens Climate Control System
 
-* [ESP32-S3-Zero Microgreens System](https://www.google.com/search?q=%23esp32-s3-zero-microgreens-system)
-* [🇬🇧 English: Manual & Documentation](https://www.google.com/search?q=%23-english-manual--documentation)
-* [1. Hardware Architecture, Pinout & Temporary Setup](https://www.google.com/search?q=%231-hardware-architecture-pinout--temporary-setup)
-* [2. Microgreens Agronomy: Why VPD, Thresholds & Buffers Matter](https://www.google.com/search?q=%232-microgreens-agronomy-why-vpd-thresholds--buffers-matter)
-* [3. Core Components of the Climate Control System (ClimateLogic.cpp)](https://www.google.com/search?q=%233-core-components-of-the-climate-control-system-climatelogiccpp)
-* [4. Layered Fan Control & Climate Safety (Config.h)](https://www.google.com/search?q=%234-layered-fan-control--climate-safety-configh)
-* [5. Environmental Assessment, Weather API & 3-Climate Chain](https://www.google.com/search?q=%235-environmental-assessment-weather-api--3-climate-chain)
-* [6. Display, PIR Motion Sensor & Automatic Lux Dimming](https://www.google.com/search?q=%236-display-pir-motion-sensor--automatic-lux-dimming)
-* [7. Telemetry, InfluxDB v1.6, Syslog & Telegram Integration](https://www.google.com/search?q=%237-telemetry-influxdb-v16-syslog--telegram-integration)
-* [Telegram Bot Commands](https://www.google.com/search?q=%23telegram-bot-commands)
-* [🇳🇱 Nederlands: Handleiding & Documentatie](https://www.google.com/search?q=%23-nederlands-handleiding--documentatie)
-* [1. Hardware-architectuur, Pinout & Tijdelijke Opzet](https://www.google.com/search?q=%231-hardware-architectuur-pinout--tijdelijke-opzet)
-* [2. Teeltlogica Kiemgroenten: Waarom VPD, Drempels & Buffers Cruciaal Zijn](https://www.google.com/search?q=%232-teeltlogica-kiemgroenten-waarom-vpd-drempels--buffers-cruciaal-zijn)
-* [3. Kerncomponenten van het Klimaatregelsysteem (ClimateLogic.cpp)](https://www.google.com/search?q=%233-kerncomponenten-van-het-klimaatregelsysteem-climatelogiccpp)
-* [4. Gelaagde Fan-besturing & Klimaatbeveiliging (Config.h)](https://www.google.com/search?q=%234-gelaagde-fan-besturing--klimaatbeveiliging-configh)
-* [5. Slimme Omgevingsbeoordeling, Weer-API & 3-Klimaten Keten](https://www.google.com/search?q=%235-slimme-omgevingsbeoordeling-weer-api--3-klimaten-keten)
-* [6. Display, PIR-bewegingssensor & Automatische Lux-dimming](https://www.google.com/search?q=%236-display-pir-bewegingssensor--automatische-lux-dimming)
-* [7. Telemetrie, InfluxDB v1.6, Syslog & Telegram-interactie](https://www.google.com/search?q=%237-telemetrie-influxdb-v16-syslog--telegram-interactie)
-* [Telegram Bot Commando's](https://www.google.com/search?q=%23telegram-bot-commandos)
+**Firmware Version:** `v3.2.9`
+
+**Target Hardware:** ESP32-S3-ZERO-N8R8-M
 
 ---
 
 ## 🇬🇧 English: Manual & Documentation
 
-📖 **Manual: Robust Climate Control, Teeltlogica & Telemetry Architecture**
+📖 **Manual: Robust Climate Control, Agronomic Logic & Telemetry Architecture**
 
-This manual describes the technical and agronomic architecture of the ESP32-S3 microgreens greenhouse system. It is engineered to run completely headless, combining strict agronomic safety margins with robust industrial patterns.
+This manual describes the technical and agronomic architecture of the ESP32-S3 microgreens greenhouse system ("De kleine kas"). It is engineered to run completely headless, combining strict agronomic safety margins with robust industrial patterns.
 
-### 1. Hardware Architecture, Pinout & Temporary Setup
+### 1. Hardware Architecture, Pinout & System Setup
 
-The brain of the system is an **ESP32-S3-Zero**, communicating via I2C, PWM, and Interrupts.
+The brain of the system is an **ESP32-S3-ZERO-N8R8-M** (running at 160 MHz for optimal thermal and power efficiency), communicating via I2C, PWM, and Interrupts.
 
-* **PWM Fans (4-Wire)**: Connected directly via GPIO (`PIN_FAN_INT_PWM` / `PIN_FAN_EXT1_PWM` / `PIN_FAN_EXT2_PWM`) running at a clean 25 kHz to prevent motor humming. Power (12V/5V) and GND remain permanently connected; speed is modulated entirely via duty cycle (0-255).
-* **Tachometer (RPM Feedback)**: To protect the ESP32 while sharing or transitioning hardware lines before migrating to a larger board, tachometer lines are routed via a **diode (stripe facing the fan)**, a pull-up resistor to 3.3V (`INPUT_PULLUP` enabled in software), and read via hardware interrupts (`FALLING`).
-* **Pin Mapping (`Config.h`)**:
-* `PIN_PIR` (GPIO 2): Motion sensor for display wakeup.
-* `PIN_SCL` (GPIO 4) & `PIN_SDA` (GPIO 5): I2C bus (OLED display, BMP085 pressure/temp, BH1750 lux).
-* `INDOOR_DHT_PIN` (GPIO 6) & `KAS_DHT_PIN` (GPIO 7): Climate sensors.
-* `PIN_FAN_EXT1_PWM` (GPIO 10), `PIN_FAN_EXT1_TACHO` (GPIO 11): External Fan 1.
-* `PIN_FAN_INT_PWM` (GPIO 12), `PIN_FAN_INT_TACHO` (GPIO 13): Internal Circulation Fan.
-* `PIN_NEOPIXEL` (GPIO 21): Status LED indicator.
+* **Greenhouse Sensors (SHT31)**: Industrial high-precision I2C sensor measuring temperature, humidity, VPD, and dew point. Features a built-in software-controllable internal heater for sensor recovery and calibration.
+* **Indoor Sensors (BME280)**: Measures reference indoor temperature, humidity, and barometric pressure from the living space buffer zone.
+* **Light & Motion**: BH1750 ambient light sensor (lux) and a PIR motion sensor (`PIN_PIR` on GPIO 2) for automatic OLED display wakeup and grow light detection.
+* **PWM Fans (4-Wire, 3 Units)**:
+* `PIN_FAN_INT_PWM` (GPIO 12) & `PIN_FAN_INT_TACHO` (GPIO 13): Internal circulation fan.
+* `PIN_FAN_EXT1_PWM` (GPIO 10) & `PIN_FAN_EXT1_TACHO` (GPIO 11): External intake/exhaust fan 1.
+* `PIN_FAN_EXT2_PWM` / TACHO: External intake/exhaust fan 2.
+* Operating at **25 kHz PWM** to eliminate audible motor hum. Tachometer lines are protected via inline diodes and read via hardware interrupts (`FALLING`).
 
 
+* **Actuators & Status**: PWM Heat mat recommendation logic and onboard Status Neopixel LED (`PIN_NEOPIXEL` on GPIO 21).
 
 ### 2. Microgreens Agronomy: Why VPD, Thresholds & Buffers Matter
 
-Microgreens (germinating seeds and young sprouts) are extremely vulnerable in a closed indoor environment:
+Microgreens are extremely sensitive to microclimates in enclosed spaces:
 
-* **VPD (Vapor Pressure Deficit)**: Measures the drying power of the air. If VPD is too low (`< 0.60 kPa`), the air is stagnant and clammy, making fungal outbreaks (like *Botrytis* or mold) inevitable within hours. If VPD is too high (`> 0.80 kPa`), delicate root systems dry out and growth stalls.
-* **Dew Point Margin (`DP_MARGIN_MIN = 2.0°C`)**: If the surface temperature of the seeds drops too close to the dew point, condensation forms directly on the leaves/seeds—a fatal condition for microgreens.
-* **The Indoor Buffer Strategy**: Drawing freezing or humid outdoor air directly into a small indoor greenhouse causes massive climate shocks. By using the **living room (indoor space)** as an intermediate buffer, the system can draw stable, conditioned indoor air to correct minor dryness or humidity spikes safely.
+* **VPD (Vapor Pressure Deficit)**: Primary metric for transpiration.
+* **Too Low (`< 0.60 kPa`)**: Stagnant, clammy air leading to fungal outbreaks (*Botrytis*, damping-off) within hours.
+* **Too High (`> 0.80 kPa`)**: Causes severe root dehydration and stalls growth.
 
-### 3. Core Components of the Climate Control System (ClimateLogic.cpp)
 
-1. **Moving Average Sensor Filter**: Keeps a sliding buffer (`SENSOR_BUFFER_SIZE = 3` sampled over time) to eliminate electrical and physical sensor noise, preventing actuator "chattering."
-2. **Anti-Hunt Protection**: Enforces a strict minimum run time (`MIN_FAN_RUN_TIME = 180000 ms / 3 min`) to prevent fans from rapidly toggling on and off, protecting bearings and motor drivers.
-3. **Proactive Velocity Check**: Monitors the rate of humidity change (`humidityVelocity`). If humidity surges by $\ge 3\%$/min while above 60%, internal circulation triggers instantly *before* mold risk sets in.
+* **Dew Point Margin (`DP_MARGIN_MIN = 2.0°C`)**: Prevents leaf surface temperature from approaching the dew point, avoiding destructive leaf condensation.
+* **Indoor Buffer Strategy**: Instead of drawing cold/damp outdoor air directly into a small greenhouse, the system leverages conditioned indoor air from the living room as a stable climate buffer.
 
-### 4. Layered Fan Control & Climate Safety (Config.h)
+### 3. Core Components of the Climate Control System (`ClimateLogic.cpp`)
 
-* **Green Zone (Optimal)**: VPD between `0.60` and `0.80` kPa. Fans idle.
-* **Orange Zone (Soft Warning)**: Minor clamminess. Fan 1 runs softly (~45% PWM / 120 speed) to gently stabilize moisture.
-* **Red Zone (Hard / Critical)**: Severe VPD deviation or condensation risk. Fan 1 goes full gas (255), and Fan 2 scales dynamically based on severity.
-* **Ultra Max (Emergency Crash)**: Triggered if temperature exceeds `GREENHOUSE_CRASH_TEMP` (28°C / 30°C). Both external fans force 100%, and an instant Telegram alert is dispatched.
-* **Sleep Mode (`/sleep`)**: Cultivation pauses and PWM signals drop to 0, leaving fans unpowered via logic while sensors continue logging data over time.
+1. **Moving Average Sensor Filter**: Maintains a sliding buffer (`SENSOR_BUFFER_SIZE = 3`) to eliminate sensor noise and prevent actuator chattering.
+2. **Anti-Hunt Protection**: Enforces a minimum fan run time (`MIN_FAN_RUN_TIME = 180000 ms / 3 min`) to protect motor bearings and electronics.
+3. **Proactive Humidity Velocity Check**: Monitors rate of humidity rise (`humidityVelocity`). Surges $\ge 3\%$/min above 60% RH trigger instant internal circulation *before* mold risk establishes.
+4. **Boot-Bypass & Light Detection**: If ambient light exceeds 1.0 lux during boot (grow lights detected), the standard 3-minute calibration delay is bypassed, immediately activating automated climate control.
+5. **NVS State Memory**: Retains sleep mode (`isKasSleeping`) across reboots via ESP32 `Preferences` non-volatile storage.
 
-### 5. Environmental Assessment, Weather API & 3-Climate Chain
+### 4. Layered Fan Control & Climate Safety
 
-Evaluates Greenhouse vs. Indoor vs. Outdoor using local sensors and an external Weather API to decide whether to vent, circulate, or seal the greenhouse.
+* **Green Zone (Optimal)**: VPD between `0.60` and `0.80` kPa. Climate stable; fans idle.
+* **Orange Zone (Soft Warning)**: Minor clamminess. Internal fan circulates softly (~45% PWM) to break the boundary layer.
+* **Red Zone (Hard / Critical)**: Significant VPD deviation or condensation risk. External fans scale dynamically up to 100% capacity.
+* **Ultra Max (Emergency Crash)**: Triggered if greenhouse temperature exceeds `GREENHOUSE_CRASH_TEMP` (28°C / 30°C). All external fans force 100% duty cycle with an instant Telegram emergency alert.
+* **Sleep Mode (`/sl`)**: Climate regulation pauses and fan PWM signals drop to 0%, while sensors continue logging background data.
+
+### 5. Environmental Assessment & 3-Climate Chain
+
+Compares Greenhouse vs. Indoor vs. Outdoor (via OpenWeather API) to dynamically decide whether to vent, circulate, or seal the greenhouse enclosure.
 
 ### 6. Display, PIR Motion Sensor & Automatic Lux Dimming
 
-* **PIR Control**: OLED screen sleeps by default and wakes for 30 seconds upon motion.
-* **Lux Dimming**: Automatically dims screen brightness to `10` when ambient light drops below `1.0` lux at night.
+* **PIR Display Control**: OLED display sleeps by default and wakes for 30 seconds upon motion detection.
+* **Lux Dimming**: Automatically dims display brightness to `10` when ambient light drops below `1.0` lux at night.
 
-### 7. Telemetry, InfluxDB v1.6, Syslog & Telegram Integration
+### 7. Telemetry, MQTT, Syslog & Telegram Commands
 
-Direct telemetry pipeline to a Raspberry Pi via Telegraf and InfluxDB v1.6, visualized in Grafana, complemented by Syslog, Telnet monitoring, OTA updates, and a complete Telegram command set including the secret rotation easter egg (`/ea`).
+Integrates with Home Assistant via MQTT (with local LittleFS buffering for offline recovery), Syslog logging, Telnet monitoring, Wireless AP OTA updates, and Telegram bot commands:
+
+* **Status & Reports:**
+* `/st` or `status` — Main report (VPD, Temp, RH per location, and active logic).
+* `/hc` or `hwcheck` — Detailed hardware check (Free RAM, Chip Temp, sensor error rates, lux, PIR, Fan RPMs).
+* `/mm` or `minmax` — Daily min/max temperature & humidity per location.
+* `/ad` or `advies` — Detailed cultivation, ventilation, and mold diagnostics.
+* `/ni` or `netwerkinfo` — Network status, RSSI, IP, firmware version (`v3.2.9`), and build timestamp.
+* `/h`, `help`, or `start` — Displays the command menu.
+
+
+* **Testing & Overrides:**
+* `/tf` — Tests all fans for 30 sec at 100% PWM.
+* `/tf2` — Internal fan OFF, external fans 1 & 2 at 100% PWM (30 sec).
+* `/mf` — Manual TFM override toggle (internal fan OFF, external fans 100%).
+* `/tm` — Manually toggles heat mat state (15 sec test).
+* `/ts` — Manually toggles mold risk state (10 min test).
+* `/tc` — Simulates 72°C chip temperature security alert.
+* `/fa` — Enables or disables (mutes) fan alerts via Telegram.
+
+
+* **System & Maintenance:**
+* `/sl` or `slaapstand` — Toggles sleep mode (state saved to NVS).
+* `/cal` or `kalibratie` — Stops all fans and runs an SHT31 sensor heater test (if lights are off).
+* `/ota` — Starts local AP mode for wireless OTA firmware updates.
+* `/fl` or `flush` — Clears incoming Telegram queue.
+* `/rb` or `reboot` — Restarts the ESP32-S3 immediately.
+* `/pe` or `paasei` — *[Secret Easter Egg]* Microgreens facts and jokes.
+
+
 
 ---
 
@@ -85,75 +104,88 @@ Direct telemetry pipeline to a Raspberry Pi via Telegraf and InfluxDB v1.6, visu
 
 📖 **Handleiding: Robuuste Klimaatregeling, Teeltlogica & Telemetrie-architectuur**
 
-Deze handleiding beschrijft de volledige technische en teelttechnische opzet van het ESP32-S3 microgreens-kassysteem. Het is ontworpen om volautomatisch, 'headless' en extreem bedrijfszeker te draaien in huis.
+Deze handleiding beschrijft de technische en teelttechnische opzet van het ESP32-S3 microgreens-kassysteem ("De kleine kas"). Het is ontworpen om volautomatisch, 'headless' en extreem bedrijfszeker te draaien in huis.
 
-### 1. Hardware-architectuur, Pinout & Tijdelijke Opzet
+### 1. Hardware-architectuur, Pinout & Systeemopzet
 
-Het hart van de installatie is een compacte **ESP32-S3-Zero**, die I2C-sensoren, PWM-aansturingen en interrupts aanstuurt.
+Het hart van de installatie is een **ESP32-S3-ZERO-N8R8-M** (gedraaid op 160 MHz voor optimale warmte- en energiehuishouding), die I2C-sensoren, PWM-aansturingen en interrupts beheert.
 
-* **PWM Fans (4-Wire)**: Rechtstreeks aangesloten op de GPIO's (`PIN_FAN_INT_PWM`, etc.) op een stabiele frequentie van **25 kHz** om hinderlijk motorgezoem te voorkomen. Voeding (12V/5V) en massa (GND) blijven permanent verbonden; de snelheid wordt volledig geregeld via het PWM-signaal (0-255).
-* **Tacho-feedback met Diodes**: Omdat de hardware-lijnen op een later moment naar een groter bord worden gemigreerd, lopen de tacho-signalen tijdelijk via een **diode (met de streep naar de fan gericht)** en een pull-up naar 3.3V (`INPUT_PULLUP` actief in software). Hierdoor worden stoorsignalen gefilterd en kan de ESP veilig via hardware-interrupts (`FALLING`) de omwentelingen tellen zonder dat de chip oververhit raakt of beschadigd wordt.
-* **Pinoverzicht (`Config.h`)**:
-* `PIN_PIR` (GPIO 2): Bewegingssensor voor automatische display-activering.
-* `PIN_SCL` (GPIO 4) / `PIN_SDA` (GPIO 5): I2C-bus voor de OLED-display, BMP085 barometersensor en BH1750 lichtsensor.
-* `INDOOR_DHT_PIN` (GPIO 6) / `KAS_DHT_PIN` (GPIO 7): DHT11 temperatuur- en vochtigheidssensoren voor respectievelijk de woning en de kas.
-* `PIN_FAN_EXT1_PWM` (GPIO 10) & `PIN_FAN_EXT1_TACHO` (GPIO 11): Externe ventilator 1.
+* **Kas Sensoren (SHT31)**: Industriële I2C-sensor voor hoge precisie temperatuur-, luchtvochtigheid-, VPD- en dauwpuntmetingen. Uitgerust met een softwarematig aanstuurbare interne heater voor herstel en kalibratie.
+* **Woning Sensoren (BME280)**: Meet referentiewaarden voor temperatuur, luchtvochtigheid én luchtdruk in de woning (bufferzone).
+* **Licht & Beweging**: BH1750 lichtsensor (lux) en een PIR-bewegingssensor (`PIN_PIR` op GPIO 2) voor automatische display-inschakeling en kweeklamp-detectie.
+* **PWM Fans (4-Wire, 3 stuks)**:
 * `PIN_FAN_INT_PWM` (GPIO 12) & `PIN_FAN_INT_TACHO` (GPIO 13): Interne circulatieventilator.
-* `PIN_NEOPIXEL` (GPIO 21): Status-LED voor visuele feedback.
+* `PIN_FAN_EXT1_PWM` (GPIO 10) & `PIN_FAN_EXT1_TACHO` (GPIO 11): Externe afzuig-/toevoerventilator 1.
+* `PIN_FAN_EXT2_PWM` / TACHO: Externe afzuig-/toevoerventilator 2.
+* Aangestuurd op **25 kHz PWM** om motorgezoem volledig te elimineren. Tacho-lijnen zijn beveiligd via diodes en worden uitgelezen via hardware-interrupts (`FALLING`).
 
 
+* **Actuators & Status**: Warmtemat aansturingslogica en onboard Status Neopixel LED (`PIN_NEOPIXEL` op GPIO 21).
 
 ### 2. Teeltlogica Kiemgroenten: Waarom VPD, Drempels & Buffers Cruciaal Zijn
 
 Het opkweken van microgreens (kiemgroenten) in een afgesloten ruimte luistert uiterst nauw:
 
-* **VPD (Vapor Pressure Deficit - Dampdrukverschil)**: Dit is dé graadmeter voor de verdamping.
-* Als de VPD te laag is (`< 0.60 kPa`), staat de lucht stil, is het te klam en krijgen schimmels (zoals sporen van *Botrytis* of valse meeldauw) binnen enkele uren vrij spel.
-* Als de VPD te hoog wordt (`> 0.80 kPa`), drogen de tere worteltjes en zaadblaadjes direct uit en stopt de groei.
+* **VPD (Vapor Pressure Deficit - Dampdrukverschil)**: De graadmeter voor gewasverdamping.
+* **Te laag (`< 0.60 kPa`)**: Stilstaande, klamme lucht waarin schimmels (*Botrytis*, kiemrot) binnen enkele uren toeslaan.
+* **Te hoog (`> 0.80 kPa`)**: Veroorzaakt snelle uitdroging van de teer gewortelde kiemplanten.
 
 
-* **Dauwpuntmarge (`DP_MARGIN_MIN = 2.0°C`)**: Als de bladtemperatuur van de kiemgroenten te dicht bij het dauwpunt komt, slaat er direct condens neer op de blaadjes. Dit is funest voor kiemgroenten omdat het verstikking en rot veroorzaakt.
-* **De Woning als Tussenbuffer**: Buitenlucht is vaak te koud, te vochtig of wisselvallig om direct een kleine kas mee te ventileren. Door de **woonkamer** als buffer te gebruiken, kan het systeem schone, stabiele en iets drogere binnenlucht inzetten om vochtpieken in de kas op te vangen zonder het microklimaat te shockeren.
+* **Dauwpuntmarge (`DP_MARGIN_MIN = 2.0°C`)**: Voorkomt dat het bladblad doordringt tot het dauwpunt, wat schadelijke condensvorming op het gewas voorkomt.
+* **De Woning als Tussenbuffer**: Buitenlucht is vaak te koud of vochtig. Door de **woonkamer** als buffer te gebruiken, ventileert de kas met stabiele en drogere binnenlucht zonder thermische shocks.
 
-### 3. Kerncomponenten van het Klimaatregelsysteem (ClimateLogic.cpp)
+### 3. Kerncomponenten van het Klimaatregelsysteem (`ClimateLogic.cpp`)
 
-1. **Sensor Filter (Voortschrijdend Gemiddelde)**: Slaat metingen op in een buffer (`SENSOR_BUFFER_SIZE = 3`) om meetruis en kleine fluctuaties weg te filteren. Dit voorkomt dat relais of ventilatoren zenuwachtig aan- en uitschakelen (*chattering*).
-2. **Anti-Hunt Beveiliging**: Dwingt een minimale looptijd af (`MIN_FAN_RUN_TIME = 180000 ms / 3 minuten`) zodra een ventilator van status verandert. Dit spaart de lagers en de elektronica.
-3. **Proactieve Snelheidsbewaking (Velocity Check)**: Berekent de stijgsnelheid van de luchtvochtigheid (`humidityVelocity`). Stijgt de LV explosief met $\ge 3\%$/minuut bij een LV boven de 60%, dan grijpt het systeem direct in met preventieve interne circulatie *voordat* schimmelrisico optreedt.
+1. **Sensor Filter (Voortschrijdend Gemiddelde)**: Filtert metingen via een buffer (`SENSOR_BUFFER_SIZE = 3`) om meetruis en zenuwachtig schakelen (*chattering*) van ventilatoren te voorkomen.
+2. **Anti-Hunt Beveiliging**: Dwingt een minimale looptijd af (`MIN_FAN_RUN_TIME = 180000 ms / 3 minuten`) bij statusveranderingen van ventilatoren.
+3. **Proactieve Snelheidsbewaking (Velocity Check)**: Detecteert een snelle stijging van de luchtvochtigheid (`humidityVelocity`). Een stijging van $\ge 3\%$/minuut boven de 60% LV activeert direct interne circulatie *voordat* schimmelrisico ontstaat.
+4. **Boot-Bypass & Lampdetectie**: Als de lichtsensor bij het opstarten meer dan 1.0 lux meet (kweeklampen aan), wordt de standaard kalibratiewachttijd van 3 minuten overgeslagen en start de klimaatregeling direct.
+5. **NVS Geheugenopslag**: Onthoudt de slaapstand-status (`isKasSleeping`) na reboots of stroomuitval via de `Preferences` van de ESP32-S3.
 
-### 4. Gelaagde Fan-besturing & Klimaatbeveiliging (Config.h)
+### 4. Gelaagde Fan-besturing & Klimaatbeveiliging
 
-De aansturing is opgedeeld in vier heldere veiligheidszones:
+* **Groene Zone (Optimaal)**: VPD tussen `0.60` en `0.80` kPa. Klimaat is stabiel; fans staan in rust.
+* **Oranje Zone (Soft Waarschuwing)**: Lichte klamheid. Interne fan draait rustig (~45% PWM) om het microklimaat rond de kiemen te breken.
+* **Rode Zone (Hard / Kritiek)**: Grotere VPD-afwijking of condensrisico. Externe fans schalen dynamisch op tot 100%.
+* **Ultra Max (Noodtoestand / Klimaatcrash)**: Overschrijdt de kas-temperatuur de kritieke grens (`GREENHOUSE_CRASH_TEMP`, bijv. 28°C / 30°C), dan schakelen alle externe fans naar 100% en wordt direct een Telegram-noodalarm verzonden.
+* **Slaapstand (`/sl`)**: Schakelt actieve ventilatie uit (PWM naar 0%), terwijl sensoren op de achtergrond data blijven loggen.
 
-* **Groene Zone (Optimaal)**: VPD ligt tussen `0.60` en `0.80` kPa. Alles is in balans; fans staan uit.
-* **Oranje Zone (Soft Waarschuwing)**: De kas wordt licht klam. Fan 1 draait zachtjes op ca. 45% PWM (`120`) om de lucht subtiel te verversen.
-* **Rode Zone (Hard / Kritiek)**: Grotere VPD-afwijking (`> VPD_RED_OFFSET`) of dreigende condens. Fan 1 gaat vol gas (`255`), en Fan 2 schaalt dynamisch in snelheid op naarmate de afwijking groter wordt.
-* **Ultra Max (Noodtoestand / Klimaatcrash)**: Overschrijdt de kas-temperatuur de kritieke grens (`GREENHOUSE_CRASH_TEMP`, bijv. 28°C / 30°C), dan dwingen beide externe fans een 100% capaciteit af en wordt onmiddellijk een Telegram-noodalarm verzonden.
-* **Slaapstand (`/sleep`)**: Schakelt de kweekfunctie en ventilatie uit door de PWM-signalen op 0 te zetten (de voeding en GND blijven netjes aangesloten zonder warmteontwikkeling op de ESP), terwijl de sensoren doorgaan met loggen voor data-analyse over tijd.
+### 5. Slimme Omgevingsbeoordeling & 3-Klimaten Keten
 
-### 5. Slimme Omgevingsbeoordeling, Weer-API & 3-Klimaten Keten
-
-Vergelijkt continu de toestand in de kas, de woning en buiten (via een externe Weer-API) om te bepalen of ventilatie wenselijk is en of er externe weer-alarmen (gele LED / Telegram) uitgestuurd moeten worden.
+Vergelijkt de toestand in de Kas, Woning en Buiten (via OpenWeather API) om te bepalen of ventilatie met woning- of buitenlucht veilig en effectief is.
 
 ### 6. Display, PIR-bewegingssensor & Automatische Lux-dimming
 
-* **PIR-sturing**: Het OLED-scherm staat standaard uit om energie te besparen en springt direct aan bij beweging (30 seconden timeout).
-* **Lux-dimming**: Meet via de BH1750 lichtsensor of het donker is (`currentLuxValue <= 1.0`). Zo ja, dan wordt de displayhelderheid automatisch gedimd naar een zachte stand (`10`) om te voorkomen dat de kas 's nachts oplicht als een nachtlamp.
+* **PIR-sturing**: Het OLED-scherm staat standaard uit en springt aan bij beweging (30 seconden timeout).
+* **Lux-dimming**: Dimt het display automatisch naar stand `10` wanneer het omgevingslicht onder `1.0` lux zakt.
 
-### 7. Telemetrie, InfluxDB v1.6, Syslog & Telegram-interactie
+### 7. Telemetrie, MQTT, Syslog & Telegram-interactie
 
-Het systeem communiceert direct met een Raspberry Pi via Telegraf en InfluxDB v1.6 voor grafieken in Grafana, ondersteunt Syslog, Telnet-monitoring, OTA-updates en een uitgebreide set Telegram-commando's:
+Draadloze integratie met Home Assistant via MQTT (inclusief lokale LittleFS-buffering bij netwerkuitval), Syslog logging, Telnet-monitoring, OTA updates en Telegram-commando's:
 
-* `/st` / `/status` — Sensoroverzicht.
-* `/ad` / `/advies` — Ventilatie- en schimmeldiagnose.
-* `/mm` / `/minmax` — Dagelijkse extremen.
-* `/tf` / `/tf2` — Ventilatortests.
-* `/mf` — Handmatige override toggle.
-* `/sleep` — Slaapstand / kweek pauzeren.
-* `/tm` / `/ts` — Warmtemat- en schimmeltoggle.
-* `/hc` — Hardware- en geheugenstatus.
-* `/fa` — Fan-alarmen dempen of aanzetten.
-* `/ota` — Wireless firmware updates via AP.
-* `/rb` — Systeemherstart.
-* `/fl` — Telegram-wachtrij opschonen.
-* `/ea` — *[Verborgen Easter Egg]* Roterende lijst met unieke kiemgroenten-feitjes en humor zonder het help-menu te vervuilen.
+* **Informatie & Rapporten:**
+* `/st` of `status` — Hoofdrapport met actuele VPD, temp, LV en kasactie.
+* `/hc` or `hwcheck` — Hardwarecheck (RAM, chip-temp, sensor fout-percentages, lux, PIR, Fan RPMs).
+* `/mm` of `minmax` — Min/max waarden van de dag per locatie.
+* `/ad` of `advies` — Uitgebreid teelt-, ventilatie- en schimmeladvies.
+* `/ni` of `netwerkinfo` — Netwerkstatus, RSSI, IP, firmwareversie (`v3.2.9`) en build-tijdstempel.
+* `/h`, `help` of `start` — Toont het commando-menu.
+
+
+* **Testen & Overrides:**
+* `/tf` — Test alle fans gedurende 30 sec op 100% PWM.
+* `/tf2` — Interne fan UIT, externe fans 1 & 2 op 100% PWM (30 sec).
+* `/mf` — Handmatige TFM-override (interne fan UIT, externe fans 100%).
+* `/tm` — Test warmtemat status (15 sec test).
+* `/ts` — Test schimmelrisico status (10 min test).
+* `/tc` — Simuleert 72°C chiptemperatuur alarm.
+* `/fa` — Schakelt fan-alarmeringen via Telegram in of uit.
+
+
+* **Systeem & Onderhoud:**
+* `/sl` of `slaapstand` — Schakelt slaapstand in/uit (status opgeslagen in NVS).
+* `/cal` of `kalibratie` — Zet alle fans stil en triggert een SHT31 heater-check (indien lampen uit zijn).
+* `/ota` — Start lokaal AP voor draadloze OTA firmware-updates.
+* `/fl` of `flush` — Maakt Telegram-wachtrij leeg.
+* `/rb` of `reboot` — Herstart de ESP32-S3 direct.
+* `/pe` of `paasei` — *[Geheime Easter Egg]* Roterende kiemgroenten-feitjes en humor.
