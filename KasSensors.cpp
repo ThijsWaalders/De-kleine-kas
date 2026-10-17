@@ -1,12 +1,13 @@
 /**
  * @file KasSensors.cpp
- * @brief Implementatie van de kas-sensoren (SHT31 en BH1750) met lamp-transitie detectie voor ESP32-S3.
+ * @brief Implementatie van de kas-sensoren (SHT31 en BH1750) met lamp-transitie detectie en SHT31 heater-check voor ESP32-S3.
  */
 
 #include "Config.h"
 #include "KasSensors.h"
 #include "ClimateLogic.h"
 #include "Logger.h"
+#include "Telegram.h"
 #include <Wire.h>
 #include <Adafruit_SHT31.h>
 #include <BH1750.h>
@@ -16,9 +17,67 @@ BH1750 lightMeter;
 
 static unsigned long lastKasReadTime = 0;
 
+// Variabelen voor de automatische SHT31 condens-heater check
+static unsigned long lightsOutTimestamp = 0;
+static bool heaterExecutedTonight = false;
+static bool isHeaterCheckRunning = false;
+
+/**
+ * @brief Voert de SHT31 heater-check uit om condens weg te branden.
+ * Schakelt tijdens de test tijdelijk de ventilatoren uit om koeling door luchtstroom te voorkomen.
+ */
+void checkAndRunShtHeater() {
+  if (isHeaterCheckRunning) return;
+
+  // Controleer of de lampen uit staan en de wachttijd van 30 minuten (1800000 ms) verstreken is
+  if (!lampsAreOn && lightsOutTimestamp > 0 && !heaterExecutedTonight) {
+    if (millis() - lightsOutTimestamp >= 1800000UL) {
+      isHeaterCheckRunning = true;
+      logToSyslogAndSerial("[HEATER] ⚡ Automatische SHT31 condens-heater gestart...");
+
+      // 1. Bewaar de huidige ventilator-snelheden
+      int prevFanInt  = fanIntSpeed;
+      int prevFanExt1 = fanExt1Speed;
+      int prevFanExt2 = fanExt2Speed;
+
+      // 2. Schakel alle fans tijdelijk uit (geen luchtstroom die de chip koelt)
+      fanIntSpeed  = 0;
+      fanExt1Speed = 0;
+      fanExt2Speed = 0;
+      ledcWrite(PIN_FAN_INT_PWM,  0);
+      ledcWrite(PIN_FAN_EXT1_PWM, 0);
+      ledcWrite(PIN_FAN_EXT2_PWM, 0);
+      delay(1000); // Wacht kort tot de luchtstroom stilstaat
+
+      // 3. Schakel de SHT31 heater in voor 60 seconden
+      if (sht31Connected) {
+        sht31.heater(true);
+        logToSyslogAndSerial("[HEATER] SHT31 verwarmingselement ACTIEF (1 minuut)...");
+        delay(60000); // 1 minuut verwarmen
+        sht31.heater(false);
+        logToSyslogAndSerial("[HEATER] SHT31 verwarmingselement UITGESCHAKELD.");
+      }
+
+      // 4. Geef de sensor 2 minuten de tijd om af te koelen naar de echte omgevingstemperatuur
+      delay(120000);
+
+      // 5. Herstel de ventilator-snelheden
+      fanIntSpeed  = prevFanInt;
+      fanExt1Speed = prevFanExt1;
+      fanExt2Speed = prevFanExt2;
+
+      heaterExecutedTonight = true;
+      lightsOutTimestamp = 0;
+      isHeaterCheckRunning = false;
+      logToSyslogAndSerial("[HEATER] ✅ Condens-check afgerond, normale klimaatregeling hervat.");
+    }
+  }
+}
+
 void setupKasSensors() {
   if (sht31.begin(0x44)) {
     sht31Connected = true;
+    sht31.heater(false); // Zorg dat heater standaard uit staat
     logToSyslogAndSerial("[KAS] SHT31 sensor gedetecteerd.");
   } else {
     logToSyslogAndSerial("[KAS WARNING] SHT31 niet gevonden op 0x44!");
@@ -65,7 +124,6 @@ void updateKasSensors() {
       displayedTemp = kasSmoothedTemp;
 
       // --- 24-UURS EXTREMEN BORGING (Geen -999.0 meer!) ---
-      // Wacht 3 seconden na boot voor opstartstabilisatie
       if (millis() > 3000) {
         static bool kasExtremesInit = false;
         if (!kasExtremesInit || kasTempLow == 999.0f || kasTempLow == -999.0f) {
@@ -101,10 +159,15 @@ void updateKasSensors() {
           logToSyslogAndSerial("[PREDICTIVE] 💡 Lampen AANGESLAGEN. Start adaptieve warmte-transitie.");
           sendTelegramAlert("💡 *Lampen AANGESLAGEN*\nDe kleine kas start de adaptieve transitie.");
         } else {
-          logToSyslogAndSerial("[PREDICTIVE] 🌙 Lampen UITGESCHAKELD. Start adaptieve afkoel-transitie.");
+          lightsOutTimestamp = millis();
+          heaterExecutedTonight = false; // Reset voor de nieuwe nacht
+          logToSyslogAndSerial("[PREDICTIVE] 🌙 Lampen UITGESCHAKELD. Timer (30 min) voor SHT31 condens-heater gestart.");
           sendTelegramAlert("🌙 *Lampen UITGESCHAKELD*\nDe kleine kas start de afkoel-transitie.");
         }
       }
     }
+
+    // Controleer of de automatische heater-check uitgevoerd moet worden
+    checkAndRunShtHeater();
   }
 }

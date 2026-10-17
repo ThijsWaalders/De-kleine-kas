@@ -20,6 +20,9 @@
 #include "OpenWeather.h"      // Weergegevens ophalen via internet
 #include "Display.h"          // OLED display aansturing
 
+Preferences preferences;// "                                                        "
+
+
 /* ============================================================================
    2. SETUP FUNCTIE (EENMALIGE INITIALISATIE)
    ============================================================================ */
@@ -56,11 +59,13 @@ void setup() {
   setupIndoorSensors();
   setupFans(); 
 
-  // // 4. Bestandssysteem initialiseren (LittleFS voor ESP32)
-  // drawBootScreen("Bestandssysteem...");
-  // if (!LittleFS.begin(true)) { 
-  //   logToSyslogAndSerial(F("[FS WARNING] LittleFS kon niet worden gestart."));
-  // }
+  // 4. Bestandssysteem initialiseren (LittleFS voor ESP32)
+  drawBootScreen("Bestandssysteem...");
+  if (!LittleFS.begin(true)) { // 'true' zorgt voor automatische opmaak (format) indien beschadigd
+    logToSyslogAndSerial(F("[FS WARNING] LittleFS kon niet worden gestart."));
+  } else {
+    logToSyslogAndSerial(F("[FS] LittleFS succesvol gestart."));
+  }
 
   // 5. Netwerk starten (Wi-Fi, vast IP, Telnet, Syslog en ArduinoOTA)
   drawBootScreen("Netwerk starten...");
@@ -74,10 +79,19 @@ void setup() {
     logToSyslogAndSerial(F("[TELEGRAM] Telegram client geïnitialiseerd."));
   }
 
-// Controleer of de esp is herstart doordat het AP te lang aan stond
+  // 8. Controleer of de esp is herstart doordat het AP te lang aan stond
   if (apTimedOut) {
     bot.sendMessage(telid, "⚠️ *Waarschuwing:* De AP-modus is automatisch uitgeschakeld vanwege inactiviteit (5 minuten limiet). Het weerstation is herstart naar de normale netwerkmodus.", "Markdown");
     apTimedOut = false; // Reset de vlag
+  }
+
+  // 9. Slaapstand ophalen uit NVS
+  preferences.begin("kas_config", true); // Read-only modus
+  isKasSleeping = preferences.getBool("sleeping", false);
+  preferences.end();
+
+  if (isKasSleeping) {
+    logToSyslogAndSerial("[SYSTEM] Herstart gedetecteerd: Kas stond in SLAAPSTAND.");
   }
   
   lastSuccessfulNetworkActivity = millis(); 

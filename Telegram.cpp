@@ -15,6 +15,9 @@
 // Tellers voor nieuwe sensoren
 extern unsigned long totalIndoorReads, failedIndoorReads;
 
+// SHT31 sensor kalibratie (hardwarematig d.m.v. heater + code)
+extern Preferences preferences;
+
 // Externe variabelen uit andere modules
 extern float espInternalTemp;
 extern bool isClimateCrash;
@@ -190,6 +193,7 @@ String buildHelpMenu() {
                    "• *Flush* (`/fl`) - Wis Telegram wachtrij\n"
                    "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
                    "• *Kas-slaap* (`/sl`) - Zet kas op ruststand / gesloten\n"
+                   "• *Kalibratiemodus* (`/cal`) - Zet alle fans uit voor ijk-test\n"
                    "• *Reboot* (`/rb`) - Herstart het systeem\n"
                    "• *Help* (`/h`) - Dit menu\n";
   return helpMsg;
@@ -418,19 +422,34 @@ void handleTelegramIncoming() {
       sendTelegramAlert("✅ *Test Chiptemperatuur Alarm UIT*\n\nSysteem leest weer de echte chiptemperatuur.");
     }
   }
-  else if (text == "sl") {
-    isKasSleeping = !isKasSleeping;
-    
+  else if (text == "slaapstand" || text == "sl") {
+    isKasSleeping = !isKasSleeping; // Toggle slaapstand
+
+    // Sla de nieuwe status direct op in NVS geheugen
+    preferences.begin("kas_config", false); // Read-Write
+    preferences.putBool("sleeping", isKasSleeping);
+    preferences.end();
+
     if (isKasSleeping) {
-      fanIntSpeed = 0;
-      fanExt1Speed = 0;
-      fanExt2Speed = 0;
-      isHeatMatRecommended = false;
-      sendMqttData();
-      sendTelegramAlert("💤 *Kas in Slaapstand (Kweek UIT)*\n\nKlimaatregeling is **uitgeschakeld**. Sensoren en weerdata meten gewoon door.");
+      sendTelegramAlert("😴 *De kleine kas is in slaapstand gezet.*\nKlimaatregeling pauzeert, sensoren blijven actief.");
     } else {
-      sendTelegramAlert("🌱 *Kas Actief (Kweek AAN)*\n\nKlimaatregeling en automatische sturing zijn weer **ingeschakeld**!");
+      sendTelegramAlert("🌅 *De kleine kas is ontwaakt!*\nAutomatische klimaatregeling is hervat.");
     }
+  }
+  else if (text == "kalibratie" || text == "kal" || text == "cal") {
+    // Zet alle ventilatoren en verwarming stil voor ijk-metingen
+    fanIntSpeed = 0;
+    fanExt1Speed = 0;
+    fanExt2Speed = 0;
+    isHeatMatRecommended = false;
+
+    // Directe fysieke PWM sturing naar 0 op alle fan pinnen
+    ledcWrite(PIN_FAN_INT_PWM, 0);
+    ledcWrite(PIN_FAN_EXT1_PWM, 0);
+    ledcWrite(PIN_FAN_EXT2_PWM, 0);
+
+    sendTelegramAlert("⚖️ *Kalibratiemodus geactiveerd*\n\nAlle ventilatoren staan **volledig stil**. Geen luchtstroom in de kas, ideaal om de sensoren zuiver te vergelijken of te kalibreren!");
+    logToSyslogAndSerial("[SYSTEM] Kalibratiemodus handmatig ingeschakeld via Telegram.");
   }
   else if (text == "hwcheck" || text == "hc") {
     float heapKb = ESP.getFreeHeap() / 1024.0F;
