@@ -150,22 +150,6 @@ void loop() {
     sendTelegramAlert(bootMsg);
     logToSyslogAndSerial("[SYSTEM] Opstartmelding met versie " + String(FIRMWARE_VERSION) + " verzonden.");
   }
-  // static bool bootMsgSent = false;
-  // if (isConnected && !bootMsgSent && ENABLE_TELEGRAM) {
-  //   bootMsgSent = true;
-    
-  //   String bootMsg = "🚀 *De kleine kas is opgestart, je code werkt!*\n";
-  //   bootMsg += "• *IP-adres:* `" + WiFi.localIP().toString() + "`\n";
-  //   if (currentLuxValue > 1.0) {
-  //     bootMsg += "• *Boot-bypass:* Kweeklampen gedetecteerd, direct actief!\n";
-  //   } else {
-  //     bootMsg += "• *Status:* Kalibratie / opstartfase gestart.\n";
-  //   }
-  //   bootMsg += "• Automatisering en actieve klimaatregeling draaien.";
-    
-  //   sendTelegramAlert(bootMsg);
-  //   logToSyslogAndSerial("[SYSTEM] Opstartmelding verzonden via Telegram.");
-  // }
 
   // 4. MQTT en Telegram verwerking (Achtergrondtaken)
   if (isConnected) {
