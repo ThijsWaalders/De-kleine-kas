@@ -178,9 +178,9 @@ String buildStatusReport() {
     "📊 *Statusrapport 'De Kleine Kas'*\n\n"
     "⚙️ *Modus:* %s\n\n"
     "🌡️ *1. Huidige Waarden (VPD / Temp / LV):*\n"
-    "• Kas:    `%s` | `%s` | `%s`\n"
+    "• Kas:        `%s` | `%s` | `%s`\n"
     "• Woning: `%s` | `%s` | `%s`\n"
-    "• Buiten: `%s` | `%s` | `%s`\n\n"
+    "• Buiten:   `%s` | `%s` | `%s`\n\n"
     "⚙️ *3. Wat doet De kleine kas?*\n"
     "%s\n\n"
     "👤 *4. Wat moet JIJ doen (Woning-actuator)?*\n"
@@ -192,6 +192,25 @@ String buildStatusReport() {
     kasActieLogica.c_str(),
     actieVereist.c_str()
   );
+  // static char reportBuf[1800];
+  // snprintf(reportBuf, sizeof(reportBuf),
+  //   "📊 *Statusrapport 'De Kleine Kas'*\n\n"
+  //   "⚙️ *Modus:* %s\n\n"
+  //   "🌡️ *1. Huidige Waarden (VPD / Temp / LV):*\n"
+  //   "• Kas:    `%s` | `%s` | `%s`\n"
+  //   "• Woning: `%s` | `%s` | `%s`\n"
+  //   "• Buiten: `%s` | `%s` | `%s`\n\n"
+  //   "⚙️ *3. Wat doet De kleine kas?*\n"
+  //   "%s\n\n"
+  //   "👤 *4. Wat moet JIJ doen (Woning-actuator)?*\n"
+  //   "%s",
+  //   modeStatus.c_str(),
+  //   kasVpdStr.c_str(), kasTempStr.c_str(), kasHumStr.c_str(),
+  //   indoorVpdStr.c_str(), indoorTempStr.c_str(), indoorHumStr.c_str(),
+  //   outdoorVpdStr.c_str(), outdoorTempStr.c_str(), outdoorHumStr.c_str(),
+  //   kasActieLogica.c_str(),
+  //   actieVereist.c_str()
+  // );
 
   return String(reportBuf);
 }
@@ -365,18 +384,40 @@ void handleTelegramIncoming() {
     snprintf(mmBuffer, sizeof(mmBuffer),
       "📊 *Min / Max Extremen per Locatie*\n\n"
       "🪴 *Kas:*\n"
-      "• Temp: L `%5.1f°C` | H `%5.1f°C`\n"
-      "• LV:   L `%5.0f%%`  | H `%5.0f%%`\n\n"
+      "• Temp:\n"
+      "`%.1f°C` | `%.1f°C`\n"
+      "• LV:\n"
+      "`%.0f%%` | `%.0f%%`\n\n"
       "🏡 *Woning:*\n"
-      "• Temp: L `%5.1f°C` | H `%5.1f°C`\n"
-      "• LV:   L `%5.0f%%`  | H `%5.0f%%`\n\n"
+      "• Temp:\n"
+      "`%.1f°C` | `%.1f°C`\n"
+      "• LV:\n"
+      "`%.0f%%` | `%.0f%%`\n\n"
       "🌤️ *Buiten:*\n"
-      "• Temp: L `%5.1f°C` | H `%5.1f°C`\n"
-      "• LV:   L `%5.0f%%`  | H `%5.0f%%`",
+      "• Temp:\n"
+      "`%.1f°C` | `%.1f°C`\n"
+      "• LV:\n"
+      "`%.0f%%` | `%.0f%%`",
       kasTempLow, kasTempHigh, kasLowHum, kasHighHum,
       indoorTempLow, indoorTempHigh, indoorLowHum, indoorHighHum,
       outdoorTempMin, outdoorTempMax, outdoorLowHum, outdoorHighHum
     );
+    // char mmBuffer[400];
+    // snprintf(mmBuffer, sizeof(mmBuffer),
+    //   "📊 *Min / Max Extremen per Locatie*\n\n"
+    //   "🪴 *Kas:*\n"
+    //   "• Temp: L `%5.1f°C` | H `%5.1f°C`\n"
+    //   "• LV:   L `%5.0f%%`  | H `%5.0f%%`\n\n"
+    //   "🏡 *Woning:*\n"
+    //   "• Temp: L `%5.1f°C` | H `%5.1f°C`\n"
+    //   "• LV:   L `%5.0f%%`  | H `%5.0f%%`\n\n"
+    //   "🌤️ *Buiten:*\n"
+    //   "• Temp: L `%5.1f°C` | H `%5.1f°C`\n"
+    //   "• LV:   L `%5.0f%%`  | H `%5.0f%%`",
+    //   kasTempLow, kasTempHigh, kasLowHum, kasHighHum,
+    //   indoorTempLow, indoorTempHigh, indoorLowHum, indoorHighHum,
+    //   outdoorTempMin, outdoorTempMax, outdoorLowHum, outdoorHighHum
+    // );
     sendTelegramAlert(String(mmBuffer));
   }
   else if (text == "testmat" || text == "tm") {
@@ -507,18 +548,18 @@ void handleTelegramIncoming() {
       "• RAM:    `%.1f KB` | Chip: `%.1f°C` 🧠\n\n"
       "📊 *Sensoren & Betrouwbaarheid:*\n"
       "🌿 *Kas (SHT31):*\n"
-      "• Temp:   `%s`     | LV: `%s`\n"
-      "• Status: `Online` | Fout: `%.1f%%`\n\n"
+      "• Temp: `%s` | LV: `%s`\n"
+      "• Foutratio: `%.1f%%`\n\n"
       "🏡 *Woning (BME280):*\n"
-      "• Temp:   `%s`     | LV: `%s`\n"
-      "• Druk:   `%s` | Fout: `%.1f%%`\n\n"
+      "• Temp: `%s` | LV: `%s`\n"
+      "• Druk: `%s` | Foutratio: `%.1f%%`\n\n"
       "💡 *Overige Sensoren:*\n"
-      "• Licht:  `%s`     | Status: `%s`\n"
-      "• PIR:    `%s`\n\n"
+      "• BH1750 - Lichtsterkte: `%s` (%s)\n"
+      "• HW-416-B - PIR Beweging: `%s`\n\n"
       "🌀 *Ventilatoren:*\n"
-      "• Intern:   `%3d%%`   | `%4d RPM`\n"
-      "• Extern 1: `%3d%%`   | `%4d RPM`\n"
-      "• Extern 2: `%3d%%`   | `%4d RPM`",
+      "• Int:   `%d%%` (`%d RPM`)\n"
+      "• Ext1: `%d%%` (`%d RPM`)\n"
+      "• Ext2: `%d%%` (`%d RPM`)",
       heapKb,
       espInternalTemp,
       kasTempStr.c_str(), kasHumStr.c_str(),
@@ -531,6 +572,37 @@ void handleTelegramIncoming() {
       fanExt1Pct, fanExt1RPM,
       fanExt2Pct, fanExt2RPM
     );
+    // char hcBuf[1600];
+    // snprintf(hcBuf, sizeof(hcBuf),
+    //   "🛠️ *Hardware & Sensor Check*\n\n"
+    //   "⚙️ *Systeem:*\n"
+    //   "• RAM:    `%.1f KB` | Chip: `%.1f°C` 🧠\n\n"
+    //   "📊 *Sensoren & Betrouwbaarheid:*\n"
+    //   "🌿 *Kas (SHT31):*\n"
+    //   "• Temp:   `%s`     | LV: `%s`\n"
+    //   "• Status: `Online` | Fout: `%.1f%%`\n\n"
+    //   "🏡 *Woning (BME280):*\n"
+    //   "• Temp:   `%s`     | LV: `%s`\n"
+    //   "• Druk:   `%s` | Fout: `%.1f%%`\n\n"
+    //   "💡 *Overige Sensoren:*\n"
+    //   "• Licht:  `%s`     | Status: `%s`\n"
+    //   "• PIR:    `%s`\n\n"
+    //   "🌀 *Ventilatoren:*\n"
+    //   "• Intern:   `%3d%%`   | `%4d RPM`\n"
+    //   "• Extern 1: `%3d%%`   | `%4d RPM`\n"
+    //   "• Extern 2: `%3d%%`   | `%4d RPM`",
+    //   heapKb,
+    //   espInternalTemp,
+    //   kasTempStr.c_str(), kasHumStr.c_str(),
+    //   failKas,
+    //   indoorTempStr.c_str(), indoorHumStr.c_str(),
+    //   pressureStr.c_str(), failIndoor,
+    //   luxStr.c_str(), lightMeterConnected ? "Online 🟢" : "Offline 🔴",
+    //   pirStatus.c_str(),
+    //   fanIntPct, fanIntRPM,
+    //   fanExt1Pct, fanExt1RPM,
+    //   fanExt2Pct, fanExt2RPM
+    // );
     sendTelegramAlert(String(hcBuf));
   }
   else if (text == "fanalarm" || text == "fa") {

@@ -94,7 +94,8 @@ void setup() {
   lastSuccessfulNetworkActivity = millis(); 
   
   // Zorg dat de eerste weer-fetch pas over 30 sec gebeurt i.p.v. direct bij boot
-  lastWeatherUpdate = millis(); 
+  // lastWeatherUpdate = millis(); 
+  lastWeatherUpdate = millis() - 870000;
 
   drawBootScreen("Klaar!");
   delay(300);
@@ -183,6 +184,7 @@ void loop() {
     logToSyslogAndSerial(F("[TESTMODE] Testmodus automatisch uitgeschakeld."));
   }
 
+  
   // 6. OpenWeather update interval (elke 15 minuten, voor het eerst na 30s)
   if (millis() - lastWeatherUpdate > 900000) {
     lastWeatherUpdate = millis(); 
