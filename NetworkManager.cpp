@@ -1,7 +1,7 @@
 /**
- * @file NetworkManager.cpp
- * @brief Implementatie van Wi-Fi herverbinding, RTC crash-logging, Dedicated Core 0 OTA,
- *        Telegram-triggered AP-modus en Telnet-server voor ESP32-S3.
+@file NetworkManager.cpp
+@brief Implementatie van Wi-Fi herverbinding, RTC crash-logging, Dedicated Core 0 OTA,
+       Telegram-triggered AP-modus en Telnet-server voor ESP32-S3.
  */
 
 #include "Config.h"
@@ -23,12 +23,14 @@ bool apTimedOut = false; // Houdt bij of we door een timeout zijn herstart
 bool otaInProgress = false;
 bool triggerOtaApMode = false;
 
+TaskHandle_t otaTaskHandle = NULL;
+
 // --- TELNET CONFIGURATIE ---
 WiFiServer telnetServer(23);
 WiFiClient telnetClient;
 
 /**
- * @brief Print een string naar Serial en actieve Telnet-clients zonder regeleinde.
+@brief Print een string naar Serial en actieve Telnet-clients zonder regeleinde.
  */
 void logPrint(const String &msg) {
   Serial.print(msg);
@@ -38,7 +40,7 @@ void logPrint(const String &msg) {
 }
 
 /**
- * @brief Print een string naar Serial en actieve Telnet-clients mét regeleinde.
+@brief Print een string naar Serial en actieve Telnet-clients mét regeleinde.
  */
 void logPrintln(const String &msg) {
   Serial.println(msg);
@@ -48,7 +50,7 @@ void logPrintln(const String &msg) {
 }
 
 /**
- * @brief Print flash-string (F-macro) naar Serial en Telnet zonder regeleinde.
+@brief Print flash-string (F-macro) naar Serial en Telnet zonder regeleinde.
  */
 void logPrint(const __FlashStringHelper *msg) {
   Serial.print(msg);
@@ -58,7 +60,7 @@ void logPrint(const __FlashStringHelper *msg) {
 }
 
 /**
- * @brief Print flash-string (F-macro) naar Serial en Telnet mét regeleinde.
+@brief Print flash-string (F-macro) naar Serial en Telnet mét regeleinde.
  */
 void logPrintln(const __FlashStringHelper *msg) {
   Serial.println(msg);
@@ -68,8 +70,8 @@ void logPrintln(const __FlashStringHelper *msg) {
 }
 
 /**
- * @brief Achtergrondtaak die exclusief draait op Core 0 voor onverwoestbare OTA updates.
- * Werkt zowel in Station-modus als in AP-modus.
+@brief Achtergrondtaak die exclusief draait op Core 0 voor onverwoestbare OTA updates.
+- Werkt zowel in Station-modus als in AP-modus.
  */
 void otaBackgroundCode(void * pvParameters) {
   for (;;) {
@@ -81,29 +83,30 @@ void otaBackgroundCode(void * pvParameters) {
 }
 
 /**
- * @brief Start de dedicated OTA-taak op Core 0.
+@brief Start de dedicated OTA-taak op Core 0.
  */
 void setupOtaTask() {
-  xTaskCreatePinnedToCore(
-    otaBackgroundCode,   
-    "OtaTask",           
-    4096,                
-    NULL,                
-    3,                   
-    NULL,                
-    0                    // Pin op Core 0
-  );
+  if (otaTaskHandle == NULL) {
+    xTaskCreatePinnedToCore(
+      otaBackgroundCode,   
+      "OtaTask",           
+      4096,                
+      NULL,                
+      3,                   
+      &otaTaskHandle,      
+      0                    // Pin op Core 0
+    );
+  }
 }
 
 void startAPMode() {
   logToSyslogAndSerial(F("[AP MODE] Schakelt over naar Access Point modus..."));
   
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(200);
-
-  WiFi.mode(WIFI_AP);
+  // Schakel Station uit en zet direct AP aan zonder WIFI_OFF ertussen
+  WiFi.softAPdisconnect(true);
   delay(100);
+  WiFi.mode(WIFI_AP);
+  delay(200);
 
   IPAddress apIP(192, 168, 2, 1);
   IPAddress apGateway(192, 168, 2, 1);
@@ -117,25 +120,6 @@ void startAPMode() {
     apStartTime = millis(); 
     apTimedOut = false;     
 
-    ArduinoOTA.end();
-    ArduinoOTA.setHostname("ESP32-S3-Zero-1");
-    ArduinoOTA.begin();
-    // Voeg dit toe waar je ArduinoOTA instelt (zowel in setupNetwork als in startAPMode):
-    ArduinoOTA.onStart([]() {
-      otaInProgress = true;
-      logToSyslogAndSerial(F("[OTA] Update gestart! AP-timeout wordt tijdelijk gepauzeerd."));
-    });
-    
-    ArduinoOTA.onEnd([]() {
-      otaInProgress = false;
-      logToSyslogAndSerial(F("[OTA] Update voltooid!"));
-    });
-
-    ArduinoOTA.onError([](ota_error_t error) {
-      otaInProgress = false;
-      logToSyslogAndSerialPrintf("[OTA ERROR] Foutcode: %u", error);
-    });
-
     logToSyslogAndSerialPrintf("[AP MODE] Succes! SSID: %s | IP: %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   } else {
     logToSyslogAndSerial(F("[AP MODE ERROR] Kon Access Point niet starten!"));
@@ -143,7 +127,7 @@ void startAPMode() {
 }
 
 /**
- * @brief Stopt het AP handmatig.
+@brief Stopt het AP handmatig.
  */
 void stopAPMode() {
   logToSyslogAndSerial(F("[AP MODE] Sluit Access Point af, terug naar Station modus..."));
@@ -155,7 +139,7 @@ void stopAPMode() {
 }
 
 /**
- * @brief Hulpfunctie om Wi-Fi te starten met een vast IP-adres voor de ESP32-S3.
+@brief Hulpfunctie om Wi-Fi te starten met een vast IP-adres voor de ESP32-S3.
  */
 void beginWithStaticIP(const char* targetSsid, const char* targetPassword) {
   if (apModeActive) return;
@@ -165,7 +149,7 @@ void beginWithStaticIP(const char* targetSsid, const char* targetPassword) {
 }
 
 /**
- * @brief Logt en analyseert de netwerkstatus na een herstart.
+@brief Logt en analyseert de netwerkstatus na een herstart.
  */
 void handleRtcConnectionLogging() {
   esp_reset_reason_t reason = esp_reset_reason();
@@ -200,7 +184,7 @@ void handleRtcConnectionLogging() {
 }
 
 /**
- * @brief Non-blocking state machine voor het bewaken en herstellen van de Wi-Fi verbinding.
+@brief Non-blocking state machine voor het bewaken en herstellen van de Wi-Fi verbinding.
  */
 void handleWiFiReconnect() {
   if (apModeActive) {
@@ -257,11 +241,10 @@ void handleWiFiReconnect() {
 }
 
 /**
- * @brief Controleer in de loop of het AP te lang aan staat.
+@brief Controleer in de loop of het AP te lang aan staat.
  */
 void handleAPTimeout() {
   if (apModeActive) {
-    // Als er een OTA bezig is, pauzeren we de timeout klok door de starttijd steeds te verschuiven
     if (otaInProgress) {
       apStartTime = millis(); 
       return;
@@ -277,7 +260,7 @@ void handleAPTimeout() {
 }
 
 /**
- * @brief Initialiseert het netwerk bij opstarten en start de OTA achtergrondtaak.
+@brief Initialiseert het netwerk bij opstarten en start de OTA achtergrondtaak.
  */
 void setupNetwork() {
   logToSyslogAndSerial("[NETWERK] Verbinden met Wi-Fi (statisch IP)...");
@@ -304,10 +287,9 @@ void setupNetwork() {
   telnetServer.setNoDelay(true);
   logPrintln(F("[Telnet] Telnet server gestart op poort 23"));
 
-  // // --- ArduinoOTA configureren ---
-  // ArduinoOTA.setHostname("ESP32-S3-Zero-1");
-  // ArduinoOTA.begin();
-  // Voeg dit toe waar je ArduinoOTA instelt (zowel in setupNetwork als in startAPMode):
+  // --- ArduinoOTA configureren ---
+  ArduinoOTA.setHostname("ESP32-S3-Zero-1");
+
   ArduinoOTA.onStart([]() {
     otaInProgress = true;
     logToSyslogAndSerial(F("[OTA] Update gestart! AP-timeout wordt tijdelijk gepauzeerd."));
@@ -315,7 +297,9 @@ void setupNetwork() {
   
   ArduinoOTA.onEnd([]() {
     otaInProgress = false;
-    logToSyslogAndSerial(F("[OTA] Update voltooid!"));
+    logToSyslogAndSerial(F("[OTA] Update voltooid! Systeem herstart direct..."));
+    delay(200);
+    ESP.restart();
   });
 
   ArduinoOTA.onError([](ota_error_t error) {
@@ -323,21 +307,21 @@ void setupNetwork() {
     logToSyslogAndSerialPrintf("[OTA ERROR] Foutcode: %u", error);
   });
   
+  ArduinoOTA.begin();
+
   setupOtaTask();
   handleRtcConnectionLogging();
 }
 
 /**
- * @brief Hoofdlus om de netwerkstatus, timeout, AP-trigger en inkomende Telnet-clients te beheren.
+@brief Hoofdlus om de netwerkstatus, timeout, AP-trigger en inkomende Telnet-clients te beheren.
  */
 void handleNetwork() {
-  // Veilige AP-modus trigger vanuit Telegram
   if (triggerOtaApMode) {
     triggerOtaApMode = false;
     startAPMode();
   }
 
-  // Beheer inkomende Telnet-clients (beperk tot 1 actieve client tegelijk)
   if (telnetServer.hasClient()) {
     if (!telnetClient || !telnetClient.connected()) {
       if (telnetClient) telnetClient.stop();
@@ -345,7 +329,7 @@ void handleNetwork() {
       logPrintln(F("[Telnet] Nieuwe verbinding geaccepteerd!"));
     } else {
       WiFiClient newClient = telnetServer.available();
-      newClient.stop(); // Extra gelijktijdige verbindingen afwijzen
+      newClient.stop();
     }
   }
 

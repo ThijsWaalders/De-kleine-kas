@@ -18,6 +18,8 @@ void handleNightMode(float currentLux);
 void checkLuxStability(float currentLux);
 void calculateRPM();
 void updateFanSpeeds(float targetVal);
+void setFansToMinTest();
+void updateFanSweepTest();
 
 // NIEUW
 void toggleFanAlerts(bool enable);

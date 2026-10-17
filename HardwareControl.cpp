@@ -170,14 +170,10 @@ void setupFans() {
 }
 
 /**
- * @brief Berekent de RPM voor de fans, vangt stoorpieken op en voorkomt valse '0 RPM' meldingen bij actieve PWM.
+ * @brief Berekent de RPM voor de fans met versoepelde ruisfilter.
  */
 void calculateRPM() {
   static unsigned long lastRpmCalcTime = 0;
-  static unsigned long stallStartExt1 = 0;
-  static unsigned long stallStartExt2 = 0;
-  static unsigned long stallStartInt  = 0;
-
   unsigned long currentMillis = millis();
   unsigned long interval = currentMillis - lastRpmCalcTime;
   
@@ -193,76 +189,207 @@ void calculateRPM() {
     rpmCountExt2 = 0;
     interrupts();
 
-    // Ruwe RPM berekenen
+    // Ruwe RPM berekenen op basis van pulsen per seconde
     unsigned long rawIntRPM  = (pInt * 30UL * 1000UL) / interval;
     unsigned long rawExt1RPM = (pExt1 * 30UL * 1000UL) / interval;
     unsigned long rawExt2RPM = (pExt2 * 30UL * 1000UL) / interval;
 
-    const unsigned long MAX_REAL_RPM = 4500;
+    // Fysieke maxima
+    const unsigned long MAX_REAL_INT_RPM = 4500;
+    const unsigned long MAX_REAL_EXT_RPM = 2500; // Ruime grens voor stoorpieken
 
-    // --- STOORPIEKEN OPVANGEN ---
-    if (rawIntRPM > MAX_REAL_RPM) {
-      rawIntRPM = (fanIntSpeed > 0) ? 100 : 0;
-    }
-    if (rawExt1RPM > MAX_REAL_RPM) {
-      rawExt1RPM = (fanExt1Speed > 0) ? 100 : 0;
-    }
-    if (rawExt2RPM > MAX_REAL_RPM) {
-      rawExt2RPM = (fanExt2Speed > 0) ? 100 : 0;
-    }
+    // --- SOEPELE RUISFILTERING ---
+    // Als de waarde realistisch is, nemen we hem over. Zoniet, negeren we de piek.
+    if (rawIntRPM <= MAX_REAL_INT_RPM)  fanIntRPM  = rawIntRPM;
+    if (rawExt1RPM <= MAX_REAL_EXT_RPM) fanExt1RPM = rawExt1RPM;
+    if (rawExt2RPM <= MAX_REAL_EXT_RPM) fanExt2RPM = rawExt2RPM;
 
-    fanIntRPM  = rawIntRPM;
-    fanExt1RPM = rawExt1RPM;
-    fanExt2RPM = rawExt2RPM;
-
-    // Softwarematige nul-zetting als de PWM op 0 staat
+    // Nul-zetting als de PWM op 0 staat
     if (fanIntSpeed <= 0)  { fanIntRPM = 0; }
     if (fanExt1Speed <= 0) { fanExt1RPM = 0; }
     if (fanExt2Speed <= 0) { fanExt2RPM = 0; }
 
-    // Minimale drempel voor stabiele uitlezing
-    if (fanIntRPM < 20)  fanIntRPM = 0;
-    if (fanExt1RPM < 20) fanExt1RPM = 0;
-    if (fanExt2RPM < 20) fanExt2RPM = 0;
+    // Drempel verlaagd naar 100 RPM voor soepele uitlezing op lage stand
+    if (fanIntRPM < 100)  fanIntRPM = 0;
+    if (fanExt1RPM < 100) fanExt1RPM = 0;
+    if (fanExt2RPM < 100) fanExt2RPM = 0;
 
     lastRpmCalcTime = currentMillis;
-
-    // --- BLOKKADE-ALARMEN ---
-    if (millis() > 180000 && !isTestModeActive && fanAlertsEnabled) {
-      if (fanExt1Speed >= 140 && fanExt1RPM == 0) {
-        if (stallStartExt1 == 0) stallStartExt1 = millis();
-        else if (millis() - stallStartExt1 > 30000) {
-          sendTelegramAlert("🚨 *ALARM:* Externe ventilator 1 draait niet (`0 RPM`)!");
-          stallStartExt1 = 0; 
-        }
-      } else { stallStartExt1 = 0; }
-
-      if (fanExt2Speed >= 140 && fanExt2RPM == 0) {
-        if (stallStartExt2 == 0) stallStartExt2 = millis();
-        else if (millis() - stallStartExt2 > 30000) {
-          sendTelegramAlert("🚨 *ALARM:* Externe ventilator 2 draait niet (`0 RPM`)!");
-          stallStartExt2 = 0; 
-        }
-      } else { stallStartExt2 = 0; }
-
-      if (fanIntSpeed >= 140 && fanIntRPM == 0) {
-        if (stallStartInt == 0) stallStartInt = millis();
-        else if (millis() - stallStartInt > 30000) {
-          sendTelegramAlert("🚨 *ALARM:* Interne ventilator draait niet (`0 RPM`)!");
-          stallStartInt = 0; 
-        }
-      } else { stallStartInt = 0; }
-    } else {
-      stallStartExt1 = 0;
-      stallStartExt2 = 0;
-      stallStartInt = 0;
-    }
   }
+}
+// /**
+//  * @brief Berekent de RPM voor de fans, filtert tacho-ruis op lange kabels en vangt blokkades op.
+//  */
+// void calculateRPM() {
+//   static unsigned long lastRpmCalcTime = 0;
+//   static unsigned long stallStartExt1 = 0;
+//   static unsigned long stallStartExt2 = 0;
+//   static unsigned long stallStartInt  = 0;
+
+//   unsigned long currentMillis = millis();
+//   unsigned long interval = currentMillis - lastRpmCalcTime;
+  
+//   if (interval >= 1000) { 
+//     if (interval == 0) interval = 1000;
+
+//     noInterrupts();
+//     unsigned long pInt  = rpmCountInt;
+//     unsigned long pExt1 = rpmCountExt1;
+//     unsigned long pExt2 = rpmCountExt2;
+//     rpmCountInt = 0;
+//     rpmCountExt1 = 0;
+//     rpmCountExt2 = 0;
+//     interrupts();
+
+//     // Ruwe RPM berekenen op basis van pulsen per seconde
+//     unsigned long rawIntRPM  = (pInt * 30UL * 1000UL) / interval;
+//     unsigned long rawExt1RPM = (pExt1 * 30UL * 1000UL) / interval;
+//     unsigned long rawExt2RPM = (pExt2 * 30UL * 1000UL) / interval;
+
+//     // Fysieke maxima om stoorpieken op lange kabels op te vangen
+//     const unsigned long MAX_REAL_INT_RPM = 4500;
+//     const unsigned long MAX_REAL_EXT_RPM = 2000; // Ruime marge boven de 1500 RPM max van de externe fans
+
+//     // --- SLIMME RUISFILTERING ---
+//     if (rawIntRPM <= MAX_REAL_INT_RPM)  fanIntRPM  = rawIntRPM;
+//     if (rawExt1RPM <= MAX_REAL_EXT_RPM) fanExt1RPM = rawExt1RPM;
+//     if (rawExt2RPM <= MAX_REAL_EXT_RPM) fanExt2RPM = rawExt2RPM;
+
+//     // Softwarematige nul-zetting als de PWM op 0 staat
+//     if (fanIntSpeed <= 0)  { fanIntRPM = 0; }
+//     if (fanExt1Speed <= 0) { fanExt1RPM = 0; }
+//     if (fanExt2Speed <= 0) { fanExt2RPM = 0; }
+
+//     // Drempel: Onder de 150 RPM wordt het als stilstand/ruis beschouwd
+//     if (fanIntRPM < 150)  fanIntRPM = 0;
+//     if (fanExt1RPM < 150) fanExt1RPM = 0;
+//     if (fanExt2RPM < 150) fanExt2RPM = 0;
+
+//     lastRpmCalcTime = currentMillis;
+
+//     // --- BLOKKADE-ALARMEN ---
+//     if (millis() > 180000 && !isTestModeActive && fanAlertsEnabled) {
+//       if (fanExt1Speed >= EXT_FAN_BASE_PWM && fanExt1RPM == 0) {
+//         if (stallStartExt1 == 0) stallStartExt1 = millis();
+//         else if (millis() - stallStartExt1 > 30000) {
+//           sendTelegramAlert("🚨 *ALARM:* Externe ventilator 1 draait niet (`0 RPM`)!");
+//           stallStartExt1 = 0; 
+//         }
+//       } else { 
+//         stallStartExt1 = 0; 
+//       }
+
+//       if (fanExt2Speed >= EXT_FAN_BASE_PWM && fanExt2RPM == 0) {
+//         if (stallStartExt2 == 0) stallStartExt2 = millis();
+//         else if (millis() - stallStartExt2 > 30000) {
+//           sendTelegramAlert("🚨 *ALARM:* Externe ventilator 2 draait niet (`0 RPM`)!");
+//           stallStartExt2 = 0; 
+//         }
+//       } else { 
+//         stallStartExt2 = 0; 
+//       }
+
+//       if (fanIntSpeed >= INT_FAN_BASE_PWM && fanIntRPM == 0) {
+//         if (stallStartInt == 0) stallStartInt = millis();
+//         else if (millis() - stallStartInt > 30000) {
+//           sendTelegramAlert("🚨 *ALARM:* Interne ventilator draait niet (`0 RPM`)!");
+//           stallStartInt = 0; 
+//         }
+//       } else { 
+//         stallStartInt = 0; 
+//       }
+//     } else {
+//       stallStartExt1 = 0;
+//       stallStartExt2 = 0;
+//       stallStartInt = 0;
+//     }
+//   } // Einde interval check
+// } // Einde calculateRPM
+
+/**
+ * @brief Schakelt alle 3 de ventilatoren op hun minimale PWM om lage toerentallen te testen.
+ */
+void setFansToMinTest() {
+  fanIntSpeed  = INT_FAN_BASE_PWM;  
+  fanExt1Speed = EXT_FAN_MIN_PWM;   
+  fanExt2Speed = EXT_FAN_MIN_PWM;   
+
+  fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
+  fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
+  fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
+
+  ledcWrite(PIN_FAN_INT_PWM,  fanIntSpeed);
+  ledcWrite(PIN_FAN_EXT1_PWM, fanExt1Speed);
+  ledcWrite(PIN_FAN_EXT2_PWM, fanExt2Speed);
+
+  logToSyslogAndSerial("[TEST] Low RPM Test: Alle 3 fans geforceerd op MINIMUM PWM.");
 }
 
 /**
- * @brief Regelt de ventilator-snelheden dynamisch op basis van VPD-fout en kas-advies,
- * inclusief 100% kickstart vanuit stilstand, schaling vanaf EXT_FAN_BASE_PWM en 0-255 PWM domein.
+ * @brief Laat alle 3 de fans traploos en vloeiend van MIN_PWM naar MAX_PWM rampen (15s op, 15s neer).
+ */
+void updateFanSweepTest() {
+  static unsigned long lastSweepUpdate = 0;
+  unsigned long currentMillis = millis();
+
+  // Voer de sweep-update heel frequent uit (elke 50 ms = 20 verversingen per seconde)
+  if (currentMillis - lastSweepUpdate < 50) return;
+  lastSweepUpdate = currentMillis;
+
+  unsigned long elapsed = currentMillis - testModeStartTime;
+  unsigned long cycleTime = elapsed % 30000; // 30 seconden totale cyclus (15s omhoog, 15s omlaag)
+  int pwmVal = 0;
+
+  if (cycleTime < 15000) {
+    // Stijgende fase (15 sec): Vloeiend van MIN (56) naar MAX (255)
+    pwmVal = map(cycleTime, 0, 15000, EXT_FAN_MIN_PWM, FAN_MAX_PWM);
+  } else {
+    // Dalende fase (15 sec): Vloeiend van MAX (255) naar MIN (56)
+    pwmVal = map(cycleTime - 15000, 0, 15000, FAN_MAX_PWM, EXT_FAN_MIN_PWM);
+  }
+
+  fanIntSpeed  = pwmVal;
+  fanExt1Speed = pwmVal;
+  fanExt2Speed = pwmVal;
+
+  fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
+  fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
+  fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
+
+  ledcWrite(PIN_FAN_INT_PWM,  fanIntSpeed);
+  ledcWrite(PIN_FAN_EXT1_PWM, fanExt1Speed);
+  ledcWrite(PIN_FAN_EXT2_PWM, fanExt2Speed);
+}
+// /**
+//  * @brief Laat alle 3 de fans traploos van MIN_PWM naar MAX_PWM rampen (15s op, 15s neer).
+//  */
+// void updateFanSweepTest() {
+//   unsigned long elapsed = millis() - testModeStartTime;
+//   unsigned long cycleTime = elapsed % 30000;
+//   int pwmVal = 0;
+
+//   if (cycleTime < 15000) {
+//     pwmVal = map(cycleTime, 0, 15000, EXT_FAN_MIN_PWM, FAN_MAX_PWM);
+//   } else {
+//     pwmVal = map(cycleTime - 15000, 0, 15000, FAN_MAX_PWM, EXT_FAN_MIN_PWM);
+//   }
+
+//   fanIntSpeed  = pwmVal;
+//   fanExt1Speed = pwmVal;
+//   fanExt2Speed = pwmVal;
+
+//   fanIntPct  = map(fanIntSpeed,  0, 255, 0, 100);
+//   fanExt1Pct = map(fanExt1Speed, 0, 255, 0, 100);
+//   fanExt2Pct = map(fanExt2Speed, 0, 255, 0, 100);
+
+//   ledcWrite(PIN_FAN_INT_PWM,  fanIntSpeed);
+//   ledcWrite(PIN_FAN_EXT1_PWM, fanExt1Speed);
+//   ledcWrite(PIN_FAN_EXT2_PWM, fanExt2Speed);
+// }
+
+/**
+ * @brief Regelt de ventilator-snelheden dynamisch op basis van VPD-overschrijding en kas-advies,
+ * met een directe proportionele PWM-curve en 100% start-kick vanuit stilstand.
  */
 void updateFanSpeeds(float currentVpd) {
   unsigned long currentMillis = millis();
@@ -308,24 +435,35 @@ void updateFanSpeeds(float currentVpd) {
       isTestModeActive = false;
       logToSyslogAndSerial("[TESTMODE] Testmodus automatisch beëindigd.");
     } else {
-      fanIntSpeed  = FAN_MAX_PWM;
-      fanExt1Speed = FAN_MAX_PWM;
-      fanExt2Speed = FAN_MAX_PWM;
-      fanIntPct    = 100;
-      fanExt1Pct   = 100;
-      fanExt2Pct   = 100;
+      // 1. Sweep test (5 minuten)
+      if (currentTestDuration == 300000) {
+        updateFanSweepTest();
+      } 
+      // 2. High RPM test (/tfh)
+      else if (currentTestDuration == 30000 && fanExt1Speed == FAN_MAX_PWM) {
+        fanIntSpeed  = FAN_MAX_PWM;
+        fanExt1Speed = FAN_MAX_PWM;
+        fanExt2Speed = FAN_MAX_PWM;
+        fanIntPct    = 100;
+        fanExt1Pct   = 100;
+        fanExt2Pct   = 100;
 
-      ledcWrite(PIN_FAN_INT_PWM, FAN_MAX_PWM);
-      ledcWrite(PIN_FAN_EXT1_PWM, FAN_MAX_PWM);
-      ledcWrite(PIN_FAN_EXT2_PWM, FAN_MAX_PWM);
+        ledcWrite(PIN_FAN_INT_PWM, FAN_MAX_PWM);
+        ledcWrite(PIN_FAN_EXT1_PWM, FAN_MAX_PWM);
+        ledcWrite(PIN_FAN_EXT2_PWM, FAN_MAX_PWM);
+      }
       return; 
     }
   }
 
-  // Voer de berekening elke 2 seconden uit
-  if (currentMillis - lastPidTime < 2000) return; 
+  // Voer de automatische klimaat-berekening elke 200 ms uit voor een vloeiende overgang
+  if (currentMillis - lastPidTime < 200) return; 
   lastPidTime = currentMillis;
-  yield(); 
+  yield();
+  // // Voer de berekening elke 2 seconden uit
+  // if (currentMillis - lastPidTime < 2000) return; 
+  // lastPidTime = currentMillis;
+  // yield(); 
 
   // --- DOEL-SNELHEDEN BEREKENEN OP BASIS KAS ADVIES ---
   int targetIntSpeed  = 0;
@@ -335,58 +473,36 @@ void updateFanSpeeds(float currentVpd) {
   if (kasAdvice == GREENHOUSE_VENTILATE) {
     static unsigned long fanStartTime = 0;
     static bool kickActive = false;
-    static unsigned long lastAdaptTime = 0;
-    static int adaptivePwm = EXT_FAN_BASE_PWM;
-    static float previousVpd = kasVpd;
 
     // Detecteer of de fans net aangaan vanuit stilstand (0)
     if (fanExt1Speed == 0 && !kickActive) {
       fanStartTime = currentMillis;
       kickActive = true;
-      adaptivePwm = EXT_FAN_BASE_PWM; // Begin rustig op de base na de kick
     }
 
     int extPwm = EXT_FAN_BASE_PWM;
 
-    // STAP 1: Korte start-kick (1 seconde vol vermogen om los te komen)
+    // STAP 1: Korte start-kick (1 seconde vol vermogen om de lagers te triggeren)
     if (kickActive && (currentMillis - fanStartTime < 1000)) {
       extPwm = FAN_MAX_PWM; 
     } 
     else {
       kickActive = false; // Kick voorbij
 
-      // STAP 2: Adaptieve zelflerende regeling (elke 15 seconden evalueren)
-      if (currentMillis - lastAdaptTime >= 15000) {
-        lastAdaptTime = currentMillis;
+      // STAP 2: Proportionele PWM-curve op basis van VPD-overschrijding
+      float vpdError = currentVpd - VPD_MAX_OPTIMAL;
 
-        float vpdDelta = kasVpd - previousVpd; // Positief = VPD stijgt (slecht), Negatief = VPD daalt (goed)
-        float vpdExcess = kasVpd - VPD_MAX_OPTIMAL;
-
-        if (vpdExcess > 0.0f) {
-          // Als de VPD nog steeds te hoog is OF niet snel genoeg daalt (bijv. daling < 0.01 kPa), 
-          // dan schroeven we het vermogen automatisch adaptief op!
-          if (vpdDelta >= -0.01f) {
-            adaptivePwm += 15; // Doe er automatisch een schepje bovenop
-          } else {
-            adaptivePwm -= 5;  // Gaat de goede kant op? Bouw heel langzaam af voor stabiliteit
-          }
-        } else {
-          // VPD is inmiddels optimaal, zak langzaam terug naar base
-          adaptivePwm -= 10;
-        }
-
-        // Houd binnen de veilige grenzen (tussen base en max)
-        adaptivePwm = constrain(adaptivePwm, EXT_FAN_BASE_PWM, FAN_MAX_PWM);
-        previousVpd = kasVpd;
+      if (vpdError > 0.0f) {
+        int calculatedPwm = map((int)(vpdError * 100.0f), 0, 30, EXT_FAN_BASE_PWM, FAN_MAX_PWM);
+        extPwm = constrain(calculatedPwm, EXT_FAN_BASE_PWM, FAN_MAX_PWM);
+      } else {
+        extPwm = EXT_FAN_BASE_PWM;
       }
-
-      extPwm = adaptivePwm;
     }
 
-    // Noodstop overrule bij klimaatcrash
-    if (isClimateCrash) {
+    // Noodstop overrule bij klimaatcrash of kritieke hitte
+    if (isClimateCrash || kasSmoothedTemp >= GREENHOUSE_CRASH_TEMP) {
       extPwm = FAN_MAX_PWM;
-      adaptivePwm = FAN_MAX_PWM;
     }
 
     // Ultieme hardware borging
@@ -396,12 +512,15 @@ void updateFanSpeeds(float currentVpd) {
     targetExt2Speed = extPwm; 
     targetIntSpeed  = 0;      
   }
-
-  // Interne fan logica borging
-  if (targetExt1Speed == 0 && targetExt2Speed == 0) {
-    targetIntSpeed = INT_FAN_BASE_PWM; 
-  } else {
-    targetIntSpeed = 0; 
+  else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+    targetIntSpeed = INT_FAN_BASE_PWM;
+    targetExt1Speed = 0;
+    targetExt2Speed = 0;
+  }
+  else {
+    targetIntSpeed = 0;
+    targetExt1Speed = 0;
+    targetExt2Speed = 0;
   }
 
   // Globale variabelen bijwerken
