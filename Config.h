@@ -37,12 +37,12 @@ extern Preferences preferences;
 // 🎛️ DEEL 1: GEBRUIKERSINSTELLINGEN (HIER AFSTELLEN WAT JE WILT WIJZIGEN)
 // =========================================================================
 // Kritieke VPD drempels voor alarmering en weergave
-#define VPD_CRITICAL_HIGH 1.15f  // Vanaf hier springt het scherm op hard alarm (Uitdroging)
+#define VPD_CRITICAL_HIGH 1.00f  // Vanaf hier springt het scherm op hard alarm (Uitdroging)
 
 // --- 1.1 VPD & Klimaat Doelen (Kiemgroenten) ---
-const float VPD_MAX_OPTIMAL                 = 0.94;  
-const float VPD_MIN_OPTIMAL                 = 0.46;  
-const float pidSetPointVPD                  = 0.70;  
+const float VPD_MAX_OPTIMAL                 = 0.85;  // Iets strakker dan 0.94 om uitdroging door lampen voor te zijn
+const float VPD_MIN_OPTIMAL                 = 0.50;  // Veilig boven de schimmelgrens
+const float pidSetPointVPD                  = 0.68;  // Het ideale middelpunt voor kiemgroenten
 
 // --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
 extern float kp;                                     
@@ -71,11 +71,11 @@ const float HEAT_MAT_TEMP_LOW               = 16.0;
 const float HEAT_MAT_TEMP_HIGH              = 20.0;  
 
 // --- 1.5 Sensor Correctie Offsets ---
-const float KAS_TEMP_OFFSET                 =  0.0; // +0.2; // Kalibratie offset kas SHT31 temperatuur
-const float INDOOR_TEMP_OFFSET              = -1.6; // -1.3;  // Kalibratie offset woning BME280 temperatuur
+const float KAS_TEMP_OFFSET                 = -1.3 ; // 0.0; // +0.2; // Kalibratie offset kas SHT31 temperatuur
+const float INDOOR_TEMP_OFFSET              = -2.6; // -1.3;  // Kalibratie offset woning BME280 temperatuur
 
-const float KAS_HUM_OFFSET                  = +0.1;  // Kalibratie offset kas SHT31 luchtvochtigheid
-const float INDOOR_HUM_OFFSET               = +7.5; //+5.3 // Kalibratie offset woning BME280 luchtvochtigheid
+const float KAS_HUM_OFFSET                  = -0.2; // -0.4; // 0.0; //+0.1;  // Kalibratie offset kas SHT31 luchtvochtigheid
+const float INDOOR_HUM_OFFSET               = +7.3; //+7.0; //+5.3 // Kalibratie offset woning BME280 luchtvochtigheid
 
 const float PRESSURE_OFFSET                 = -2.2; //-2.2 // Kalibratie offset luchtdruk (BME280)
 
@@ -236,6 +236,9 @@ extern int weatherID;
 extern unsigned long lastWeatherUpdate;
 extern float forecastedTempSoon;
 extern bool isTempDroppingSoon;
+
+// Voor sensor kalibratie modus SHT31 heater test
+extern bool isCalibrationModeActive;
 
 extern HouseVentState houseAdvice;
 extern KasVentState kasAdvice;
