@@ -34,7 +34,7 @@ bool isCalibrationModeActive = false;
 // =========================================================================
 const char* microgreensEasterEggs[] = {
     "🌱 *Wist je dat:* Broccolikiemen tot wel 50 keer meer sulforafaan bevatten dan volwassen broccoliroosjes? Pure anti-oxidantenbom!",
-    "🌿 *Kiem-wijsheid:* Zonnebloemkiemgroenten smaken heerlijk naar verse noten, maar vergeet niet de zaadhulpen tijdig weg te spoelen tegen schimmelvorming!",
+    "🌿 *Kiem-wijsheid:* Zonnebloem kiemgroenten smaken heerlijk naar verse noten, maar vergeet niet de zaadhulpen tijdig weg te spoelen tegen schimmelvorming!",
     "💡 *Easter Egg:* Als je te hard naar je radijskiemen blaast, gaan ze niet sneller groeien, maar worden ze wel verlegen.",
     "🌱 *Feitje:* Erwtenkiemen (Pea Shoots) groeien zo snel dat je ze bijna kunt horen 'drinken' als je VPD-waarde exact op 0.70 kPa staat.",
     "🪴 *Pro-tip:* Te veel water = natte voeten = ellende. Houd die wortels vochtig, niet verzopen!",
@@ -130,7 +130,7 @@ String buildStatusReport() {
   else kasActieLogica += "\nWarmtemat (Kas): UIT 💤";
 
   if (kasAdvice == GREENHOUSE_VENTILATE) {
-    kasActieLogica += "\nKas-ventilatie: De kleine kas benut buiten-/woninglucht 💨";
+    kasActieLogica += "\nKas-ventilatie: De kleine kas benut buiten/woninglucht 💨";
   } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
     kasActieLogica += "\nKas-circulatie: De kleine kas breekt microklimaat 🌀";
   } else {
