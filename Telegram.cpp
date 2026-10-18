@@ -208,8 +208,8 @@ String buildHelpMenu() {
          "• *Hardwarecheck* (`/hc`) - Meetwaardes hardware\n\n"
 
          "• *Test Sweep* (`/tfs`) - Ramp alle 3 fans (MIN ↔ MAX) (5 min)\n"
-         "• *Test Low RPM* (`/tfl`) - Alle 3 fans 30s op min_pwm\n"
-         "• *Test High RPM* (`/tfh`) - Alle 3 fans 30s op max_pwm\n"
+         "• *Test Low RPM* (`/tfl`) - Alle 3 fans 30s op MIN_PWM\n"
+         "• *Test High RPM* (`/tfh`) - Alle 3 fans 30s op MAX_PWM\n"
          "• *Test Van Vent* (`/tfv`) - intFan uit, extFans max PWM (30s)\n\n"
 
          "• *Test Uitdroging* (`/tu`) - Simuleer uitdrogingsrisico\n"
@@ -224,7 +224,7 @@ String buildHelpMenu() {
          "• *Flush* (`/fl`) - Wis Telegram wachtrij\n"
          "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
          "• *Kas-slaap* (`/sl`) - Zet kas op ruststand\n"
-         "• *Kalibratiemodus* (`/cal`) - Toggle fans stil/actief\n"
+         "• *Kalibratiemodus* (`/cal`) - Fans off, handmatige SHT31 zelf kalibratie\n"
          "• *Reboot* (`/rb`) - Herstart het systeem\n"
          "• *Help* (`/h`) - Dit menu\n";
 }

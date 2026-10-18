@@ -89,7 +89,6 @@ The brain of the system is an **ESP32-S3-ZERO-N8R8-M** (running at 160 MHz for o
 - `PIN_FAN_EXT2_PWM` / TACHO: External intake/exhaust fan 2.
 - Operating at **25 kHz PWM** to eliminate audible motor hum. Tachometer lines are protected via inline diodes and read via hardware interrupts (`FALLING`).
 
-
 - **Actuators & Status**: PWM Heat mat recommendation logic and onboard Status Neopixel LED (`PIN_NEOPIXEL` on GPIO 21).
 
 #### 2. Microgreens Agronomy: Why VPD, Thresholds & Buffers Matter
@@ -99,7 +98,6 @@ Microgreens are extremely sensitive to microclimates in enclosed spaces:
 - **VPD (Vapor Pressure Deficit)**: Primary metric for transpiration.
 - **Too Low (`< 0.60 kPa`)**: Stagnant, clammy air leading to fungal outbreaks (*Botrytis*, damping-off) within hours.
 - **Too High (`> 0.80 kPa`)**: Causes severe root dehydration and stalls growth.
-
 
 - **Dew Point Margin (`DP_MARGIN_MIN = 2.0°C`)**: Prevents leaf surface temperature from approaching the dew point, avoiding destructive leaf condensation.
 - **Indoor Buffer Strategy**: Instead of drawing cold/damp outdoor air directly into a small greenhouse, the system leverages conditioned indoor air from the living room as a stable climate buffer.
@@ -168,6 +166,12 @@ Integrates with Grafana Dashboard via MQTT on Raspberry Pi server (with local Li
   - `/rb` or `reboot` — Restarts the ESP32-S3 immediately.
   - `/pe` or `paasei` — *[Secret Easter Egg]* Microgreens facts and jokes.
 
+![Telegram 1](/src/img/Telegram%201.png)
+
+![Telegram 2](/src/img/Telegram%202.png)
+
+![Telegram 3](/src/img/Telegram%203.png)
+
 ---
 
 ## 🇳🇱 Nederlands
@@ -178,7 +182,7 @@ Integrates with Grafana Dashboard via MQTT on Raspberry Pi server (with local Li
 
 ### Netwerk & OTA Stabiliteit (De Grote Doorbraak)
 
-- **AP/OTA Loops opgelost**: De netwerkinitialisatie (ArduinoOTA.begin() binnen setupNetwork()) gecentraliseerd om hardnekkige opstartloops naar Access Point-modus en post-flash bevriezingen definitief te elimineren.
+- **AP/OTA Loops opgelost**: De netwerk initialisatie (ArduinoOTA.begin() binnen setupNetwork()) gecentraliseerd om hardnekkige opstartloops naar Access Point-modus en post-flash bevriezingen definitief te elimineren.
 
 - **Directe OTA Reboot**: Het systeem herstart nu direct en vlekkeloos zodra een software-update succesvol is voltooid.
 
@@ -194,23 +198,23 @@ Integrates with Grafana Dashboard via MQTT on Raspberry Pi server (with local Li
   - `/tfv` (Test Van Vent) — Interne fan UIT, externe fans max PWM (30s)
   - Overbodige handmatige overrides (`/mf`) zijn opgeruimd.
 
-- **Nieuwe klimaattestcommando's toegevoegd**:
+- **Nieuwe klimaat-test commando's toegevoegd**:
 
   - `/tu` (Test Uitdroging) — Simuleert hoge VPD / te droge kas.
   - `/tk` (Test Klam) — Simuleert klamme kas / schimmelrisico.
   - `/tw` (Test Woning) — Simuleert de woning-ventilatiebuffer.
 
-- **Menu-opmaak gecorrigeerd**: Alle Markdown-foutjes en afbrekingen in het helpmenu rechtgezet zodat Telegram het weer strak en uniform uiterlijk geeft.
+- **Menu-opmaak gecorrigeerd**: Alle Markdown-foutjes en afbrekingen in het help menu rechtgezet zodat Telegram het weer strak en uniform uiterlijk geeft.
 
 ### Systeem & Versiebeheer
 
-- **Versie en Build Timestamps**: Firmware-versie definitief vastgezet op v3.3.0, gekoppeld aan automatische build timestamps (`__DATE__` `__TIME__`) die netjes via netwerkinfologs en opstartmeldingen (`/ni`) worden uitgelezen.
+- **Versie en Build Timestamps**: Firmware-versie definitief vastgezet op v3.3.0, gekoppeld aan automatische build timestamps (`__DATE__` `__TIME__`) die netjes via netwerk info logs en opstartmeldingen (`/ni`) worden uitgelezen.
 
 ## Handleiding & Documentatie
 
 📖 **Handleiding: Robuuste Klimaatregeling, Teeltlogica & Telemetrie-architectuur**
 
-Deze handleiding beschrijft de technische en teelttechnische opzet van het ESP32-S3 microgreens-kassysteem ("De kleine kas"). Het is ontworpen om volautomatisch, 'headless' en extreem bedrijfszeker te draaien in huis.
+Deze handleiding beschrijft de technische en teelttechnische opzet van het ESP32-S3 kiemgroente-kas systeem ("De kleine kas"). Het is ontworpen om volautomatisch, 'headless' en extreem bedrijfszeker te draaien in huis.
 
 ### 1. Hardware-architectuur, Pinout & Systeemopzet
 
@@ -235,9 +239,8 @@ Het opkweken van microgreens (kiemgroenten) in een afgesloten ruimte luistert ui
 - **Te laag (`< 0.60 kPa`)**: Stilstaande, klamme lucht waarin schimmels (*Botrytis*, kiemrot) binnen enkele uren toeslaan.
 - **Te hoog (`> 0.80 kPa`)**: Veroorzaakt snelle uitdroging van de teer gewortelde kiemplanten.
 
-
 - **Dauwpuntmarge (`DP_MARGIN_MIN = 2.0°C`)**: Voorkomt dat het bladblad doordringt tot het dauwpunt, wat schadelijke condensvorming op het gewas voorkomt.
-- **De Woning als Tussenbuffer**: Buitenlucht is vaak te koud of vochtig. Door de **woonkamer** als buffer te gebruiken, ventileert de kas met stabiele en drogere binnenlucht zonder thermische shocks.
+- **De Woning als tussen buffer**: Buitenlucht is vaak te koud of vochtig. Door de **woonkamer** als buffer te gebruiken, ventileert de kas met stabiele en drogere binnenlucht zonder thermische shocks.
 
 ### 3. Kerncomponenten van het Klimaatregelsysteem (`ClimateLogic.cpp`)
 
@@ -279,13 +282,12 @@ Draadloze integratie met HGrafana Dashboard via MQTT on Raspberry Pi server (inc
 #### Telegram commando's
 
 - **Informatie & Rapporten:**
-- `/st` of `status` — Hoofdrapport met actuele VPD, temp, LV en kasactie.
+- `/st` of `status` — Hoofdrapport met actuele VPD, temp, LV en kas acties.
 - `/hc` or `hwcheck` — Hardwarecheck (RAM, chip-temp, sensor fout-percentages, lux, PIR, Fan RPMs).
 - `/mm` of `minmax` — Min/max waarden van de dag per locatie.
 - `/ad` of `advies` — Uitgebreid teelt-, ventilatie- en schimmeladvies.
-- `/ni` of `netwerkinfo` — Netwerkstatus, RSSI, IP, firmwareversie (`v3.2.9`) en build-tijdstempel.
+- `/ni` of `netwerkinfo` — Netwerkstatus, RSSI, IP, firmware versie (`v3.2.9`) en build-tijdstempel.
 - `/h`, `help` of `start` — Toont het commando-menu.
-
 
 - **Testen & Overrides:**
 - `/tf` — Test alle fans gedurende 30 sec op 100% PWM.
@@ -296,7 +298,6 @@ Draadloze integratie met HGrafana Dashboard via MQTT on Raspberry Pi server (inc
 - `/tc` — Simuleert 72°C chiptemperatuur alarm.
 - `/fa` — Schakelt fan-alarmeringen via Telegram in of uit.
 
-
 - **Systeem & Onderhoud:**
 - `/sl` of `slaapstand` — Schakelt slaapstand in/uit (status opgeslagen in NVS).
 - `/cal` of `kalibratie` — Zet alle fans stil en triggert een SHT31 heater-check (indien lampen uit zijn).
@@ -304,3 +305,9 @@ Draadloze integratie met HGrafana Dashboard via MQTT on Raspberry Pi server (inc
 - `/fl` of `flush` — Maakt Telegram-wachtrij leeg.
 - `/rb` of `reboot` — Herstart de ESP32-S3 direct.
 - `/pe` of `paasei` — *[Geheime Easter Egg]* Roterende kiemgroenten-feitjes en humor.
+
+![Telegram 1](/src/img/Telegram%201.png)
+
+![Telegram 2](/src/img/Telegram%202.png)
+
+![Telegram 3](/src/img/Telegram%203.png)
