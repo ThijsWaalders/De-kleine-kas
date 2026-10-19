@@ -107,8 +107,8 @@ const int FLASH_BUTTON_PIN                  = 0;     // Boot knop op ESP32-S3
 // PWM & Timing Hardware Configuratie
 const int PWM_FREQ                          = 25000; 
 const int PWM_RANGE                         = 255; 
-const unsigned long MIN_FAN_RUN_TIME        = 180000; 
-const unsigned long SYSTEM_STARTUP_DELAY    = 120000;
+const unsigned long MIN_FAN_RUN_TIME        = 45000; //180000; // korter gezet voor snellere reactie v/d fans
+const unsigned long SYSTEM_STARTUP_DELAY    = 30000; //30 sec //120000; 2 min
 const unsigned long TEMP_UPDATE_INTERVAL    = 5000;
 const float TEMP_HYSTERESIS_THRESHOLD       = 0.3;
 const unsigned long BUTTON_DEBOUNCE_DELAY   = 50;
