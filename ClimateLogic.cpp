@@ -171,11 +171,25 @@ void evaluateClimateState(float tempC, float hum) {
 
   // --- DOMEIN 3: BUITEN METINGEN & BEREKENINGEN ---
   if (!isnan(outdoorTemp) && !isnan(outdoorHumidity)) {
-    outdoorDewPoint = calcDewPoint(outdoorTemp, outdoorHumidity);
-    outdoorVpd = calcVPD(outdoorTemp, outdoorHumidity);
-    outdoorDpMargin = outdoorTemp - outdoorDewPoint; 
+    // BRON-CHECK: Voorkom wiskundige uitschieters bij wegvallen API/netwerk of 0% LV
+    if (outdoorHumidity <= 0.0 || outdoorHumidity > 100.0 || outdoorTemp <= -900.0) {
+      outdoorDewPoint = -999.0;
+      outdoorVpd = -999.0;
+      outdoorDpMargin = -999.0;
+    } else {
+      outdoorDewPoint = calcDewPoint(outdoorTemp, outdoorHumidity);
+      outdoorVpd = calcVPD(outdoorTemp, outdoorHumidity);
+      outdoorDpMargin = outdoorTemp - outdoorDewPoint; 
+    }
   }
 }
+//   // --- DOMEIN 3: BUITEN METINGEN & BEREKENINGEN ---
+//   if (!isnan(outdoorTemp) && !isnan(outdoorHumidity)) {
+//     outdoorDewPoint = calcDewPoint(outdoorTemp, outdoorHumidity);
+//     outdoorVpd = calcVPD(outdoorTemp, outdoorHumidity);
+//     outdoorDpMargin = outdoorTemp - outdoorDewPoint; 
+//   }
+// }
 
 void checkClimateVelocity(float currentHum) {
   if (millis() - lastVelocityCheckTime >= 60000 || lastVelocityCheckTime == 0) {

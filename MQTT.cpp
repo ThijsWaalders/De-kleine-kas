@@ -160,8 +160,21 @@ void sendMqttData() {
   if (outdoorTemp != -999.0) doc["buiten_temp"] = outdoorTemp;
   if (outdoorHumidity != -999.0) doc["buiten_vochtigheid"] = outdoorHumidity;
   if (outdoorDewPoint != -999.0) doc["buiten_dauwpunt"] = outdoorDewPoint;
-  if (outdoorVpd != -999.0) doc["buiten_vpd"] = outdoorVpd;
+  
+  // Strikte grenscheck: Een realistische VPD ligt altijd tussen 0.0 en 5.0 kPa.
+  // Alles daarbuiten (of -999.0) wordt genegeerd of als N/A behandeld.
+  if (outdoorVpd != -999.0 && outdoorVpd >= 0.0 && outdoorVpd <= 5.0) {
+    doc["buiten_vpd"] = outdoorVpd;
+  }
+  
   doc["buiten_dp_marge"] = outdoorDpMargin;
+  
+  // // --- BUITEN DATA ---
+  // if (outdoorTemp != -999.0) doc["buiten_temp"] = outdoorTemp;
+  // if (outdoorHumidity != -999.0) doc["buiten_vochtigheid"] = outdoorHumidity;
+  // if (outdoorDewPoint != -999.0) doc["buiten_dauwpunt"] = outdoorDewPoint;
+  // if (outdoorVpd != -999.0) doc["buiten_vpd"] = outdoorVpd;
+  // doc["buiten_dp_marge"] = outdoorDpMargin;
   
   // --- RISICO STATUSSEN ---
   doc["schimmel_risico"] = moldRisk;

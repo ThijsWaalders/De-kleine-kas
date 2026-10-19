@@ -64,7 +64,7 @@ unsigned long lastValidIndoorTime = 0;
 float kasSmoothedTemp = -999.0, kasSmoothedHum = -999.0, indoorSmoothedTemp = -999.0, indoorSmoothedHum = -999.0, displayedTemp = -999.0;
 unsigned long lastTempUpdate = 0;
 
-float outdoorTemp = 0.0, outdoorTempMax = 0.0, outdoorTempMin = 0.0, outdoorHumidity = 0.0, outdoorDewPoint = 0.0, outdoorPressure = 0.0;
+float outdoorTemp = -999.0, outdoorTempMax = -999.0, outdoorTempMin = 999.0, outdoorHumidity = 0.0, outdoorDewPoint = -999.0, outdoorPressure = 0.0;
 bool outdoorMoldRisk = false, hasOutdoorAlert = false, hasWeatherAlarm = false;
 String weatherDesc = "", outdoorPressureTrendText = "=";
 int weatherID = 0;

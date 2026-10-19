@@ -28,6 +28,8 @@ extern void setFansToMinTest();
 
 // Vlag voor kalibratiemodus toggle
 bool isCalibrationModeActive = false;
+unsigned long calibrationStartTime = 0;
+const unsigned long CALIBRATION_DURATION = 180000; // 3 minuten in milliseconden
 
 // =========================================================================
 // EASTER EGG: Unieke kiemgroenten-feitjes en humor
@@ -393,13 +395,13 @@ else if (text == "minmax" || text == "mm") {
       "📊 *Min / Max Extremen per Locatie*\n\n"
       "🪴 *Kas:*\n"
       "• Temp: `%s` | `%s`\n"
-      "• LV: `%s` | `%s`\n\n"
+      "• LV:   `%s` | `%s`\n\n"
       "🏡 *Woning:*\n"
       "• Temp: `%s` | `%s`\n"
-      "• LV: `%s` | `%s`\n\n"
+      "• LV:   `%s` | `%s`\n\n"
       "🌤️ *Buiten:*\n"
       "• Temp: `%s` | `%s`\n"
-      "• LV: `%s` | `%s`",
+      "• LV:   `%s` | `%s`",
       kasTempLowStr.c_str(), kasTempHighStr.c_str(), kasHumLowStr.c_str(), kasHumHighStr.c_str(),
       indTempLowStr.c_str(), indTempHighStr.c_str(), indHumLowStr.c_str(), indHumHighStr.c_str(),
       outTempLowStr.c_str(), outTempHighStr.c_str(), outHumLowStr.c_str(), outHumHighStr.c_str()
@@ -499,9 +501,13 @@ else if (text == "minmax" || text == "mm") {
   }
   // --- KALIBRATIEMODUS TOGGLE (/cal) ---
   else if (text == "kalibratie" || text == "kal" || text == "cal") {
-    isCalibrationModeActive = !isCalibrationModeActive;
-
     if (isCalibrationModeActive) {
+      isCalibrationModeActive = false;
+      sendTelegramAlert("✅ *Kalibratiemodus HANDMATIG UITGESCHAKELD*\nAutomatische klimaatregeling hervat.");
+    } else {
+      isCalibrationModeActive = true;
+      calibrationStartTime = millis();
+
       fanIntSpeed = 0;
       fanExt1Speed = 0;
       fanExt2Speed = 0;
@@ -509,12 +515,11 @@ else if (text == "minmax" || text == "mm") {
       ledcWrite(PIN_FAN_INT_PWM, 0);
       ledcWrite(PIN_FAN_EXT1_PWM, 0);
       ledcWrite(PIN_FAN_EXT2_PWM, 0);
+      
       if (!lampsAreOn) {
         triggerManualShtHeater(); 
       }
-      sendTelegramAlert("⚖️ *Kalibratiemodus GEACTIVATIONEERD*\nAlle ventilatoren staan stil. Typ opnieuw `/cal` om uit te schakelen.");
-    } else {
-      sendTelegramAlert("✅ *Kalibratiemodus UITGESCHAKELD*\nAutomatische klimaatregeling hervat.");
+      sendTelegramAlert("⚖️ *Kalibratiemodus GEACTIVIONEERD (3 min)*\n• Fans staan stil voor offset-controle.\n• SHT31 heater gestart.\n• Schakelt over 3 minuten automatisch uit.");
     }
   }
   else if (text == "hwcheck" || text == "hc") {
@@ -528,9 +533,9 @@ else if (text == "minmax" || text == "mm") {
     float internalTemp = readEspInternalTemp();
 
     String kasTempStr    = (displayedTemp <= -900.0) ? "N/A" : String(displayedTemp, 1) + "°C";
-    String kasHumStr     = (kasSmoothedHum <= -900.0) ? "N/A" : String(kasSmoothedHum, 0) + "%";
+    String kasHumStr     = (kasSmoothedHum <= -900.0) ? "N/A" : String(kasSmoothedHum, 1) + "%";
     String indoorTempStr = (indoorSmoothedTemp <= -900.0) ? "N/A" : String(indoorSmoothedTemp, 1) + "°C";
-    String indoorHumStr  = (indoorHum <= -900.0) ? "N/A" : String(indoorHum, 0) + "%";
+    String indoorHumStr  = (indoorHum <= -900.0) ? "N/A" : String(indoorHum, 1) + "%";
     String pressureStr   = (currentPressure <= 0.0) ? "N/A" : String(currentPressure, 1) + " hPa";
     String luxStr        = (currentLuxValue < 0.0) ? "N/A" : String(currentLuxValue, 0) + " lx";
     String pirStatus     = (digitalRead(PIN_PIR) == HIGH) ? "Beweging 🚨" : "Rust 🟢";
@@ -540,9 +545,9 @@ else if (text == "minmax" || text == "mm") {
       "🛠️ *Hardware & Sensor Check*\n\n"
       "⚙️ *Systeem:*\n"
       "• RAM: `%.1f KB` | Chip: `%.1f°C` 🧠\n\n"
-      "🌿 *Kas (SHT31):*\n"
+      "🌿 *Kas:*\n"
       "• Temp: `%s` | LV: `%s` | Fout: `%.1f%%`\n\n"
-      "🏡 *Woning (BME280):*\n"
+      "🏡 *Woning:*\n"
       "• Temp: `%s` | LV: `%s`\n"
       "• Druk: `%s` | Fout: `%.1f%%`\n\n"
       "💡 *Overige Sensoren:*\n"
@@ -637,4 +642,14 @@ void sendBootNotification() {
   telegramMsg += "🏷️ *Versie:* " + String(FIRMWARE_VERSION) + " (" + String(BUILD_TIMESTAMP) + ")\n";
   telegramMsg += "🌐 *IP:* `" + WiFi.localIP().toString() + "`";
   bot.sendMessage(telid, telegramMsg, "Markdown");
+}
+
+void updateCalibrationMode() {
+  if (isCalibrationModeActive) {
+    if (millis() - calibrationStartTime >= CALIBRATION_DURATION) {
+      isCalibrationModeActive = false;
+      sendTelegramAlert("⏰ *Kalibratiemodus verlopen (3 min)*\nAutomatische klimaatregeling en ventilatoren zijn automatisch hervat.");
+      logToSyslogAndSerial("[CALIBRATION] ⏰ 3 minuten verlopen: Kalibratiemodus automatisch beëindigd.");
+    }
+  }
 }

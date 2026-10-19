@@ -15,5 +15,6 @@ String getResetReasonString(esp_reset_reason_t reason);
 String buildStatusReport();
 void sendHelpMenu();
 void handleTelegramIncoming();
+void updateCalibrationMode();
 
 #endif // TELEGRAM_H

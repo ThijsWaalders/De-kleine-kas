@@ -25,7 +25,7 @@
 #include <Preferences.h>      // Slaapstand (isKasSleeping) Opslaan in NVS (Flash-geheugen)
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.3.0"
+#define FIRMWARE_VERSION "v3.3.1"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 // SHT31 sensor check
@@ -40,9 +40,9 @@ extern Preferences preferences;
 #define VPD_CRITICAL_HIGH 1.00f  // Vanaf hier springt het scherm op hard alarm (Uitdroging)
 
 // --- 1.1 VPD & Klimaat Doelen (Kiemgroenten) ---
-const float VPD_MAX_OPTIMAL                 = 0.85;  // Iets strakker dan 0.94 om uitdroging door lampen voor te zijn
-const float VPD_MIN_OPTIMAL                 = 0.50;  // Veilig boven de schimmelgrens
-const float pidSetPointVPD                  = 0.68;  // Het ideale middelpunt voor kiemgroenten
+const float VPD_MAX_OPTIMAL                 = 0.95; //0.85;  // Iets strakker dan 0.94 om uitdroging door lampen voor te zijn
+const float VPD_MIN_OPTIMAL                 = 0.50; // Veilig boven de schimmelgrens (voorkom onder 0.45 = schimmelrisico!)
+const float pidSetPointVPD                  = 0.70; //0.68;  // Het ideale middelpunt voor kiemgroenten
 
 // --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
 extern float kp;                                     
@@ -72,10 +72,10 @@ const float HEAT_MAT_TEMP_HIGH              = 20.0;
 
 // --- 1.5 Sensor Correctie Offsets ---
 const float KAS_TEMP_OFFSET                 = -0.6; // -0.9; // Kalibratie offset kas SHT31 temperatuur
-const float INDOOR_TEMP_OFFSET              = -2.1; // -2.3; // -2.2  // Kalibratie offset woning BME280 temperatuur
+const float INDOOR_TEMP_OFFSET              = -2.0; // -2.1; // -2.3; // -2.2  // Kalibratie offset woning BME280 temperatuur
 
 const float KAS_HUM_OFFSET                  = -0.2; // -0.4; // Kalibratie offset kas SHT31 luchtvochtigheid
-const float INDOOR_HUM_OFFSET               = +7.4; // +8.3; // +6.9; // Kalibratie offset woning BME280 luchtvochtigheid
+const float INDOOR_HUM_OFFSET               = +6.8; // +7.4; // +8.3; // +6.9; // Kalibratie offset woning BME280 luchtvochtigheid
 
 const float PRESSURE_OFFSET                 = -2.2; // -2.2  // Kalibratie offset luchtdruk (BME280)
 

@@ -118,7 +118,10 @@ void loop() {
     readEspInternalTemp();
     checkEspTemperatureSafety(); 
   }
-  
+
+  // Zorgt dat de 3 minuten timer altijd exact afloopt
+  updateCalibrationMode();
+
   // Update LED voor status
   statusLed.update(); 
 
