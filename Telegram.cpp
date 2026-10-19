@@ -162,7 +162,23 @@ String buildStatusReport() {
     } else {
       actieVereist = "🏠🪟 **Jouw actie vereist:** Zet het raam/binnendeur open om drogere bufferlucht naar de kas te leiden.";
     }
+  } else if (homeVentActive) {
+    actieVereist = "🏠🪟 **Jouw actie vereist:** Ventileer de woningruimte om drogere buitenlucht aan te voeren voor de buffer.";
   }
+  // String actieVereist = "🟢 Geen actie nodig. De kleine kas kan het helemaal zelf aan!";
+  // if (isKasSleeping) {
+  //   actieVereist = "😴 Geen actie nodig, de kas is in slaapstand.";
+  // } else if (isCalibrationModeActive) {
+  //   actieVereist = "⚖️ Kalibratie actief. Typ `/cal` om terug te keren naar automatische regeling.";
+  // } else if (!isSystemReady()) {
+  //   actieVereist = "⏳ Even geduld: Systeem kalibreert nog.";
+  // } else if (moldRisk) {
+  //   if (outdoorDewPoint >= indoorDewPoint) {
+  //     actieVereist = "🔴 Schimmelrisico, MAAR buitenlucht is te klam (dauwpunt hoog). **Houd ramen dicht!**";
+  //   } else {
+  //     actieVereist = "🏠🪟 **Jouw actie vereist:** Zet het raam/binnendeur open om drogere bufferlucht naar de kas te leiden.";
+  //   }
+  // }
 
   String kasVpdStr    = (kasVpd <= -900.0) ? "N/A" : String(kasVpd, 2) + " kPa";
   String kasTempStr   = (displayedTemp <= -900.0) ? "N/A" : String(displayedTemp, 1) + "°C";
@@ -315,6 +331,44 @@ void handleTelegramIncoming() {
     String woningKleur = "🟢";
     String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer.";
     String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf.";
+  // else if (text == "advies" || text == "ad") {
+  //   String kasHeader = "KLIMAAT OPTIMAAL";
+  //   String kasKleur = "🟢";
+  //   String kasDiagnose = "Geen actie vereist. Het klimaat in de kas is stabiel en veilig.";
+
+  //   if (isKasSleeping) {
+  //     kasHeader = "SLAAPSTAND";
+  //     kasKleur = "⚪";
+  //     kasDiagnose = "De kleine kas rust. Sensoren meten door, ventilatie is uitgeschakeld.";
+  //   } else if (isCalibrationModeActive) {
+  //     kasHeader = "KALIBRATIEMODUS";
+  //     kasKleur = "⚖️";
+  //     kasDiagnose = "Kalibratiemodus is actief. Alle ventilatoren staan stil.";
+  //   } else if (!isSystemReady()) {
+  //     kasHeader = "KALIBREREN";
+  //     kasKleur = "🟡";
+  //     kasDiagnose = "Systeem is aan het opstarten en de sensorfilters vullen zich.";
+  //   } else if (isClimateCrash) {
+  //     kasHeader = "NOODTOESTAND / HITTEPIEK";
+  //     kasKleur = "🔴";
+  //     kasDiagnose = "Kritieke temperatuur gedetecteerd! Maximale ventilatie actief.";
+  //   } else if (moldRisk) {
+  //     kasHeader = "SCHIMMELRISICO / TE KLAM";
+  //     kasKleur = "🔴";
+  //     kasDiagnose = moldReasonText;
+  //   } else if (kasVpd < VPD_MIN_OPTIMAL) {
+  //     kasHeader = "KLAM / VOCHTIG";
+  //     kasKleur = "🟡";
+  //     kasDiagnose = "Luchtvochtigheid is aan de hoge kant, kas stuurt bij.";
+  //   } else if (kasAdvice == GREENHOUSE_VENTILATE) {
+  //     kasHeader = "KAS STELT BIJ";
+  //     kasKleur = "🟡";
+  //     kasDiagnose = kasAdviceReason;
+  //   }
+
+  //   String woningKleur = "🟢";
+  //   String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer.";
+  //   String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf.";
 
     if (isKasSleeping) {
       woningKleur = "⚪";
@@ -332,7 +386,32 @@ void handleTelegramIncoming() {
       woningKleur = "🟢";
       woningDiagnose = "Woningventilatie open aanbevolen (Buitenlucht kan ontvochtigen op basis van dauwpunt).";
       actieVoorJij = "Ventileer de woningruimte om drogere buitenlucht (lager dauwpunt) aan te voeren.";
+    } else {
+      woningKleur = "🟢";
+      woningDiagnose = "Woninglucht fungeert als stabiele buffer voor de kas.";
+      actieVoorJij = "Geen actie nodig. De kleine kas redt zich er prima mee!";
     }
+    // String woningKleur = "🟢";
+    // String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer.";
+    // String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf.";
+
+    // if (isKasSleeping) {
+    //   woningKleur = "⚪";
+    //   woningDiagnose = "Slaapstand actief.";
+    //   actieVoorJij = "Geen actie nodig, de kas slaapt.";
+    // } else if (isCalibrationModeActive) {
+    //   woningKleur = "⚪";
+    //   woningDiagnose = "Kalibratiemodus actief.";
+    //   actieVoorJij = "Typ `/cal` om kalibratie uit te schakelen.";
+    // } else if (!isSystemReady()) {
+    //   woningKleur = "🟡";
+    //   woningDiagnose = "Systeem kalibreert nog.";
+    //   actieVoorJij = "Even geduld: Systeem kalibreert nog.";
+    // } else if (homeVentActive) {
+    //   woningKleur = "🟢";
+    //   woningDiagnose = "Woningventilatie open aanbevolen (Buitenlucht kan ontvochtigen op basis van dauwpunt).";
+    //   actieVoorJij = "Ventileer de woningruimte om drogere buitenlucht (lager dauwpunt) aan te voeren.";
+    // }
 
     String buitenKleur = "🟢";
     String buitenStatus = "Geschikt om in te zetten als ventilatielucht (op basis van fysieke vochtpotentie).";

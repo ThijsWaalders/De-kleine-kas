@@ -138,21 +138,77 @@ void evaluateClimateState(float tempC, float hum) {
     moldReasonText = "✅ Ideaal kiemklimaat";
   }
 
-  // LED Status & Langdurige Telegram Alarm Cooldown (2 uur)
+  // LED Status & Langdurige Telegram Alarm Cooldown (Pas na 20 minuten aanhoudende overschrijding)
+  static unsigned long problemStartTime = 0; 
+
   if (isClimateCrash || tempTooHigh) {
     statusLed.setColor(255, 0, 0); 
+    problemStartTime = 0;
   } 
   else if (vpdTooDry || vpdTooWet || condensRisk) {
     statusLed.setColor(255, 100, 0); 
-    static unsigned long lastAlertTime = 0;
-    if ((millis() - lastAlertTime > 7200000 || lastAlertTime == 0) && ENABLE_TELEGRAM && isConnected) {
-      lastAlertTime = millis();
-      sendTelegramAlert("🔥 *LANGDURIG ALARM DE KLEINE KAS:* " + moldReasonText + "\nSysteem kan het klimaat onvoldoende stabiliseren.");
+    
+    // Houd bij hoelang de kas al onafgebroken in deze afwijkende zone zit
+    if (problemStartTime == 0) problemStartTime = millis();
+
+    // Stuur PAS na 20 minuten een krachtig capaciteitsalarm met actie-instructie voor jou!
+    if (millis() - problemStartTime > 1200000) {
+      static unsigned long lastAlertTime = 0;
+      if ((millis() - lastAlertTime > 7200000 || lastAlertTime == 0) && ENABLE_TELEGRAM && isConnected) {
+        lastAlertTime = millis();
+        
+        String capaciteitsBericht = "🔥 *CAPACITEITSALARM DE KLEINE KAS:*\n" + moldReasonText + 
+                                    "\n\n⚙️ *Waarom:* Ventilatoren draaien op volle capaciteit, maar de woningbuffer kan de warmte/vochtbalans niet meer volledig corrigeren." +
+                                    "\n👤 *Wat JIJ moet doen:* Zet een raam in de woning open om de luchtbuffer te verversen met frisse, drogere buitenlucht!";
+        sendTelegramAlert(capaciteitsBericht);
+      }
     }
   }
   else {
     statusLed.setColor(0, 0, 0); 
+    problemStartTime = 0; // Reset de timer direct zodra het klimaat weer stabiel is!
   }
+  // // LED Status & Langdurige Telegram Alarm Cooldown (Pas na 20 minuten aanhoudende overschrijding)
+  // static unsigned long problemStartTime = 0; // Hier gedefinieerd zodat de hele functie erbij kan!
+
+  // if (isClimateCrash || tempTooHigh) {
+  //   statusLed.setColor(255, 0, 0); 
+  //   problemStartTime = 0;
+  // } 
+  // else if (vpdTooDry || vpdTooWet || condensRisk) {
+  //   statusLed.setColor(255, 100, 0); 
+    
+  //   // Houd bij hoelang de kas al onafgebroken in deze afwijkende zone zit
+  //   if (problemStartTime == 0) problemStartTime = millis();
+
+  //   // Stuur PAS een langdurig alarm als het probleem al MINIMAAL 20 minuten duurt (1200000 ms)
+  //   if (millis() - problemStartTime > 1200000) {
+  //     static unsigned long lastAlertTime = 0;
+  //     if ((millis() - lastAlertTime > 7200000 || lastAlertTime == 0) && ENABLE_TELEGRAM && isConnected) {
+  //       lastAlertTime = millis();
+  //       sendTelegramAlert("🔥 *LANGDURIG ALARM DE KLEINE KAS:* " + moldReasonText + "\nSysteem probeert al langdurig te corrigeren, maar kan het klimaat onvoldoende stabiliseren.");
+  //     }
+  //   }
+  // }
+  // else {
+  //   statusLed.setColor(0, 0, 0); 
+  //   problemStartTime = 0; // Reset de timer direct zodra het klimaat weer stabiel is!
+  // }
+  // // LED Status & Langdurige Telegram Alarm Cooldown (2 uur)
+  // if (isClimateCrash || tempTooHigh) {
+  //   statusLed.setColor(255, 0, 0); 
+  // } 
+  // else if (vpdTooDry || vpdTooWet || condensRisk) {
+  //   statusLed.setColor(255, 100, 0); 
+  //   static unsigned long lastAlertTime = 0;
+  //   if ((millis() - lastAlertTime > 7200000 || lastAlertTime == 0) && ENABLE_TELEGRAM && isConnected) {
+  //     lastAlertTime = millis();
+  //     sendTelegramAlert("🔥 *LANGDURIG ALARM DE KLEINE KAS:* " + moldReasonText + "\nSysteem kan het klimaat onvoldoende stabiliseren.");
+  //   }
+  // }
+  // else {
+  //   statusLed.setColor(0, 0, 0); 
+  // }
 
   if (isClimateCrash) vpdStatusText = " `(🚨 NOODSTOP)`";
   else if (vpdTooWet) vpdStatusText = " `(⚠️ Te klam)`";

@@ -5,7 +5,8 @@
   - [Code](#code)
     - [Sensor Offsets](#sensor-offsets)
   - [v3.4](#v34)
-    - [De 4 Pijlers van de Slimme Lampen-optimalisatie (v3.4)](#de-4-pijlers-van-de-slimme-lampen-optimalisatie-v34)
+  - [v3.4.1](#v341)
+    - [De 4 Pijlers van de Slimme Lampen-optimalisatie (v3.4.2)](#de-4-pijlers-van-de-slimme-lampen-optimalisatie-v342)
 
 ## Voor dev board
 
@@ -19,7 +20,40 @@ LV binnen wat iets hoger dan kas, offset lager zetten volgend kalibratie moment
 
 ## v3.4
 
-### De 4 Pijlers van de Slimme Lampen-optimalisatie (v3.4)
+## v3.4.1 
+
+📦 Overzicht v3.4.1 — Dynamische Interne Ventilatie & Slimme Veiligheid
+1. Vernieuwde updateFanSpeeds() in HardwareControl.cpp
+
+De werkelijke hardware-aansturing voor de ventilatoren is uitgebreid met een dynamische opschaling van de interne ventilator (intFan). Zodra de kas gesloten is (GREENHOUSE_CIRCULATE_INTERNAL), blijft de fan niet meer passief op de minimale basissnelheid INT_FAN_BASE_PWM staan, maar schaalt hij traploos op tot FAN_MAX_PWM op basis van de VPD-afwijking ten opzichte van pidSetPointVPD en de status van de lampen.
+
+2. Wat is er veranderd t.o.v. v3.3.1?
+
+    Geen Stilstaande Warmtebel meer rond SHT31:
+
+        In v3.3.1 bleef de intFan vaststaan op INT_FAN_BASE_PWM (111 PWM, ~1600 RPM) zolang de kas gesloten was.
+
+        In v3.4.1 reageert hij direct zodra de lampen aanspringen of zodra het klimaat afwijkt van de pidSetPointVPD (0.70 kPa). Hij loopt dan soepel op richting FAN_MAX_PWM (255 PWM, ~4000 RPM) om de lucht krachtig langs het schild van de SHT31 te trekken.
+
+    Gecentreerde Configuratiewaardes:
+
+        Geen 'magic numbers' in de logica; alles maakt direct gebruik van de constanten uit Config.h:
+
+            INT_FAN_BASE_PWM (startwaarde / ruststand)
+
+            FAN_MAX_PWM (maximale bovengrens)
+
+            pidSetPointVPD (doelwaarde VPD)
+
+            TEMP_HYSTERESIS_THRESHOLD (drempel voor activatie)
+
+    Instandhouding Veiligheids Failsafe:
+
+        De Failsafe-regel blijft 100% intact: zodra externe ventilatie (GREENHOUSE_VENTILATE) activeert, wordt de intFan direct uitgezet (targetIntSpeed = 0) om tegenstroom en valse luchtdruk te voorkomen.
+
+
+
+### De 4 Pijlers van de Slimme Lampen-optimalisatie (v3.4.2)
 
 1. **Energie- en Kostenoptimalisatie (Daluren & Prijzen)**
 
