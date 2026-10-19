@@ -202,31 +202,31 @@ String buildStatusReport() {
 // =========================================================================
 String buildHelpMenu() {
   return "🤖 *Beschikbare commando's:*\n\n"
-         "• *Advies* (`/ad`) - Uitgebreid ventilatie & schimmeladvies\n"
-         "• *Status* (`/st`) - Bekijk direct alle sensorwaarden\n"
-         "• *Minmax* (`/mm`) - Min/max dagtemperaturen\n"
-         "• *Hardwarecheck* (`/hc`) - Meetwaardes hardware\n\n"
+         "• Advies (/ad) - Uitgebreid ventilatie & schimmeladvies\n"
+         "• Status (/st) - Bekijk direct alle sensorwaarden\n"
+         "• Minmax (/mm) - Min/max dagtemperaturen\n"
+         "• Hardwarecheck (/hc) - Meetwaardes hardware\n\n"
+  
+         "• Test Sweep (/tfs) - Ramp alle 3 fans (MIN ↔ MAX) (5 min)\n"
+         "• Test Low RPM (/tfl) - Alle 3 fans 30s op MIN-PWM\n"
+         "• Test High RPM (/tfh) - Alle 3 fans 30s op MAX-PWM\n"
+         "• Test Van Vent (/tfv) - intFan uit, extFans MAX-PWM (30s)\n\n"
+  
+         "• Test Uitdroging (/tu) - Simuleer uitdrogingsrisico\n"
+         "• Test Klam (/tk) - Simuleer klamme kas / schimmelrisico\n"
+         "• Test Woning (/tw) - Simuleer woning ventilatie buffer\n"
+         "• Test Schimmel (/ts) - Schimmeltoggle (10 min)\n"
+         "• Test Mat (/tm) - Test warmtemat (15 sec)\n"
+         "• Test Chip Temp (/tc) - Test chip temp oververhitting\n"
+         "• Fan Alarm (/fa) - Fan alarmering aan/uit\n\n"
 
-         "• *Test Sweep* (`/tfs`) - Ramp alle 3 fans (MIN ↔ MAX) (5 min)\n"
-         "• *Test Low RPM* (`/tfl`) - Alle 3 fans 30s op MIN_PWM\n"
-         "• *Test High RPM* (`/tfh`) - Alle 3 fans 30s op MAX_PWM\n"
-         "• *Test Van Vent* (`/tfv`) - intFan uit, extFans max PWM (30s)\n\n"
-
-         "• *Test Uitdroging* (`/tu`) - Simuleer uitdrogingsrisico\n"
-         "• *Test Klam* (`/tk`) - Simuleer klamme kas / schimmelrisico\n"
-         "• *Test Woning* (`/tw`) - Simuleer woning ventilatie buffer\n"
-         "• *Testschimmel* (`/ts`) - Schimmeltoggle (10 min)\n"
-         "• *Testmat* (`/tm`) - Test warmtemat (15 sec)\n"
-         "• *Test Chip Temp* (`/tc`) - Test chip temp oververhitting\n"
-         "• *Fanalarm* (`/fa`) - Fan alarmering aan/uit\n\n"
-
-         "• *Netwerkinfo* (`/ni`) - Toon IP, RSSI en netwerkstatus\n"
-         "• *Flush* (`/fl`) - Wis Telegram wachtrij\n"
-         "• *Start AP/OTA* (`/ota`) - Start Access Point voor OTA\n"
-         "• *Kas-slaap* (`/sl`) - Zet kas op ruststand\n"
-         "• *Kalibratiemodus* (`/cal`) - Fans off, handmatige SHT31 zelf kalibratie\n"
-         "• *Reboot* (`/rb`) - Herstart het systeem\n"
-         "• *Help* (`/h`) - Dit menu\n";
+         "• Netwerkinfo (/ni) - Toon IP, RSSI en netwerkstatus\n"
+         "• Flush (/fl) - Wis Telegram wachtrij\n"
+         "• Start AP/OTA (/ota) - Start Access Point voor OTA\n"
+         "• Kas-slaap (/sl) - Zet kas op ruststand\n"
+         "• Kalibratiemodus (/cal) - Fans off, handmatige SHT31 zelf kalibratie\n"
+         "• Reboot (/rb) - Herstart het systeem\n"
+         "• Help (/h) - Dit menu\n";
 }
 
 void sendHelpMenu() {
@@ -369,22 +369,40 @@ void handleTelegramIncoming() {
 
     sendTelegramAlert(adviesReport);
   }
-  else if (text == "minmax" || text == "mm") {
-    char mmBuffer[400];
+else if (text == "minmax" || text == "mm") {
+    // Kas min/max strings met N/A opvang
+    String kasTempLowStr  = (kasTempLow <= -900.0 || kasTempLow >= 900.0)   ? "N/A" : String(kasTempLow, 1) + "°C";
+    String kasTempHighStr = (kasTempHigh <= -900.0 || kasTempHigh >= 900.0) ? "N/A" : String(kasTempHigh, 1) + "°C";
+    String kasHumLowStr   = (kasLowHum < 0.0 || kasLowHum > 100.0)         ? "N/A" : String(kasLowHum, 1) + "%";
+    String kasHumHighStr  = (kasHighHum < 0.0 || kasHighHum > 100.0)       ? "N/A" : String(kasHighHum, 1) + "%";
+
+    // Woning min/max strings met N/A opvang
+    String indTempLowStr  = (indoorTempLow <= -900.0 || indoorTempLow >= 900.0)   ? "N/A" : String(indoorTempLow, 1) + "°C";
+    String indTempHighStr = (indoorTempHigh <= -900.0 || indoorTempHigh >= 900.0) ? "N/A" : String(indoorTempHigh, 1) + "°C";
+    String indHumLowStr   = (indoorLowHum < 0.0 || indoorLowHum > 100.0)         ? "N/A" : String(indoorLowHum, 1) + "%";
+    String indHumHighStr  = (indoorHighHum < 0.0 || indoorHighHum > 100.0)       ? "N/A" : String(indoorHighHum, 1) + "%";
+
+    // Buiten min/max strings met N/A opvang
+    String outTempLowStr  = (outdoorTempMin <= -900.0 || outdoorTempMin >= 900.0) ? "N/A" : String(outdoorTempMin, 1) + "°C";
+    String outTempHighStr = (outdoorTempMax <= -900.0 || outdoorTempMax >= 900.0) ? "N/A" : String(outdoorTempMax, 1) + "°C";
+    String outHumLowStr   = (outdoorLowHum < 0.0 || outdoorLowHum > 100.0)         ? "N/A" : String(outdoorLowHum, 1) + "%";
+    String outHumHighStr  = (outdoorHighHum < 0.0 || outdoorHighHum > 100.0)       ? "N/A" : String(outdoorHighHum, 1) + "%";
+
+    char mmBuffer[500];
     snprintf(mmBuffer, sizeof(mmBuffer),
       "📊 *Min / Max Extremen per Locatie*\n\n"
       "🪴 *Kas:*\n"
-      "• Temp: `%.1f°C` | `%.1f°C`\n"
-      "• LV: `%.0f%%` | `%.0f%%`\n\n"
+      "• Temp: `%s` | `%s`\n"
+      "• LV: `%s` | `%s`\n\n"
       "🏡 *Woning:*\n"
-      "• Temp `%.1f°C` | `%.1f°C`\n"
-      "• LV: `%.0f%%` | `%.0f%%`\n\n"
+      "• Temp: `%s` | `%s`\n"
+      "• LV: `%s` | `%s`\n\n"
       "🌤️ *Buiten:*\n"
-      "• Temp `%.1f°C` | `%.1f°C`\n"
-      "• LV: `%.0f%%` | `%.0f%%`",
-      kasTempLow, kasTempHigh, kasLowHum, kasHighHum,
-      indoorTempLow, indoorTempHigh, indoorLowHum, indoorHighHum,
-      outdoorTempMin, outdoorTempMax, outdoorLowHum, outdoorHighHum
+      "• Temp: `%s` | `%s`\n"
+      "• LV: `%s` | `%s`",
+      kasTempLowStr.c_str(), kasTempHighStr.c_str(), kasHumLowStr.c_str(), kasHumHighStr.c_str(),
+      indTempLowStr.c_str(), indTempHighStr.c_str(), indHumLowStr.c_str(), indHumHighStr.c_str(),
+      outTempLowStr.c_str(), outTempHighStr.c_str(), outHumLowStr.c_str(), outHumHighStr.c_str()
     );
     sendTelegramAlert(String(mmBuffer));
   }

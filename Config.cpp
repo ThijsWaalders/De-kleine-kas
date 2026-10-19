@@ -133,19 +133,25 @@ unsigned long lastTelegramSentTime = 0;
 
 // =========================================================================
 // 6. VOCHTIGHEID & MIN/MAX STATISTIEKEN
+// - Ruwe start waardes -999.0 voor leeg/ongeldig, 999.0 / -1.0 voor min/max
 // =========================================================================
 float indoorHum = 0.0;
 float indoorTemp = 0.0;
 float kasHum = 0.0;
 float kasTemp = 0.0;
 
-float kasLowHum = 100.0;
-float kasHighHum = 0.0;
-float indoorLowHum = 100.0;
-float indoorHighHum = 0.0;
-float outdoorLowHum = 100.0;
-float outdoorHighHum = 0.0;
-
+float kasLowHum = 999.0;
+float kasHighHum = -1.0;
+float indoorLowHum = 999.0;
+float indoorHighHum = -1.0;
+float outdoorLowHum = 999.0;
+float outdoorHighHum = -1.0;
+// float kasLowHum = 100.0;
+// float kasHighHum = 0.0;
+// float indoorLowHum = 100.0;
+// float indoorHighHum = 0.0;
+// float outdoorLowHum = 100.0;
+// float outdoorHighHum = 0.0;
 
 // =========================================================================
 // 7. VENTILATOREN, TACHO & PID RUNTIME VARIABELEN
