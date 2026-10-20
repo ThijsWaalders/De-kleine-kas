@@ -1,11 +1,6 @@
 /**
  * @file ClimateLogic.cpp
- * @brief Zuivere klimaatlogica en advies-evaluatie (zonder hardware-aansturing).
- * 
- * Beheert de 3 gescheiden domeinen:
- * 1. KAS (Microklimaat & Teelt - SHT31)
- * 2. WONING (Bufferruimte & Binnenklimaat - BME280)
- * 3. BUITEN (Omgevingslucht & Weer-API)
+ * @brief Zuivere klimaatlogica en advies-evaluatie (stabiele basis).
  */
 
 #include "Config.h"
@@ -16,16 +11,11 @@
 #include "LedManager.h"
 
 extern LedManager statusLed;
+extern bool isClimateCrash; 
 
-// Voorkomt directe valse start-alarmen
 static unsigned long lastAlertTime = millis(); 
 
-bool isSystemReady();
-bool isClimateCrash = false; 
-
 bool isSystemReady() {
-  // Als lampen aan staan (lux > 1.0), na 5 sec direct actief!
-  // Als lampen uit staan, wacht netjes de volledige opstartvertraging af.
   if (currentLuxValue > 1.0) {
     return (millis() >= 5000); 
   }
@@ -64,8 +54,8 @@ void checkClimateCrash(float inTemp) {
   }
 }
 
-void evaluateClimateState(float tempC, float hum) {
-  if (isnan(tempC) || isnan(hum)) return;
+void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float indoorHum) {
+  if (isnan(kasTemp) || isnan(kasHum)) return;
 
   if (!isSystemReady()) {
     moldRisk = false;
@@ -75,7 +65,9 @@ void evaluateClimateState(float tempC, float hum) {
     return;
   }
 
-  // --- DOMEIN 1: KAS METINGEN & BEREKENINGEN ---
+  float tempC = kasTemp;
+  float hum = kasHum;
+
   kasSmoothedTemp = tempC;
   kasSmoothedHum  = hum;
   displayedTemp   = tempC; 
@@ -85,16 +77,6 @@ void evaluateClimateState(float tempC, float hum) {
   kasDpMargin = kasSmoothedTemp - kasDewPoint;
 
   checkClimateCrash(kasSmoothedTemp);
-
-  if (isLampTransitionActive) {
-    if (millis() - lampTransitionStartTime > 180000 && abs(humidityVelocity) < 0.3) {
-      isLampTransitionActive = false;
-      logToSyslogAndSerial("[PREDICTIVE] Kas is adaptief gestabiliseerd na lamp-transitie.");
-    }
-    else if (millis() - lampTransitionStartTime > 1800000) {
-      isLampTransitionActive = false;
-    }
-  }
 
   bool vpdTooWet   = (kasVpd < VPD_MIN_OPTIMAL);
   bool vpdTooDry   = (kasVpd > VPD_MAX_OPTIMAL);
@@ -138,77 +120,16 @@ void evaluateClimateState(float tempC, float hum) {
     moldReasonText = "✅ Ideaal kiemklimaat";
   }
 
-  // LED Status & Langdurige Telegram Alarm Cooldown (Pas na 20 minuten aanhoudende overschrijding)
-  static unsigned long problemStartTime = 0; 
-
+  // LED-indicatie blijft actief voor lokale status, maar het mens-alarmeergedrag via Telegram is hierbij volledig verwijderd.
   if (isClimateCrash || tempTooHigh) {
     statusLed.setColor(255, 0, 0); 
-    problemStartTime = 0;
   } 
   else if (vpdTooDry || vpdTooWet || condensRisk) {
     statusLed.setColor(255, 100, 0); 
-    
-    // Houd bij hoelang de kas al onafgebroken in deze afwijkende zone zit
-    if (problemStartTime == 0) problemStartTime = millis();
-
-    // Stuur PAS na 20 minuten een krachtig capaciteitsalarm met actie-instructie voor jou!
-    if (millis() - problemStartTime > 1200000) {
-      static unsigned long lastAlertTime = 0;
-      if ((millis() - lastAlertTime > 7200000 || lastAlertTime == 0) && ENABLE_TELEGRAM && isConnected) {
-        lastAlertTime = millis();
-        
-        String capaciteitsBericht = "🔥 *CAPACITEITSALARM DE KLEINE KAS:*\n" + moldReasonText + 
-                                    "\n\n⚙️ *Waarom:* Ventilatoren draaien op volle capaciteit, maar de woningbuffer kan de warmte/vochtbalans niet meer volledig corrigeren." +
-                                    "\n👤 *Wat JIJ moet doen:* Zet een raam in de woning open om de luchtbuffer te verversen met frisse, drogere buitenlucht!";
-        sendTelegramAlert(capaciteitsBericht);
-      }
-    }
   }
   else {
     statusLed.setColor(0, 0, 0); 
-    problemStartTime = 0; // Reset de timer direct zodra het klimaat weer stabiel is!
   }
-  // // LED Status & Langdurige Telegram Alarm Cooldown (Pas na 20 minuten aanhoudende overschrijding)
-  // static unsigned long problemStartTime = 0; // Hier gedefinieerd zodat de hele functie erbij kan!
-
-  // if (isClimateCrash || tempTooHigh) {
-  //   statusLed.setColor(255, 0, 0); 
-  //   problemStartTime = 0;
-  // } 
-  // else if (vpdTooDry || vpdTooWet || condensRisk) {
-  //   statusLed.setColor(255, 100, 0); 
-    
-  //   // Houd bij hoelang de kas al onafgebroken in deze afwijkende zone zit
-  //   if (problemStartTime == 0) problemStartTime = millis();
-
-  //   // Stuur PAS een langdurig alarm als het probleem al MINIMAAL 20 minuten duurt (1200000 ms)
-  //   if (millis() - problemStartTime > 1200000) {
-  //     static unsigned long lastAlertTime = 0;
-  //     if ((millis() - lastAlertTime > 7200000 || lastAlertTime == 0) && ENABLE_TELEGRAM && isConnected) {
-  //       lastAlertTime = millis();
-  //       sendTelegramAlert("🔥 *LANGDURIG ALARM DE KLEINE KAS:* " + moldReasonText + "\nSysteem probeert al langdurig te corrigeren, maar kan het klimaat onvoldoende stabiliseren.");
-  //     }
-  //   }
-  // }
-  // else {
-  //   statusLed.setColor(0, 0, 0); 
-  //   problemStartTime = 0; // Reset de timer direct zodra het klimaat weer stabiel is!
-  // }
-  // // LED Status & Langdurige Telegram Alarm Cooldown (2 uur)
-  // if (isClimateCrash || tempTooHigh) {
-  //   statusLed.setColor(255, 0, 0); 
-  // } 
-  // else if (vpdTooDry || vpdTooWet || condensRisk) {
-  //   statusLed.setColor(255, 100, 0); 
-  //   static unsigned long lastAlertTime = 0;
-  //   if ((millis() - lastAlertTime > 7200000 || lastAlertTime == 0) && ENABLE_TELEGRAM && isConnected) {
-  //     lastAlertTime = millis();
-  //     sendTelegramAlert("🔥 *LANGDURIG ALARM DE KLEINE KAS:* " + moldReasonText + "\nSysteem kan het klimaat onvoldoende stabiliseren.");
-  //   }
-  // }
-  // else {
-  //   statusLed.setColor(0, 0, 0); 
-  // }
 
   if (isClimateCrash) vpdStatusText = " `(🚨 NOODSTOP)`";
   else if (vpdTooWet) vpdStatusText = " `(⚠️ Te klam)`";
@@ -218,16 +139,13 @@ void evaluateClimateState(float tempC, float hum) {
   if (condensRisk) dpMarginStatusText = " `(⚠️ Risico)`";
   else dpMarginStatusText = " `(✅ Veilig)`";
 
-  // --- DOMEIN 2: WONING METINGEN & BEREKENINGEN ---
   if (!isnan(indoorSmoothedTemp) && !isnan(indoorSmoothedHum)) {
     indoorDewPoint = calcDewPoint(indoorSmoothedTemp, indoorSmoothedHum);
     indoorVpd = calcVPD(indoorSmoothedTemp, indoorSmoothedHum);
     indoorDpMargin = indoorSmoothedTemp - indoorDewPoint;
   }
 
-  // --- DOMEIN 3: BUITEN METINGEN & BEREKENINGEN ---
   if (!isnan(outdoorTemp) && !isnan(outdoorHumidity)) {
-    // BRON-CHECK: Voorkom wiskundige uitschieters bij wegvallen API/netwerk of 0% LV
     if (outdoorHumidity <= 0.0 || outdoorHumidity > 100.0 || outdoorTemp <= -900.0) {
       outdoorDewPoint = -999.0;
       outdoorVpd = -999.0;
@@ -239,13 +157,6 @@ void evaluateClimateState(float tempC, float hum) {
     }
   }
 }
-//   // --- DOMEIN 3: BUITEN METINGEN & BEREKENINGEN ---
-//   if (!isnan(outdoorTemp) && !isnan(outdoorHumidity)) {
-//     outdoorDewPoint = calcDewPoint(outdoorTemp, outdoorHumidity);
-//     outdoorVpd = calcVPD(outdoorTemp, outdoorHumidity);
-//     outdoorDpMargin = outdoorTemp - outdoorDewPoint; 
-//   }
-// }
 
 void checkClimateVelocity(float currentHum) {
   if (millis() - lastVelocityCheckTime >= 60000 || lastVelocityCheckTime == 0) {
@@ -263,40 +174,22 @@ void checkClimateVelocity(float currentHum) {
 
 bool homeVentActive = false;
 
-/**
- * @brief Berekent het ventilatie-advies voor de RUIMTE / WONING (voor de bewoner).
- * Evalueert fysieke vochtpotentie (dauwpunt) van de buitenlucht in plaats van blinde kap op %LV.
- */
 void updateHomeVentilationAdvice(float inTemp, float inHum, float outTemp, float outHum) {
   if (isnan(inHum) || isnan(outHum) || isnan(inTemp) || isnan(outTemp)) return;
 
-  // 1. Extreme veiligheidsgrenzen voor de woning (voorkom vorstschade of extreme hitte)
   bool tempSafeForHome = (outTemp > 1.0f && outTemp < 35.0f); 
-
-  // 2. Beoordeel absolute vocht-potentie op basis van Dauwpunt:
-  // Koudere buitenlucht (bijv. 7°C / 92% LV) heeft een erg LAGE dauwpuntwaarde (~5.7°C).
-  // Zodra die lucht de woning in stroomt en opwarmt naar 20°C, daalt de relatieve vochtigheid enorm!
   float homeOutdoorDewPoint = calcDewPoint(outTemp, outHum);
   float homeIndoorDewPoint  = calcDewPoint(inTemp, inHum);
 
-  // Buitenlucht is ontvochtigend als het buiten-dauwpunt LAGER is dan het binnen-dauwpunt
   bool outdoorCanDehumidifyHome = (homeOutdoorDewPoint < homeIndoorDewPoint);
-
-  // Woning heeft ventilatie nodig als de lucht te klam is (inHum > 55%) of muf/droog
   bool indoorNeedsVentilation = (inHum > 55.0f) || (indoorVpd > VPD_MAX_OPTIMAL) || (indoorVpd < VPD_MIN_OPTIMAL);
 
-  // Woning-ventilatie is actief als het nuttig is én buiten fysieke potentie heeft én temperatuur veilig is
   homeVentActive = (indoorNeedsVentilation && outdoorCanDehumidifyHome && tempSafeForHome);
 }
 
-/**
- * @brief Berekent het ventilator-advies voor de KAS.
- * Bepaalt of de kas gesloten blijft (Interne circulatie) of gekoeld/gecorrigeerd moet worden met Woninglucht.
- */
 void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp) {
   if (isnan(inTemp) || isnan(inHum)) return;
   
-  // Update eerst het advies voor het woningdomein
   updateHomeVentilationAdvice(inTemp, inHum, outTemp, outHum);
 
   if (isKasSleeping) {
@@ -317,50 +210,51 @@ void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTem
   bool isTooWarm    = (inTemp > GREENHOUSE_MAX_TEMP);
   bool isKritischHeet = (inTemp > GREENHOUSE_CRASH_TEMP); 
   bool isTooWet     = (kasVpd < VPD_MIN_OPTIMAL) || (inHum >= HUM_MOLD_THRESHOLD);
-  bool isTooDry     = (kasVpd > VPD_MAX_OPTIMAL);
+  bool isTooDry     = (kasVpd > VPD_MAX_OPTIMAL); 
   bool condensRisk  = (kasDpMargin < DP_MARGIN_MIN);
   
-  // Woninglucht is bruikbaar als de woning-VPD gunstiger is dan de kas-VPD
-  bool indoorCanHelpDehumidify = (!isnan(indoorVpd) && indoorVpd > kasVpd);
-  bool indoorCanHelpHumidify   = (!isnan(indoorVpd) && indoorVpd < kasVpd);
+  bool indoorCanHelpDehumidify = (!isnan(indoorVpd) && indoorVpd > kasVpd && indoorVpd < VPD_MAX_OPTIMAL);
+  bool indoorCanHelpHumidify   = (!isnan(indoorVpd) && indoorVpd < kasVpd && indoorVpd > VPD_MIN_OPTIMAL);
 
-  // 1. KRITIEKE TEMPERATUREN & NOODSTOFFEN (Prioriteit 1)
   if (isClimateCrash || isKritischHeet || isTooWarm) {
-    rawNewAdvice = GREENHOUSE_VENTILATE;
-    kasAdviceReason = "🌡️ Te warm (" + String(inTemp, 1) + "°C). Externe ventilatie actief met woninglucht.";
+    if (indoorCanHelpDehumidify || inTemp > (GREENHOUSE_MAX_TEMP + 1.0)) {
+      rawNewAdvice = GREENHOUSE_VENTILATE;
+      kasAdviceReason = "🌡️ Te warm (" + String(inTemp, 1) + "°C). Externe ventilatie actief met woninglucht.";
+    } else {
+      rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
+      kasAdviceReason = "🌡️ Te warm, maar woninglucht biedt geen verbetering. Interne circulatie aangehouden.";
+    }
   }
-  // 2. KAS TE KLAM / VOCHTIG (VPD te laag)
   else if (isTooWet || condensRisk) {
     if (indoorCanHelpDehumidify) {
       rawNewAdvice = GREENHOUSE_VENTILATE;
-      kasAdviceReason = "💧 Kas te klam; woninglucht inzetten voor ontvochtiging.";
+      kasAdviceReason = "💧 Kas te klam; woninglucht is gunstiger en wordt ingezet voor ontvochtiging.";
     } else {
       rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "🌧️ Kas te klam, maar woninglucht helpt niet. Kas blijft dicht (Interne circulatie).";
+      kasAdviceReason = "🌧️ Kas te klam, maar woninglucht helpt niet (of is te vochtig). Kas blijft dicht.";
     }
   }
-  // 3. KAS TE DROOG (VPD te hoog - Bijv. door lampwarmte)
   else if (isTooDry || lampsAreOn) {
-    if (indoorCanHelpHumidify) {
+    if (indoorCanHelpHumidify && kasVpd > (VPD_MAX_OPTIMAL + 0.1)) {
       rawNewAdvice = GREENHOUSE_VENTILATE;
       kasAdviceReason = lampsAreOn 
-        ? "💡 Lampen aan & kas te droog; woninglucht wordt ingezet om warmte/VPD te balanceren."
-        : "🔥 Kas te droog; woninglucht inzetten voor correctie.";
+        ? "💡 Lampen aan & kas te droog; woninglucht wordt ingezet om VPD te balanceren."
+        : "🔥 Kas te droog; woninglucht biedt vochtcorrectie.";
     } else {
       rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "🔥 Kas te droog, maar woninglucht helpt niet. Kas blijft dicht (Interne circulatie).";
+      kasAdviceReason = lampsAreOn 
+        ? "💡 Lampen aan & kas warm/droog; interne circulatie handhaaft het microklimaat."
+        : "🔥 Kas te droog, maar woninglucht helpt niet. Kas blijft dicht.";
     }
   }
-  // 4. ALLES OPTIMAAL
   else {
     rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
     kasAdviceReason = "🔄 Interne circulatie actief (standaard kas-balans).";
   }
 
-  // --- PERSISTENTIE & DEBOUNCE LOGICA ---
   static KasVentState candidateAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
   static int persistenceCounter = 0;
-  const int REQUIRED_PERSISTENT_CHECKS = 3;
+  const int REQUIRED_PERSISTENT_CHECKS = 5;
 
   if (rawNewAdvice != lastAppliedKasAdvice) {
     if (rawNewAdvice == candidateAdvice) {
@@ -453,20 +347,6 @@ void checkKasTrends(float currentTemp, float currentHum, float currentBaro) {
 }
 
 void checkIndoorTrends() {}
-
-void updateHighLow(float currentTemp) {
-  if (isnan(currentTemp)) return;
-  (void)currentTemp;
-}
-
-void updateHumidityHighLow(float kasHum, float indoorHum, float outHum) {
-  (void)kasHum; (void)indoorHum; (void)outHum;
-}
-
-void handleTestModeTimeout() {
-  if (!isTestModeActive) return;
-  if (millis() - testModeStartTime >= currentTestDuration) {
-    isTestModeActive = false;
-    logToSyslogAndSerial("[TEST] Testmodus automatisch afgelopen.");
-  }
-}
+void updateHighLow(float currentTemp) { if (isnan(currentTemp)) return; (void)currentTemp; }
+void updateHumidityHighLow(float kasHum, float indoorHum, float outHum) { (void)kasHum; (void)indoorHum; (void)outHum; }
+void handleTestModeTimeout() { if (!isTestModeActive) return; if (millis() - testModeStartTime >= currentTestDuration) { isTestModeActive = false; } }

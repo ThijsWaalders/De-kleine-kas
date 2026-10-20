@@ -1,6 +1,6 @@
 /**
  * @file ClimateLogic.h
- * @brief Headerbestand voor klimaatberekeningen, VPD, dauwpunt, schimmelrisico en sturingslogica (ESP32-S3).
+ * @brief Headerbestand v3.4.0 voor klimaatberekeningen, VPD, dauwpunt, schimmelrisico en centrale sturingslogica (ESP32-S3).
  */
 
 #ifndef CLIMATELOGIC_H
@@ -12,12 +12,8 @@
 // Externe objecten uit andere modules
 extern PicoSyslog::Logger syslog;
 extern SSD1306Wire display;
-// Nieuwe sensors 
 extern Adafruit_SHT31 sht31;
 extern Adafruit_BME280 bme;
-// OUDE SENSOREN
-// extern DHT dht; 
-// extern Adafruit_BMP085 bmp;
 extern BH1750 lightMeter;
 extern UniversalTelegramBot bot;
 
@@ -62,13 +58,9 @@ extern unsigned long lastBannerToggle;
 extern int bannerMode; 
 
 // ADVIES & BESTURING
-extern HouseVentState houseAdvice;
 extern KasVentState   kasAdvice;
-extern HouseVentState previousHouseAdvice;
 extern KasVentState   previousKasAdvice;
-
-extern String houseAdviceReason;
-extern String kasAdviceReason;
+extern String         kasAdviceReason;
 
 extern bool isSpaceHeatingNeeded;
 extern bool isHeatMatRecommended;
@@ -108,9 +100,9 @@ inline float calcVPD(float tempC, float hum) {
   return svp - avp;
 }
 
-// Functie prototypes
+// Functie prototypes (v3.4.0 centrale evaluatie met kas én woning parameters)
 bool isSystemReady();
-void evaluateClimateState(float tempC, float hum);
+void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float indoorHum);
 void checkClimateVelocity(float currentHum);
 void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp);
 void updateHeatingAdvice(float inTemp, float outTemp);
@@ -120,3 +112,126 @@ void checkIndoorTrends();
 void updateHighLow(float currentTemp);
 
 #endif // CLIMATELOGIC_H
+
+// /**
+//  * @file ClimateLogic.h
+//  * @brief Headerbestand voor klimaatberekeningen, VPD, dauwpunt, schimmelrisico en sturingslogica (ESP32-S3).
+//  */
+
+// #ifndef CLIMATELOGIC_H
+// #define CLIMATELOGIC_H
+
+// #include "Config.h"
+// #include "Logger.h"
+
+// // Externe objecten uit andere modules
+// extern PicoSyslog::Logger syslog;
+// extern SSD1306Wire display;
+// // Nieuwe sensors 
+// extern Adafruit_SHT31 sht31;
+// extern Adafruit_BME280 bme;
+// // OUDE SENSOREN
+// // extern DHT dht; 
+// // extern Adafruit_BMP085 bmp;
+// extern BH1750 lightMeter;
+// extern UniversalTelegramBot bot;
+
+// // KLIMAAT & TREND VARIABELEN
+// extern unsigned long lastTrendSample;
+// extern const char* baroTrendArrow; 
+// extern float dailyHighTempKas;
+// extern float dailyLowTempKas;
+// extern float dailyHighTempIndoor;
+// extern float dailyLowTempIndoor;
+// extern unsigned long lastHighLowReset;
+
+// extern float stableLuxBase;
+// extern bool lastLightStateOn;
+// extern unsigned long luxShiftStartTime;
+// extern bool isLuxShiftPending;
+// extern bool isDisplayOff;
+// extern unsigned long darkStartTime;
+
+// // Globale sensorwaarden en statussen
+// extern float kasDewPoint;
+// extern float kasVpd;
+// extern float currentPressure;
+// extern float currentLuxValue; 
+// extern bool moldRisk;
+// extern String moldReasonText;
+// extern String vpdStatusText;
+// extern String dpMarginStatusText;
+
+// extern bool previousMoldRisk; 
+// extern bool moldHistory[MOLD_SAMPLES];
+// extern int moldSampleIndex;
+// extern bool moldHistoryFilled;
+// extern unsigned long lastMoldSampleTime;
+
+// // PROACTIEVE TREND & SNELHEIDSBEWAKING (VELOCITY)
+// extern float previousHumForVelocity;
+// extern unsigned long lastVelocityCheckTime;
+// extern float humidityVelocity; 
+
+// extern unsigned long lastBannerToggle;
+// extern int bannerMode; 
+
+// // ADVIES & BESTURING
+// extern HouseVentState houseAdvice;
+// extern KasVentState   kasAdvice;
+// extern HouseVentState previousHouseAdvice;
+// extern KasVentState   previousKasAdvice;
+
+// extern String houseAdviceReason;
+// extern String kasAdviceReason;
+
+// extern bool isSpaceHeatingNeeded;
+// extern bool isHeatMatRecommended;
+
+// extern bool isTestModeActive;
+// extern unsigned long testModeStartTime;
+// extern unsigned long currentTestDuration; 
+// extern unsigned long heatMatLowStartTime;    
+// extern unsigned long heatMatHighStartTime;  
+
+// extern float pastBaro;
+// extern float pastHum;
+// extern float pastTemp;
+
+// // Vochtigheid & Min/Max
+// extern float minIndoorHum, maxIndoorHum;
+// extern float minKasHum, maxKasHum;
+// extern float minOutdoorHum, maxOutdoorHum;
+// extern float indoorHum;
+
+// void updateHumidityHighLow(float kasHum, float indoorHum, float outHum);
+
+// // Forward declaration voor alert functionaliteit
+// void sendTelegramAlert(String message);
+
+// inline float calcDewPoint(float tempC, float hum) {
+//   if (isnan(tempC) || isnan(hum) || hum <= 0) return -999.0;
+//   float a = 17.27, b = 237.7;
+//   float alpha = ((a * tempC) / (b + tempC)) + log(hum / 100.0);
+//   return (b * alpha) / (a - alpha);
+// }
+
+// inline float calcVPD(float tempC, float hum) {
+//   if (isnan(tempC) || isnan(hum)) return -999.0;
+//   float svp = 0.61078 * exp((17.27 * tempC) / (tempC + 237.3));
+//   float avp = svp * (hum / 100.0);
+//   return svp - avp;
+// }
+
+// // Functie prototypes
+// bool isSystemReady();
+// void evaluateClimateState(float tempC, float hum);
+// void checkClimateVelocity(float currentHum);
+// void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp);
+// void updateHeatingAdvice(float inTemp, float outTemp);
+// void updateMoldRiskHistory(bool currentRisk);
+// void checkKasTrends(float currentTemp, float currentHum, float currentBaro);
+// void checkIndoorTrends();
+// void updateHighLow(float currentTemp);
+
+// #endif // CLIMATELOGIC_H

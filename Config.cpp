@@ -171,22 +171,38 @@ float pidOutput = 0.0;
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
-
 // =========================================================================
 // 8. ADVIEZEN & BESTURING
 // =========================================================================
 HouseVentState houseAdvice = HOUSE_CLOSED;
-KasVentState kasAdvice = KAS_OFF;
+KasVentState kasAdvice = KAS_OFF; // <--- Met type KasVentState
 HouseVentState previousHouseAdvice = HOUSE_CLOSED;
 KasVentState previousKasAdvice = KAS_OFF;
 
 String houseAdviceReason = "Klimaat in woning is stabiel.";
-String kasAdviceReason = "Klimaat in de kas is in balans.";
-
-unsigned long lastMqttUpdate = 0;
-float previousHumForVelocity = -999.0;
+String kasAdviceReason = "Klimaat in de kas is in balans."; 
+bool isClimateCrash = false;
 unsigned long lastVelocityCheckTime = 0;
+float previousHumForVelocity = -999.0;
 float humidityVelocity = 0.0;
+
+// // =========================================================================
+// // 8. ADVIEZEN & BESTURING
+// // =========================================================================
+// HouseVentState houseAdvice = HOUSE_CLOSED;
+// kasAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
+// kasAdviceReason = "🔄 Interne circulatie actief...";
+// // KasVentState kasAdvice = KAS_OFF;
+// // String houseAdviceReason = "Klimaat in woning is stabiel.";
+// HouseVentState previousHouseAdvice = HOUSE_CLOSED;
+// KasVentState previousKasAdvice = KAS_OFF;
+
+// String kasAdviceReason = "Klimaat in de kas is in balans.";
+
+// unsigned long lastMqttUpdate = 0;
+// float previousHumForVelocity = -999.0;
+// unsigned long lastVelocityCheckTime = 0;
+// float humidityVelocity = 0.0;
 
 
 // =========================================================================

@@ -25,7 +25,7 @@
 #include <Preferences.h>      // Slaapstand (isKasSleeping) Opslaan in NVS (Flash-geheugen)
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.3.1"
+#define FIRMWARE_VERSION "v3.4.2"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 // SHT31 sensor check
@@ -71,10 +71,10 @@ const float HEAT_MAT_TEMP_LOW               = 16.0;
 const float HEAT_MAT_TEMP_HIGH              = 20.0;  
 
 // --- 1.5 Sensor Correctie Offsets ---
-const float KAS_TEMP_OFFSET                 = -0.6; // -0.9; // Kalibratie offset kas SHT31 temperatuur
+const float KAS_TEMP_OFFSET                 = -0.5; // -0.6; // -0.9; // Kalibratie offset kas SHT31 temperatuur
 const float INDOOR_TEMP_OFFSET              = -2.0; // -2.1; // -2.3; // -2.2  // Kalibratie offset woning BME280 temperatuur
 
-const float KAS_HUM_OFFSET                  = -0.2; // -0.4; // Kalibratie offset kas SHT31 luchtvochtigheid
+const float KAS_HUM_OFFSET                  = -1.8; //-0.2; // -0.4; // Kalibratie offset kas SHT31 luchtvochtigheid
 const float INDOOR_HUM_OFFSET               = +6.8; // +7.4; // +8.3; // +6.9; // Kalibratie offset woning BME280 luchtvochtigheid
 
 const float PRESSURE_OFFSET                 = -2.2; // -2.2  // Kalibratie offset luchtdruk (BME280)

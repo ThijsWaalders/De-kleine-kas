@@ -227,7 +227,8 @@ void loop() {
         dpMarginStatusText = " `(⏳ Kalibreren)`";
       } else {
         if (!isTestModeActive) {
-          evaluateClimateState(kasSmoothedTemp, kasSmoothedHum);
+          evaluateClimateState(kasSmoothedTemp, kasSmoothedHum, indoorSmoothedTemp, indoorSmoothedHum);
+          // evaluateClimateState(kasSmoothedTemp, kasSmoothedHum);
           updateMoldRiskHistory(moldRisk);
           updateHeatingAdvice(kasSmoothedTemp, outdoorTemp);
         }
