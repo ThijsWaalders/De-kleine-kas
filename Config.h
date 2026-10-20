@@ -64,7 +64,7 @@ const int INT_FAN_MIN_PWM                   = 110; //65;
 const float GREENHOUSE_MAX_TEMP             = 26.0;  
 const float GREENHOUSE_CRASH_TEMP           = 28.0;   
 const float OUTDOOR_MAX_HUMIDITY_FOR_VENT   = 85.0;  
-const float HUM_MOLD_THRESHOLD              = 75.0;  
+const float HUM_MOLD_THRESHOLD              = 70.0; //75.0;  
 const float DP_MARGIN_MIN                   = 2.0;   
 
 const float HEAT_MAT_TEMP_LOW               = 16.0;  
