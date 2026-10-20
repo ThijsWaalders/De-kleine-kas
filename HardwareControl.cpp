@@ -396,28 +396,49 @@ void updateFanSpeeds(float currentVpd) {
     targetExt1Speed = 0;
     targetExt2Speed = 0;
 
-    // Dynamische sturing voor de interne ventilator tijdens gesloten stand:
+    // DYNAMISCHE INTERNE FAN STURING MET HARDE ONDERGRENS
     float vpdError = fabs(currentVpd - pidSetPointVPD);
 
-    // Als de lampen aan staan of de VPD afwijkt van het setpoint (0.70 kPa)
     if (lampsAreOn || vpdError > TEMP_HYSTERESIS_THRESHOLD) {
-      // Schaal traploos op van INT_FAN_BASE_PWM naar FAN_MAX_PWM op basis van de afwijking
       int dynamicBoost = map((int)(vpdError * 100.0f), 0, 30, 0, (FAN_MAX_PWM - INT_FAN_BASE_PWM));
       targetIntSpeed = constrain(INT_FAN_BASE_PWM + dynamicBoost, INT_FAN_BASE_PWM, FAN_MAX_PWM);
     } else {
-      targetIntSpeed = INT_FAN_BASE_PWM;
+      // Zelfs in rust / standaard circulatie Altijd minimaal draaien op INT_FAN_MIN_PWM!
+      targetIntSpeed = INT_FAN_MIN_PWM;
     }
   }
-  // else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
-  //   targetIntSpeed  = INT_FAN_BASE_PWM;
-  //   targetExt1Speed = 0;
-  //   targetExt2Speed = 0;
-  // }
   else {
-    targetIntSpeed  = 0;
+    // Als de kas in een andere lege/off status staat, ook dan minimaal de basisbescherming aanhouden
+    targetIntSpeed = INT_FAN_MIN_PWM;
     targetExt1Speed = 0;
     targetExt2Speed = 0;
   }
+  // else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+  //   targetExt1Speed = 0;
+  //   targetExt2Speed = 0;
+
+  //   // Dynamische sturing voor de interne ventilator tijdens gesloten stand:
+  //   float vpdError = fabs(currentVpd - pidSetPointVPD);
+
+  //   // Als de lampen aan staan of de VPD afwijkt van het setpoint (0.70 kPa)
+  //   if (lampsAreOn || vpdError > TEMP_HYSTERESIS_THRESHOLD) {
+  //     // Schaal traploos op van INT_FAN_BASE_PWM naar FAN_MAX_PWM op basis van de afwijking
+  //     int dynamicBoost = map((int)(vpdError * 100.0f), 0, 30, 0, (FAN_MAX_PWM - INT_FAN_BASE_PWM));
+  //     targetIntSpeed = constrain(INT_FAN_BASE_PWM + dynamicBoost, INT_FAN_BASE_PWM, FAN_MAX_PWM);
+  //   } else {
+  //     targetIntSpeed = INT_FAN_BASE_PWM;
+  //   }
+  // }
+  // // else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+  // //   targetIntSpeed  = INT_FAN_BASE_PWM;
+  // //   targetExt1Speed = 0;
+  // //   targetExt2Speed = 0;
+  // // }
+  // else {
+  //   targetIntSpeed  = 0;
+  //   targetExt1Speed = 0;
+  //   targetExt2Speed = 0;
+  // }
 
   // --- HARDWARE KEIHARDE FAILSAFE ---
   if (targetExt1Speed > 0 || targetExt2Speed > 0 || kasAdvice == GREENHOUSE_VENTILATE) {
