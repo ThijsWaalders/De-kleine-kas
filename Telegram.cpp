@@ -174,10 +174,10 @@ String buildHelpMenu() {
          "• Status (/st) - Bekijk direct alle sensorwaarden\n"
          "• Minmax (/mm) - Min/max dagtemperaturen\n\n"
          
-         "• Test Sweep (/tfs) - Ramp alle 3 fans (MIN ↔ MAX) (5 min)\n"
-         "• Test Low RPM (/tfl) - Alle 3 fans 30s op MIN-PWM\n"
-         "• Test High RPM (/tfh) - Alle 3 fans 30s op MAX-PWM\n"
-         "• Test Fan Vent (/tfv) - intFan uit, extFans MAX-PWM (30s)\n\n"
+         "• Test Sweep (/tfs) - Sweep alle fans (MIN ↔ MAX)\n"
+         "• Test Low RPM (/tfl) - Alle 3 fans op MIN-PWM\n"
+         "• Test High RPM (/tfh) - Alle 3 fans op MAX-PWM\n"
+         "• Test Fan Vent (/tfv) - IntFan uit, extFans MAX-PWM\n\n"
          
          "• Test Uitdroging (/tu) - Simuleer uitdrogingsrisico\n"
          "• Test Klam (/tk) - Simuleer klamme kas / schimmelrisico\n"
@@ -185,6 +185,7 @@ String buildHelpMenu() {
          "• Test Schimmel (/ts) - Schimmeltoggle (10 min)\n"
          "• Test Mat (/tm) - Test warmtemat (15 sec)\n"
          "• Test Chip Temp (/tc) - Test chip temp oververhitting\n"
+         "• Kalibratiemodus (/cal) - Fans off, handmatige SHT31 zelf kalibratie\n"
          "• Fan Alarm (/fa) - Fan alarmering aan/uit\n\n"
          
          "• Netwerkinfo (/ni) - Toon IP, RSSI en netwerkstatus\n"
@@ -192,7 +193,6 @@ String buildHelpMenu() {
          "• Flush (/fl) - Wis Telegram wachtrij\n"
          "• Start AP/OTA (/ota) - Start Access Point voor OTA\n"
          "• Kas-slaap (/sl) - Zet kas op ruststand\n"
-         "• Kalibratiemodus (/cal) - Fans off, handmatige SHT31 zelf kalibratie\n"
          "• Reboot (/rb) - Herstart het systeem\n"
          "• Help (/h) - Dit menu\n";
 }

@@ -135,20 +135,30 @@ void evaluateKasVentilationDecision(float inTemp, float inHum, float inDp, float
       kasAdviceReason = "🌧️ Kas te klam, maar woninglucht helpt niet. Kas blijft dicht op interne circulatie.";
     }
   }
-  // --- FASE 4: UITDROGINGSRISICO / LAMPEN AAN (TE DROOG) ---
-  else if (isTooDry || lampsAreOn) {
-    if (indoorCanHelpHumidify) {
+  // --- FASE 4: UITDROGINGSRISICO / LAMPEN AAN ---
+  else if (isTooDry) {
+    if (indoorCanHelpHumidify && (kasVpd - VPD_MAX_OPTIMAL > 0.05f)) {
       rawDecision = GREENHOUSE_VENTILATE;
-      kasAdviceReason = lampsAreOn 
-        ? "💡 Lampen aan & kas te droog; woninglucht wordt direct ingezet om vocht toe te voegen."
-        : "🔥 Kas te droog; woninglucht biedt direct vochtcorrectie.";
+      kasAdviceReason = "🔥 Kas te droog; woninglucht biedt gecontroleerde vochtcorrectie.";
     } else {
       rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = lampsAreOn 
-        ? "💡 Lampen aan & kas te droog, maar woninglucht helpt niet. Interne circulatie handhaaft het microklimaat."
-        : "🔥 Kas te droog, maar woninglucht helpt niet. Kas blijft dicht op interne circulatie.";
+      kasAdviceReason = "💡 Lampen aan / lichte droogte; interne circulatie houdt kiemgroenten veilig.";
     }
   }
+  // // --- FASE 4: UITDROGINGSRISICO / LAMPEN AAN (TE DROOG) ---
+  // else if (isTooDry || lampsAreOn) {
+  //   if (indoorCanHelpHumidify) {
+  //     rawDecision = GREENHOUSE_VENTILATE;
+  //     kasAdviceReason = lampsAreOn 
+  //       ? "💡 Lampen aan & kas te droog; woninglucht wordt direct ingezet om vocht toe te voegen."
+  //       : "🔥 Kas te droog; woninglucht biedt direct vochtcorrectie.";
+  //   } else {
+  //     rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
+  //     kasAdviceReason = lampsAreOn 
+  //       ? "💡 Lampen aan & kas te droog, maar woninglucht helpt niet. Interne circulatie handhaaft het microklimaat."
+  //       : "🔥 Kas te droog, maar woninglucht helpt niet. Kas blijft dicht op interne circulatie.";
+  //   }
+  // }
   // --- FASE 5: NORMAAL OPTIMAAL KLIMAAT ---
   else {
     rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;

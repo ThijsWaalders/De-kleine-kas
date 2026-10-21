@@ -228,24 +228,45 @@ void updateFanSpeeds(float currentVpd) {
   lastPidTime = currentMillis;
   yield(); 
 
-  // --- PID-REGELING BEREKENEN ---
-  float error = pidSetPointVPD - currentVpd; 
-  float absError = abs(error); // De grootte van de afwijking, ongeacht of te nat of te droog
+  // --- ECHTE VLOEIENDE PID-REGELING (Met richtingsgevoeligheid en anti-windup) ---
+  float error = pidSetPointVPD - currentVpd; // Kan positief (te nat/koud) of negatief (te droog) zijn
   
-  pError = absError; // Gebruik de absolute fout voor de regeling
+  // Proportioneel deel
+  float proportional = kp * error;
+
+  // Integraal deel met symmetrische anti-windup
+  iError += error * dt;
+  iError = constrain(iError, -3.0, 3.0); // Voorkom windup in beide richtingen
+  float integral = ki * iError;
+
+  // Derivatie deel (snelheid van verandering)
+  float derivative = (dt > 0) ? (error - lastError) / dt : 0;
+  lastError = error;
+
+  // Totale PID output berekenen
+  pidOutput = proportional + integral + derivative;
   
-  if (absError > 0.05) {
-    iError += absError * dt * 2.0; 
-  } else {
-    iError -= dt * 0.2; 
-  }
-  iError = constrain(iError, 0.0, 10.0);
-
-  dError = (dt > 0) ? (absError - lastError) / dt : 0;
-  lastError = absError;
-
-  pidOutput = ((kp * 1.8) * pError) + (ki * iError) + ((kd * 1.5) * dError);
+  // Schaal de output netjes tussen 0.0 (geen correctie) en 1.0 (maximale correctie)
   pidOutput = constrain(pidOutput, 0.0, 1.0);
+
+  // // --- PID-REGELING BEREKENEN ---
+  // float error = pidSetPointVPD - currentVpd; 
+  // float absError = abs(error); // De grootte van de afwijking, ongeacht of te nat of te droog
+  
+  // pError = absError; // Gebruik de absolute fout voor de regeling
+  
+  // if (absError > 0.05) {
+  //   iError += absError * dt * 2.0; 
+  // } else {
+  //   iError -= dt * 0.2; 
+  // }
+  // iError = constrain(iError, 0.0, 10.0);
+
+  // dError = (dt > 0) ? (absError - lastError) / dt : 0;
+  // lastError = absError;
+
+  // pidOutput = ((kp * 1.8) * pError) + (ki * iError) + ((kd * 1.5) * dError);
+  // pidOutput = constrain(pidOutput, 0.0, 1.0);
 
   // --- DOEL-SNELHEDEN BEREKENEN OP BASIS KAS ADVIES ---
   int targetIntSpeed  = 0;
@@ -255,22 +276,67 @@ void updateFanSpeeds(float currentVpd) {
   if (kasAdvice == GREENHOUSE_VENTILATE) {
     int extPwm;
     
-    // --- RODE ZONE / KRITIEK KLIMAAT DIRECT VOL GAS (Zowel te nat als te droog!) ---
-    if (absError > 0.25 || moldRisk) {
-      extPwm = FAN_MAX_PWM; // Direct 255 (100%)!
+    // Alleen bij een echte klimaatcrash of extreme noodtoestand naar volle bak (255)
+    if (isClimateCrash || abs(error) > 0.4) {
+      extPwm = FAN_MAX_PWM; 
     } 
     else {
-      // Normale/oranje zone: opschalen via PID vanaf EXT_FAN_MIN_PWM
-      int pwmSpan = FAN_MAX_PWM - EXT_FAN_MIN_PWM;
+      // Normale/oranje zone: laat de PID netjes schalen tussen EXT_FAN_MIN_PWM (65) 
+      // en ~50-60% PWM (bijv. 140) zodat je kiemgroenten niet worden weggeblazen!
+      int maxNormalPwm = 140; // Ongeveer 55% fanspeed voor normale correcties
+      int pwmSpan = maxNormalPwm - EXT_FAN_MIN_PWM;
+      
+      // Als pidOutput 0.5 is, draait ie op ~50% van die span. Als pidOutput 1.0 is, op ~55%.
       extPwm = EXT_FAN_MIN_PWM + (int)(pidOutput * (float)pwmSpan); 
     }
 
-    extPwm = constrain(extPwm, 0, 255);
+    extPwm = constrain(extPwm, EXT_FAN_MIN_PWM, 255);
 
     targetExt1Speed = extPwm;
     targetExt2Speed = extPwm; 
     targetIntSpeed  = 0;      
   }
+  // if (kasAdvice == GREENHOUSE_VENTILATE) {
+  //   int extPwm;
+    
+  //   // Alleen bij een echte klimaatcrash of schimmelnoodtoestand vol gas:
+  //   if (isClimateCrash || moldRisk) {
+  //     extPwm = FAN_MAX_PWM; 
+  //   } 
+  //   else {
+  //     // Laat de PID-regeling netjes geleidelijk schalen tussen EXT_FAN_MIN_PWM en FAN_MAX_PWM!
+  //     int pwmSpan = FAN_MAX_PWM - EXT_FAN_MIN_PWM;
+  //     extPwm = EXT_FAN_MIN_PWM + (int)(pidOutput * (float)pwmSpan); 
+  //   }
+
+  //   extPwm = constrain(extPwm, 0, 255);
+
+  //   targetExt1Speed = extPwm;
+  //   targetExt2Speed = extPwm; 
+  //   targetIntSpeed  = 0;      
+  // } 
+
+
+
+  // if (kasAdvice == GREENHOUSE_VENTILATE) {
+  //   int extPwm;
+    
+  //   // --- RODE ZONE / KRITIEK KLIMAAT DIRECT VOL GAS (Zowel te nat als te droog!) ---
+  //   if (absError > 0.25 || moldRisk) {
+  //     extPwm = FAN_MAX_PWM; // Direct 255 (100%)!
+  //   } 
+  //   else {
+  //     // Normale/oranje zone: opschalen via PID vanaf EXT_FAN_MIN_PWM
+  //     int pwmSpan = FAN_MAX_PWM - EXT_FAN_MIN_PWM;
+  //     extPwm = EXT_FAN_MIN_PWM + (int)(pidOutput * (float)pwmSpan); 
+  //   }
+
+  //   extPwm = constrain(extPwm, 0, 255);
+
+  //   targetExt1Speed = extPwm;
+  //   targetExt2Speed = extPwm; 
+  //   targetIntSpeed  = 0;      
+  // }
   else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
     // Alleen binnen circuleren -> Externe fans blijven keurig op 0!
     targetExt1Speed = 0;
