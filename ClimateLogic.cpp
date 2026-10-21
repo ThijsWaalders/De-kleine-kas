@@ -1,6 +1,6 @@
 /**
  * @file ClimateLogic.cpp
- * @brief Zuivere klimaatlogica en advies-evaluatie (stabiele basis).
+ * @brief Zuivere klimaatlogica, fysische formules (VPD/Dauwpunt) en status-evaluatie.
  */
 
 #include "Config.h"
@@ -13,29 +13,11 @@
 extern LedManager statusLed;
 extern bool isClimateCrash; 
 
-static unsigned long lastAlertTime = millis(); 
-
 bool isSystemReady() {
   if (currentLuxValue > 1.0) {
     return (millis() >= 5000); 
   }
   return (millis() >= SYSTEM_STARTUP_DELAY);
-}
-
-unsigned long fanStateChangeTime = 0;
-KasVentState lastAppliedKasAdvice = KAS_OFF;
-
-KasVentState applyAntiHuntFilter(KasVentState rawNewAdvice) {
-  unsigned long currentMillis = millis();
-  if (rawNewAdvice != lastAppliedKasAdvice) {
-    if (currentMillis - fanStateChangeTime < MIN_FAN_RUN_TIME) {
-      return lastAppliedKasAdvice; 
-    }
-    lastAppliedKasAdvice = rawNewAdvice;
-    fanStateChangeTime = currentMillis;
-    logToSerial("[ANTI-HUNT] Nieuwe ventilatorstatus geaccepteerd.");
-  }
-  return lastAppliedKasAdvice;
 }
 
 void checkClimateCrash(float inTemp) {
@@ -65,12 +47,9 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
     return;
   }
 
-  float tempC = kasTemp;
-  float hum = kasHum;
-
-  kasSmoothedTemp = tempC;
-  kasSmoothedHum  = hum;
-  displayedTemp   = tempC; 
+  kasSmoothedTemp = kasTemp;
+  kasSmoothedHum  = kasHum;
+  displayedTemp   = kasTemp; 
 
   kasDewPoint = calcDewPoint(kasSmoothedTemp, kasSmoothedHum);
   kasVpd = calcVPD(kasSmoothedTemp, kasSmoothedHum);
@@ -120,7 +99,7 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
     moldReasonText = "✅ Ideaal kiemklimaat";
   }
 
-  // LED-indicatie blijft actief voor lokale status, maar het mens-alarmeergedrag via Telegram is hierbij volledig verwijderd.
+  // LED indicatie voor de kas
   if (isClimateCrash || tempTooHigh) {
     statusLed.setColor(255, 0, 0); 
   } 
@@ -155,126 +134,6 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
       outdoorVpd = calcVPD(outdoorTemp, outdoorHumidity);
       outdoorDpMargin = outdoorTemp - outdoorDewPoint; 
     }
-  }
-}
-
-void checkClimateVelocity(float currentHum) {
-  if (millis() - lastVelocityCheckTime >= 60000 || lastVelocityCheckTime == 0) {
-    if (previousHumForVelocity != -999.0) {
-      humidityVelocity = currentHum - previousHumForVelocity; 
-      if (humidityVelocity >= 3.0 && currentHum > 60.0) {
-        logToSyslogAndSerialPrintf("[ALERT] Snelle vochtigheidstoename in kas: +%.1f%%/min", humidityVelocity);
-        kasAdvice = GREENHOUSE_CIRCULATE_INTERNAL; 
-      }
-    }
-    previousHumForVelocity = currentHum;
-    lastVelocityCheckTime = millis();
-  }
-}
-
-bool homeVentActive = false;
-
-void updateHomeVentilationAdvice(float inTemp, float inHum, float outTemp, float outHum) {
-  if (isnan(inHum) || isnan(outHum) || isnan(inTemp) || isnan(outTemp)) return;
-
-  bool tempSafeForHome = (outTemp > 1.0f && outTemp < 35.0f); 
-  float homeOutdoorDewPoint = calcDewPoint(outTemp, outHum);
-  float homeIndoorDewPoint  = calcDewPoint(inTemp, inHum);
-
-  bool outdoorCanDehumidifyHome = (homeOutdoorDewPoint < homeIndoorDewPoint);
-  bool indoorNeedsVentilation = (inHum > 55.0f) || (indoorVpd > VPD_MAX_OPTIMAL) || (indoorVpd < VPD_MIN_OPTIMAL);
-
-  homeVentActive = (indoorNeedsVentilation && outdoorCanDehumidifyHome && tempSafeForHome);
-}
-
-void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp) {
-  if (isnan(inTemp) || isnan(inHum)) return;
-  
-  updateHomeVentilationAdvice(inTemp, inHum, outTemp, outHum);
-
-  if (isKasSleeping) {
-    kasAdvice = KAS_OFF;
-    kasAdviceReason = "💤 De kleine kas is in slaapstand. Klimaatregeling gepauzeerd.";
-    return;
-  }
-  
-  if (!isSystemReady()) {
-    kasAdvice = KAS_OFF;
-    kasAdviceReason = "Systeem is aan het opstarten...";
-    return;
-  }
-
-  KasVentState rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-  kasAdviceReason = "🔄 Interne circulatie actief (standaard kas-balans).";
-
-  bool isTooWarm    = (inTemp > GREENHOUSE_MAX_TEMP);
-  bool isKritischHeet = (inTemp > GREENHOUSE_CRASH_TEMP); 
-  bool isTooWet     = (kasVpd < VPD_MIN_OPTIMAL) || (inHum >= HUM_MOLD_THRESHOLD);
-  bool isTooDry     = (kasVpd > VPD_MAX_OPTIMAL); 
-  bool condensRisk  = (kasDpMargin < DP_MARGIN_MIN);
-  
-  bool indoorCanHelpDehumidify = (!isnan(indoorVpd) && indoorVpd > kasVpd && indoorVpd < VPD_MAX_OPTIMAL);
-  bool indoorCanHelpHumidify   = (!isnan(indoorVpd) && indoorVpd < kasVpd && indoorVpd > VPD_MIN_OPTIMAL);
-
-  if (isClimateCrash || isKritischHeet || isTooWarm) {
-    if (indoorCanHelpDehumidify || inTemp > (GREENHOUSE_MAX_TEMP + 1.0)) {
-      rawNewAdvice = GREENHOUSE_VENTILATE;
-      kasAdviceReason = "🌡️ Te warm (" + String(inTemp, 1) + "°C). Externe ventilatie actief met woninglucht.";
-    } else {
-      rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "🌡️ Te warm, maar woninglucht biedt geen verbetering. Interne circulatie aangehouden.";
-    }
-  }
-  else if (isTooWet || condensRisk) {
-    if (indoorCanHelpDehumidify) {
-      rawNewAdvice = GREENHOUSE_VENTILATE;
-      kasAdviceReason = "💧 Kas te klam; woninglucht is gunstiger en wordt ingezet voor ontvochtiging.";
-    } else {
-      rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "🌧️ Kas te klam, maar woninglucht helpt niet (of is te vochtig). Kas blijft dicht.";
-    }
-  }
-  else if (isTooDry || lampsAreOn) {
-    if (indoorCanHelpHumidify && kasVpd > (VPD_MAX_OPTIMAL + 0.1)) {
-      rawNewAdvice = GREENHOUSE_VENTILATE;
-      kasAdviceReason = lampsAreOn 
-        ? "💡 Lampen aan & kas te droog; woninglucht wordt ingezet om VPD te balanceren."
-        : "🔥 Kas te droog; woninglucht biedt vochtcorrectie.";
-    } else {
-      rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = lampsAreOn 
-        ? "💡 Lampen aan & kas warm/droog; interne circulatie handhaaft het microklimaat."
-        : "🔥 Kas te droog, maar woninglucht helpt niet. Kas blijft dicht.";
-    }
-  }
-  else {
-    rawNewAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-    kasAdviceReason = "🔄 Interne circulatie actief (standaard kas-balans).";
-  }
-
-  static KasVentState candidateAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-  static int persistenceCounter = 0;
-  const int REQUIRED_PERSISTENT_CHECKS = 5;
-
-  if (rawNewAdvice != lastAppliedKasAdvice) {
-    if (rawNewAdvice == candidateAdvice) {
-      persistenceCounter++;
-      if (persistenceCounter >= REQUIRED_PERSISTENT_CHECKS) {
-        kasAdvice = applyAntiHuntFilter(rawNewAdvice);
-        persistenceCounter = 0;
-      }
-    } else {
-      candidateAdvice = rawNewAdvice;
-      persistenceCounter = 1;
-    }
-  } else {
-    persistenceCounter = 0;
-    kasAdvice = applyAntiHuntFilter(rawNewAdvice);
-  }
-
-  if (kasAdvice != previousKasAdvice) {
-    previousKasAdvice = kasAdvice;
-    logToSyslogAndSerialPrintf("[ADVICE] Nieuw advies: %s", kasAdviceReason.c_str());
   }
 }
 
@@ -314,6 +173,20 @@ void updateHeatingAdvice(float inTemp, float outTemp) {
   }
 }
 
+void checkClimateVelocity(float currentHum) {
+  if (millis() - lastVelocityCheckTime >= 60000 || lastVelocityCheckTime == 0) {
+    if (previousHumForVelocity != -999.0) {
+      humidityVelocity = currentHum - previousHumForVelocity; 
+      if (humidityVelocity >= 3.0 && currentHum > 60.0) {
+        logToSyslogAndSerialPrintf("[ALERT] Snelle vochtigheidstoename in kas: +%.1f%%/min", humidityVelocity);
+        kasAdvice = GREENHOUSE_CIRCULATE_INTERNAL; 
+      }
+    }
+    previousHumForVelocity = currentHum;
+    lastVelocityCheckTime = millis();
+  }
+}
+
 void updateMoldRiskHistory(bool currentRisk) {
   if (millis() - lastMoldSampleTime >= 60000 || lastMoldSampleTime == 0) {
     lastMoldSampleTime = millis();
@@ -346,7 +219,11 @@ void checkKasTrends(float currentTemp, float currentHum, float currentBaro) {
   }
 }
 
-void checkIndoorTrends() {}
-void updateHighLow(float currentTemp) { if (isnan(currentTemp)) return; (void)currentTemp; }
-void updateHumidityHighLow(float kasHum, float indoorHum, float outHum) { (void)kasHum; (void)indoorHum; (void)outHum; }
-void handleTestModeTimeout() { if (!isTestModeActive) return; if (millis() - testModeStartTime >= currentTestDuration) { isTestModeActive = false; } }
+void updateHighLow(float currentTemp) { 
+  if (isnan(currentTemp)) return; 
+  (void)currentTemp; 
+}
+
+void updateHumidityHighLow(float kasHum, float indoorHum, float outHum) { 
+  (void)kasHum; (void)indoorHum; (void)outHum; 
+}

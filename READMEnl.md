@@ -2,10 +2,10 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [🇳🇱 Nederlands](#-nederlands)
-    - [Firmware Versie`v3.3.0`](#firmware-versiev330)
-    - [Netwerk \& OTA Stabiliteit (De Grote Doorbraak)](#netwerk--ota-stabiliteit-de-grote-doorbraak)
-    - [Telegram Bot \& Commando Suite (v3.3.0)](#telegram-bot--commando-suite-v330)
-    - [Systeem \& Versiebeheer](#systeem--versiebeheer)
+    - [Wat is er nieuw in De kleine kas v3.4.3](#wat-is-er-nieuw-in-de-kleine-kas-v343)
+      - [🌀 Fan-architectuur \& Testmodi (Geoptimaliseerd)](#-fan-architectuur--testmodi-geoptimaliseerd)
+      - [📊 Tacho \& RPM Kalibratie](#-tacho--rpm-kalibratie)
+      - [🛠️ Systeem \& Observability](#️-systeem--observability)
   - [Handleiding \& Documentatie](#handleiding--documentatie)
     - [1. Hardware-architectuur, Pinout \& Systeemopzet](#1-hardware-architectuur-pinout--systeemopzet)
     - [2. Teeltlogica Kiemgroenten: Waarom VPD, Drempels \& Buffers Cruciaal Zijn](#2-teeltlogica-kiemgroenten-waarom-vpd-drempels--buffers-cruciaal-zijn)
@@ -19,7 +19,25 @@
 
 ## 🇳🇱 Nederlands
 
-### Firmware Versie`v3.3.0`
+### Wat is er nieuw in De kleine kas v3.4.3
+
+#### 🌀 Fan-architectuur & Testmodi (Geoptimaliseerd)
+
+- **Pure Direct Pin Writes:** Volledig afgestapt van kunstmatige ramping of vertragende limits; pinnen worden direct en bliksemsnel aangestuurd via `ledcWrite` op de ESP32-S3 (Core v3.x).
+- **Slimme Toggle-testmodi:** Testcommando's (`/tfl`, `/tfh`, `/tfs`, `/tfv`) werken nu als een directe aan/uit-toggle. Geen automatische timeouts van 30 seconden meer; stuur het commando nogmaals om de test per direct te beëindigen en de automatische regeling te hervatten.
+- **Trapvormige Fan Sweep (`/tfs`):** De sweep-test is opgedeeld in vaste stappen van 30 seconden per niveau (Min $\rightarrow$ Midden $\rightarrow$ Max $\rightarrow$ Midden). Hierdoor sluit de cyclus naadloos aan op het telemetrie-intervallen van Grafana en zie je een strakke, heldere golfbeweging in je grafieken.
+
+#### 📊 Tacho & RPM Kalibratie
+
+- **Zuivere Externe Fan Mapping:** Elektrische 'chopping'-ruis op lage PWM-spanningen (zoals 25% / PWM 65) die tacho-metingen deed hangen op valse 100 RPM is opgelost. De externe fans mappen nu zuiver en lineair tussen de hardware-specificatie van **300 RPM (bij PWM 65)** en **1500 RPM (bij PWM 255)**.
+- **Interne Fan Isolatie:** De interne circulatieventilator is volledig ontkoppeld van de externe ventilatortests en behoudt zijn eigen betrouwbare pulstelling en basisgedrag.
+
+#### 🛠️ Systeem & Observability
+
+- **MQTT & Grafana Synchronisatie:** Alle handmatige overrules, testvlaggen en gekalibreerde toerentalwaarden worden direct doorgegeven aan de broker voor real-time inzicht in Grafana.
+- **Klaar voor uitbreiding:** Voorbereid op de integratie van de twee extra DS18B20-sensoren voor substraat- en traytemperatuurmetingen.
+- 
+<!-- ### Firmware Versie`v3.3.0`
 
 **Target Hardware:** ESP32-S3-ZERO-N8R8-M
 
@@ -51,7 +69,7 @@
 
 ### Systeem & Versiebeheer
 
-- **Versie en Build Timestamps**: Firmware-versie definitief vastgezet op v3.3.0, gekoppeld aan automatische build timestamps (`__DATE__` `__TIME__`) die netjes via netwerk info logs en opstartmeldingen (`/ni`) worden uitgelezen.
+- **Versie en Build Timestamps**: Firmware-versie definitief vastgezet op v3.3.0, gekoppeld aan automatische build timestamps (`__DATE__` `__TIME__`) die netjes via netwerk info logs en opstartmeldingen (`/ni`) worden uitgelezen. -->
 
 ## Handleiding & Documentatie
 

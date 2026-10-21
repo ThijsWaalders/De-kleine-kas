@@ -14,7 +14,8 @@
 #include "HardwareControl.h"  // Ventilator PWM, tacho en knopbediening
 #include "IndoorSensors.h"    // Binnen- en kamersensoren
 #include "KasSensors.h"       // Kas-sensoren (DHT, BMP180, BH1750)
-#include "EspSensors.h"
+#include "EspSensors.h"       // ESP chip sensors
+#include "DecisionEngine.h"   // De ultieme beslisboom
 #include "ClimateLogic.h"     // Klimaatberekeningen, VPD en drempelwaarden
 #include "Telegram.h"         // Telegram bot communicatie
 #include "OpenWeather.h"      // Weergegevens ophalen via internet
@@ -233,7 +234,8 @@ void loop() {
           updateHeatingAdvice(kasSmoothedTemp, outdoorTemp);
         }
 
-        updateVentilationAdvice(kasSmoothedTemp, kasSmoothedHum, kasDewPoint, outdoorTemp, outdoorHumidity, outdoorDewPoint);
+        evaluateKasVentilationDecision(kasSmoothedTemp, kasSmoothedHum, kasDewPoint, indoorSmoothedTemp, indoorSmoothedHum, indoorDewPoint);
+        // updateVentilationAdvice(kasSmoothedTemp, kasSmoothedHum, kasDewPoint, outdoorTemp, outdoorHumidity, outdoorDewPoint);
       }
 
       checkKasTrends(kasSmoothedHum, kasSmoothedHum, currentPressure);

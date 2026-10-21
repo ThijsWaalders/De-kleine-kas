@@ -186,25 +186,6 @@ unsigned long lastVelocityCheckTime = 0;
 float previousHumForVelocity = -999.0;
 float humidityVelocity = 0.0;
 
-// // =========================================================================
-// // 8. ADVIEZEN & BESTURING
-// // =========================================================================
-// HouseVentState houseAdvice = HOUSE_CLOSED;
-// kasAdvice = GREENHOUSE_CIRCULATE_INTERNAL;
-// kasAdviceReason = "🔄 Interne circulatie actief...";
-// // KasVentState kasAdvice = KAS_OFF;
-// // String houseAdviceReason = "Klimaat in woning is stabiel.";
-// HouseVentState previousHouseAdvice = HOUSE_CLOSED;
-// KasVentState previousKasAdvice = KAS_OFF;
-
-// String kasAdviceReason = "Klimaat in de kas is in balans.";
-
-// unsigned long lastMqttUpdate = 0;
-// float previousHumForVelocity = -999.0;
-// unsigned long lastVelocityCheckTime = 0;
-// float humidityVelocity = 0.0;
-
-
 // =========================================================================
 // 9. HARDWARE & NETWERK OBJECTEN
 // =========================================================================

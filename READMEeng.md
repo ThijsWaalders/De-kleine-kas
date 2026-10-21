@@ -2,10 +2,10 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [🇬🇧 English](#-english)
-    - [Firmware Version `v3.3.0`](#firmware-version-v330)
-      - [1.Network \& OTA Stability (The Major Breakthrough)](#1network--ota-stability-the-major-breakthrough)
-      - [2. Telegram Bot \& Command Suite (v3.3.0)](#2-telegram-bot--command-suite-v330)
-      - [3. System \& Version Control](#3-system--version-control)
+    - [What's New in De kleine kas v3.4.3](#whats-new-in-de-kleine-kas-v343)
+    - [🌀 Fan Architecture \& Test Modes (Optimized)](#-fan-architecture--test-modes-optimized)
+    - [📊 Tacho \& RPM Calibration](#-tacho--rpm-calibration)
+    - [🛠️ System \& Observability](#️-system--observability)
     - [Manual \& Documentation](#manual--documentation)
       - [1. Hardware Architecture, Pinout \& System Setup](#1-hardware-architecture-pinout--system-setup)
       - [2. Microgreens Agronomy: Why VPD, Thresholds \& Buffers Matter](#2-microgreens-agronomy-why-vpd-thresholds--buffers-matter)
@@ -19,39 +19,23 @@
 
 ## 🇬🇧 English
 
-### Firmware Version `v3.3.0`
+### What's New in De kleine kas v3.4.3
 
-**Target Hardware:** ESP32-S3-ZERO-N8R8-M
+### 🌀 Fan Architecture & Test Modes (Optimized)
 
-#### 1.Network & OTA Stability (The Major Breakthrough)
+* **Pure Direct Pin Writes:** Completely stripped complex ramping and artificial limiting logic; pins are now driven directly and instantaneously via `ledcWrite` on the ESP32-S3 (Core v3.x).
+* **Smart Toggle Test Modes:** Test commands (`/tfl`, `/tfh`, `/tfs`, `/tfv`) now function as a direct on/off toggle. Automatic 30-second timeouts are gone; simply send the same command again to instantly stop the test and resume automatic climate regulation.
+* **Stepped Fan Sweep (`/tfs`):** The sweep test is structured into fixed 30-second blocks per level (Min $\rightarrow$ Mid $\rightarrow$ Max $\rightarrow$ Mid). This perfectly aligns with your Grafana telemetry interval, resulting in a clean, readable step-wave pattern in your graphs.
 
-- **Fixed AP/OTA Loops**: Centralized the network initialization (`ArduinoOTA.begin()` inside `setupNetwork()`) to permanently eliminate persistent startup loops into Access Point mode and post-flash freezes.
+### 📊 Tacho & RPM Calibration
 
-- **Instant OTA Reboot**: The system now instantly and reliably reboots upon a successfully completed software update.
+* **Clean External Fan Mapping:** Electrical 'chopping' noise at low PWM voltages (such as 25% / PWM 65), which previously caused tacho readings to stick at a false 100 RPM, has been resolved. External fans now map cleanly and linearly between the hardware specs of **300 RPM (at PWM 65)** and **1500 RPM (at PWM 255)**.
+* **Internal Fan Isolation:** The internal circulation fan is fully decoupled from external fan tests, retaining its own reliable pulse counting and baseline behavior.
 
-#### 2. Telegram Bot & Command Suite (v3.3.0)
+### 🛠️ System & Observability
 
-- **Command Routing Restored**: Cleaned up message matching in `Telegram.cpp` so commands (including `/h` and `/help`) respond immediately and quickly without false "Unknown command" errors.
-
-- Streamlined & Renamed Fan Commands:
-
-  - `/tfs` — Test Sweep (5 min ramp MIN ↔ MAX)
-  - `/tfl` — All 3 fans for 30s at `min_pwm`
-  - `/tfh` — All 3 fans for 30s at `max_pwm`
-  - `/tfv` (Test Van Vent) — Internal fan OFF, external fans max PWM (30s)
-  - Redundant manual overrides (`/mf`) have been cleaned up.
-
-- **New Climate Test Commands Added**:
-
-  - `/tu` (Test Dehydration) — Simulates high VPD / dry greenhouse.
-  - `/tk` (Test Humid / Klam) — Simulates humid greenhouse / mold risk.
-  - `/tw` (Test Indoor) — Simulates the indoor ventilation buffer.
-
-- **Menu Formatting Fixed**: Corrected all Markdown glitches and line breaks in the help menu so Telegram renders it cleanly and uniformly.
-
-#### 3. System & Version Control
-
-- **Version & Build Timestamps**: Formally locked firmware version to v3.3.0, integrated with automated build timestamps (`__DATE__` `__TIME__`) displayed in network info logs and boot notifications (`/ni`).
+* **MQTT & Grafana Synchronization:** All manual overrides, test flags, and calibrated RPM values are immediately broadcasted to the broker for real-time observability in Grafana.
+* **Ready for Expansion:** Prepared for the integration of the two additional DS18B20 sensors for substrate and tray temperature monitoring.
 
 ---
 
