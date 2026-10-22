@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [🇳🇱 Nederlands](#-nederlands)
+    - [Versie v3.5 is officieel een feit!](#versie-v35-is-officieel-een-feit)
     - [Upcoming v3.5](#upcoming-v35)
     - [v3.4.4](#v344)
     - [Wat is er nieuw in De kleine kas v3.4.3](#wat-is-er-nieuw-in-de-kleine-kas-v343)
@@ -20,6 +21,17 @@
       - [Telegram commando's](#telegram-commandos)
 
 ## 🇳🇱 Nederlands
+
+### Versie v3.5 is officieel een feit!
+
+Met deze update staat er echt een ijzersterke en slimme architectuur op de ESP32-S3:
+
+1. **Drie NVS-persistent opgeslagen tray-modi**: `ts1k/ts2k`, `ts1g/ts2g`, `ts1wm/ts2wm` voor kiem, groei en warmtemat.
+2. **Ruststand in de kiemfase**: De kasventilatie en lampsturing gaan uit als alle trays op kiemmodus staan, terwijl de tray-sensoren en buffers actief bewaakt blijven.
+3. **Actief meeademende PID-ventilatiesturing**: De fans ademen nu vloeiend mee met de PID-output in plaats van op een statische lijn te hangen.
+4. **Belastingsindicatie met icoontjes**: In één oogopslag in Telegram zien of de kas in rust is (⚪), opstart (🟡), strak bijstuurt (🔵), zwoegt op grensbelasting (🟠) of dat jij actie moet ondernemen (🔴).
+
+Slimme Kweektijden (`/kt`): Inzicht in de meest optimale belichtingstijden op basis van de woningbuffer.
 
 ### Upcoming v3.5
 

@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [🇬🇧 English](#-english)
+    - [Version v3.5 is officially live!](#version-v35-is-officially-live)
     - [Upcoming v3.5](#upcoming-v35)
     - [v3.4.4](#v344)
     - [What's New in De kleine kas v3.4.3](#whats-new-in-de-kleine-kas-v343)
@@ -20,6 +21,16 @@
       - [Telegram commands](#telegram-commands)
 
 ## 🇬🇧 English
+
+### Version v3.5 is officially live!
+
+With this update, a robust and intelligent architecture is running on the ESP32-S3:
+
+- **Three NVS-persistent Tray Modes**: `ts1k/ts2k`, `ts1g/ts2g`, and `ts1wm/ts2wm` for Germination, Growth, and Heating Mat modes.
+- **Germination Stage Resting State**: Greenhouse active ventilation and light management are bypassed when all trays are set to Germination mode, while tray safety sensors and room/outdoor buffers remain actively monitored.
+- **Dynamic PID-Driven Fan Control**: Fans smoothly scale in real time with the PID controller output rather than relying on static step thresholds.
+- **System Load Status Icons**: Instantly check status in Telegram to see if the greenhouse is resting (⚪), initializing/calibrating (🟡), actively controlling climate (🔵), operating under high system load (🟠), or requiring manual intervention (🔴).
+- **Smart Cultivation Advisory (`/kt`)**: Delivers insights into optimal lighting windows based on indoor buffer conditions.
 
 ### Upcoming v3.5
 
