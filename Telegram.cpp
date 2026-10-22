@@ -583,8 +583,8 @@ void handleTelegramIncoming() {
     String tray1Str      = (traySensor1Temp <= -900.0) ? "N/A" : String(traySensor1Temp, 1) + "°C";
     String tray2Str      = (traySensor2Temp <= -900.0) ? "N/A" : String(traySensor2Temp, 1) + "°C";
     // Afzonderlijke modusterechte per tray
-    String tray1ModeStr  = isTray1GerminatingMode ? "Kiem 🌱" : "Groei 🌿";
-    String tray2ModeStr  = isTray2GerminatingMode ? "Kiem 🌱" : "Groei 🌿";    
+    String tray1ModeStr  = isTray1GerminatingMode ? "Kiem 🫘" : "Groei 🌿";
+    String tray2ModeStr  = isTray2GerminatingMode ? "Kiem 🫘" : "Groei 🌿";    
     String indoorTempStr = (indoorSmoothedTemp <= -900.0) ? "N/A" : String(indoorSmoothedTemp, 1) + "°C";
     String indoorHumStr  = (indoorHum <= -900.0) ? "N/A" : String(indoorHum, 1) + "%";
     String pressureStr   = (currentPressure <= 0.0) ? "N/A" : String(currentPressure, 1) + " hPa";
