@@ -156,8 +156,10 @@ namespace LedConfig {
   constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   5, BLINK,  300 };
   constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   4, BREATHE, 3000 };
   constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   5, SOLID,     0 };
-  constexpr LedSetting SYSTEM_ACTIVE   = {   0,   0,   0,   0, OFF,     0 }; 
-  constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,     0 };
+  constexpr LedSetting SYSTEM_ACTIVE   = {   0,   0,   0,   3, SOLID,     0 }; 
+  constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   3, SOLID,     0 };
+  // constexpr LedSetting SYSTEM_ACTIVE   = {   0,   0,   0,   0, OFF,     0 }; 
+  // constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,     0 };
 }
 
 enum HouseVentState { HOUSE_CLOSED, HOUSE_VENTILATE };
