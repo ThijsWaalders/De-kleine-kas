@@ -52,6 +52,7 @@ void setup() {
   drawBootScreen("Sensoren starten...");
 
   // 3. Initialiseer hardware modules, sensoren én ventilatoren
+  loadTrayModesFromPreferences();
   setupKasSensors();
   setupIndoorSensors();
   setupFans(); 

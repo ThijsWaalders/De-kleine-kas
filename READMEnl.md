@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [🇳🇱 Nederlands](#-nederlands)
+    - [Upcoming v3.5](#upcoming-v35)
     - [v3.4.4](#v344)
     - [Wat is er nieuw in De kleine kas v3.4.3](#wat-is-er-nieuw-in-de-kleine-kas-v343)
       - [🌀 Fan-architectuur \& Testmodi (Geoptimaliseerd)](#-fan-architectuur--testmodi-geoptimaliseerd)
@@ -19,6 +20,10 @@
       - [Telegram commando's](#telegram-commandos)
 
 ## 🇳🇱 Nederlands
+
+### Upcoming v3.5
+
+- Advies welke tijden beter zijn om De kleine kas aan/uit te zetten, gezien klimaat en energiekosten.
 
 ### v3.4.4
 

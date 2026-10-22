@@ -9,9 +9,9 @@
 // =========================================================================
 // 1. PID REGELAAR VARIABELEN
 // =========================================================================
-float kp = 1.5;                     
-float ki = 0.15;                    
-float kd = 0.6;                     
+float kp = 2.2; // 2.2 voor bounce/werking systeem test was 1.5;       // Proportioneel
+float ki = 0.15;                    // Integraal
+float kd = 0.6;                     // Derivatief
 
 
 // =========================================================================
@@ -111,8 +111,23 @@ float traySensor1Temp = -999.0;
 float traySensor2Temp = -999.0;
 bool traySensor1Connected = false;
 bool traySensor2Connected = false;
-bool isTray1GerminatingMode = true; // Standaard / true = kiemmodus
-bool isTray2GerminatingMode = true;
+
+int tray1Mode = 0; // Standaard 0 (Kiemfase)
+int tray2Mode = 0;
+
+void saveTrayModesToPreferences() {
+  preferences.begin("kas_config", false);
+  preferences.putInt("tray1_mode", tray1Mode);
+  preferences.putInt("tray2_mode", tray2Mode);
+  preferences.end();
+}
+
+void loadTrayModesFromPreferences() {
+  preferences.begin("kas_config", true);
+  tray1Mode = preferences.getInt("tray1_mode", 0); // Standaard op 0 als het nog niet bestaat
+  tray2Mode = preferences.getInt("tray2_mode", 0);
+  preferences.end();
+}
 //
 bool moldRisk = false;
 String moldReasonText = "";

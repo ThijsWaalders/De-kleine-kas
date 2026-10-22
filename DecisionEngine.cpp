@@ -1,6 +1,6 @@
 /**
-- @file DecisionEngine.cpp
-- @brief Implementatie van het besluitvormingsproces, anti-hunt filtering en adaptieve escalatie inclusief Tray-bescherming.
+ * @file DecisionEngine.cpp
+ * @brief Implementatie van het besluitvormingsproces, anti-hunt filtering en adaptieve escalatie inclusief Tray-bescherming.
  */
 
 #include "DecisionEngine.h"
@@ -13,21 +13,22 @@ bool homeVentActive = false;
 
 // Externe vlag uit ClimateLogic of Config
 extern bool isClimateCrash;
-extern bool isTrayGerminatingMode;
 extern float traySensor1Temp;
 extern float traySensor2Temp;
 extern bool traySensor1Connected;
 extern bool traySensor2Connected;
+extern int tray1Mode; // 0 = Kiemfase, 1 = Groeifase, 2 = Warmtemat-modus
+extern int tray2Mode;
 
 // Anti-hunt en stabilisatie variabelen
 static unsigned long fanStateChangeTime = 0;
 static KasVentState lastAppliedKasAdvice = KAS_OFF;
 static int persistentCheckCounter = 0;
 static KasVentState candidateDecision = GREENHOUSE_CIRCULATE_INTERNAL;
-const int REQUIRED_PERSISTENT_CHECKS = 5; 
+const int REQUIRED_PERSISTENT_CHECKS = 3; // anti hunt even sneller laten werken om effect systeem te testen. // was 5; 
 
 static unsigned long vpdRedZoneStartTime = 0;
-static bool vpdRedZoneActive = false;
+bool vpdRedZoneActive = false;
 const unsigned long VPD_ESCALATION_TIMEOUT = 600000; // 10 minuten
 
 KasVentState applyAntiHuntFilter(KasVentState rawNewAdvice) {
@@ -76,42 +77,62 @@ void evaluateKasVentilationDecision(float inTemp, float inHum, float inDp, float
     return;
   }
 
-  KasVentState rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
-  kasAdviceReason = "🔄 Interne circulatie actief (standaard kas-balans).";
-
-  // Fysieke condities binnen de kas
-  bool isTooWarm      = (inTemp > GREENHOUSE_MAX_TEMP);
-  bool isKritischHeet = (inTemp >= GREENHOUSE_CRASH_TEMP); 
-  bool isTooWet       = (kasVpd < VPD_MIN_OPTIMAL) || (inHum >= HUM_MOLD_THRESHOLD);
-  bool isTooDry       = (kasVpd > VPD_MAX_OPTIMAL); 
-  bool condensRisk    = (kasDpMargin < DP_MARGIN_MIN);
-
-  // --- TRAY & KIEMMODUS VEILIGHEIDSCHECK PER SENSOR ---
+  // --- TRAY VEILIGHEIDSCHECK & MODUS BEPALING ---
   bool tray1TooHot = false, tray1TooCold = false;
   bool tray2TooHot = false, tray2TooCold = false;
 
   // Check Tray 1
   if (traySensor1Connected && traySensor1Temp > -100.0f) {
-    float maxLimit = isTray1GerminatingMode ? 23.5f : 25.0f;
-    float minLimit = isTray1GerminatingMode ? 17.5f : 15.0f;
+    float maxLimit = (tray1Mode == 0) ? 23.5f : ((tray1Mode == 1) ? 25.0f : 29.0f);
+    float minLimit = (tray1Mode == 0) ? 17.5f : ((tray1Mode == 1) ? 15.0f : 16.0f);
     if (traySensor1Temp > maxLimit) tray1TooHot = true;
     if (traySensor1Temp < minLimit) tray1TooCold = true;
   }
 
   // Check Tray 2
   if (traySensor2Connected && traySensor2Temp > -100.0f) {
-    float maxLimit = isTray2GerminatingMode ? 23.5f : 25.0f;
-    float minLimit = isTray2GerminatingMode ? 17.5f : 15.0f;
+    float maxLimit = (tray2Mode == 0) ? 23.5f : ((tray2Mode == 1) ? 25.0f : 29.0f);
+    float minLimit = (tray2Mode == 0) ? 17.5f : ((tray2Mode == 1) ? 15.0f : 16.0f);
     if (traySensor2Temp > maxLimit) tray2TooHot = true;
     if (traySensor2Temp < minLimit) tray2TooCold = true;
   }
 
-  // LET OP: Alleen ingrijpen op de beslisboom als de tray in de GROEIFASE staat!
-  bool tray1ActionRequired = (tray1TooHot && !isTray1GerminatingMode);
-  bool tray2ActionRequired = (tray2TooHot && !isTray2GerminatingMode);
-  
+  // Bepaal of minstens één tray in de groeimodus / warmtemat-modus staat (dus NIET kiemmodus 0)
+  bool anyTrayInGrowMode = false;
+  if (traySensor1Connected && tray1Mode != 0) anyTrayInGrowMode = true;
+  if (traySensor2Connected && tray2Mode != 0) anyTrayInGrowMode = true;
+
+  // Alleen ingrijpen op beslisboom per tray als ze NIET in kiemmodus staan
+  bool tray1ActionRequired = (tray1TooHot && tray1Mode != 0);
+  bool tray2ActionRequired = (tray2TooHot && tray2Mode != 0);
   bool anyTrayActionNeeded = (tray1ActionRequired || tray2ActionRequired);
   float offendingTrayTemp = tray1ActionRequired ? traySensor1Temp : traySensor2Temp;
+
+  KasVentState rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
+
+  // --- ALS BEIDE TRAYS IN KIEMFASE STAAN (GEEN ENKELE TRAY IN GROEI/WM) ---
+  if (!anyTrayInGrowMode) {
+    kasAdvice = KAS_OFF;
+    kasAdviceReason = "🌱 Kiemfase actief: Lampen/fans uit. Alleen tray-bewaking en woning/buiten-data actief.";
+    
+    // Alleen ingrijpen als een kiem-tray buiten syncoop raakt (te heet/koud voor de kiem)
+    if ((traySensor1Connected && tray1Mode == 0 && (tray1TooHot || tray1TooCold)) ||
+        (traySensor2Connected && tray2Mode == 0 && (tray2TooHot || tray2TooCold))) {
+      kasAdviceReason = "🌱⚠️ *KIEMFASE WAARSCHUWING:* Tray temperatuur buiten kiemgrenzen (17.5°C - 23.5°C)!";
+    }
+    
+    // Sla de rest van de kas-beslisboom over omdat de kas zelf in rust is
+    return;
+  }
+
+  // --- VANAF HIER DRAAIT DE VOLLEDIGE KAS-BESLISBOOM (Omdat minstens 1 tray in groei/wm staat) ---
+  kasAdviceReason = "🔄 Interne circulatie actief (standaard kas-balans).";
+
+  bool isTooWarm      = (inTemp > GREENHOUSE_MAX_TEMP);
+  bool isKritischHeet = (inTemp >= GREENHOUSE_CRASH_TEMP); 
+  bool isTooWet       = (kasVpd < VPD_MIN_OPTIMAL) || (inHum >= HUM_MOLD_THRESHOLD);
+  bool isTooDry       = (kasVpd > VPD_MAX_OPTIMAL); 
+  bool condensRisk    = (kasDpMargin < DP_MARGIN_MIN);
 
   bool isVpdInRedZone = (isTooWet || isTooDry || condensRisk || anyTrayActionNeeded);
   unsigned long currentMillis = millis();
@@ -129,62 +150,57 @@ void evaluateKasVentilationDecision(float inTemp, float inHum, float inDp, float
   bool indoorCanHelpDehumidify = (!isnan(indoorVpd) && indoorVpd > kasVpd && indoorVpd < VPD_MAX_OPTIMAL);
   bool indoorCanHelpHumidify   = (!isnan(indoorVpd) && indoorVpd < kasVpd && indoorVpd > VPD_MIN_OPTIMAL);
 
-  // --- FASE 1: NOODTOESTAND & HITTEPIEK / TRAY OVERVERHITTING ---
+  // FASE 1 t/m 5 van de beslisboom (zoals we die hadden)...
   if (isClimateCrash || isKritischHeet) {
     rawDecision = GREENHOUSE_VENTILATE;
     kasAdviceReason = "🚨 NOODTOESTAND: Kas te heet (" + String(inTemp, 1) + "°C). Maximale externe ventilatie ingezet!";
   }
   else if (anyTrayActionNeeded) {
     rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
-    kasAdviceReason = "🔥 *TRAY BESCHERMING (Groeifase):* Tray temperatuur te hoog (" + String(offendingTrayTemp, 1) + "°C)! Interne circulatie gekozen.";
+    kasAdviceReason = "🔥 *TRAY BESCHERMING:* Tray temperatuur te hoog (" + String(offendingTrayTemp, 1) + "°C)! Interne circulatie gekozen.";
   }
-  // --- ADAPTIEVE ESCALATIE BIJ LANGDURIGE VPD-OVERSCHRIJVING ---
   else if (vpdRedZoneActive && (currentMillis - vpdRedZoneStartTime > VPD_ESCALATION_TIMEOUT)) {
     if (isTooDry) {
       rawDecision = indoorCanHelpHumidify ? GREENHOUSE_VENTILATE : GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "⚠️ *ADAPTIEVE ESCALATIE:* Kas te lang te droog (" + String(kasVpd, 2) + " kPa). Dwingende correctie actief!";
+      kasAdviceReason = "⚠️ *ADAPTIEVE ESCALATIE:* Kas te lang te droog (" + String(kasVpd, 2) + " kPa).";
     } else {
       rawDecision = indoorCanHelpDehumidify ? GREENHOUSE_VENTILATE : GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "⚠️ *ADAPTIEVE ESCALATIE:* Vocht/klamheid duurt te lang (" + String(kasVpd, 2) + " kPa). Dwingende correctie actief!";
+      kasAdviceReason = "⚠️ *ADAPTIEVE ESCALATIE:* Vocht/klamheid duurt te lang (" + String(kasVpd, 2) + " kPa).";
     }
   }
-  // --- FASE 2: WARMTE OVERSCHRIJDING ---
   else if (isTooWarm) {
     if (indoorCanHelpDehumidify || inTemp > (GREENHOUSE_MAX_TEMP + 1.0f)) {
       rawDecision = GREENHOUSE_VENTILATE;
-      kasAdviceReason = "🌡️ Te warm (" + String(inTemp, 1) + "°C). Externe ventilatie actief met woninglucht.";
+      kasAdviceReason = "🌡️ Te warm (" + String(inTemp, 1) + "°C). Externe ventilatie actief.";
     } else {
       rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "🌡️ Te warm, maar woninglucht helpt niet. Interne circulatie gekozen.";
+      kasAdviceReason = "🌡️ Te warm, maar woninglucht helpt niet.";
     }
   }
-  // --- FASE 3: VOCHT / SCHIMMELRISICO ---
   else if (isTooWet || condensRisk) {
     if (indoorCanHelpDehumidify) {
       rawDecision = GREENHOUSE_VENTILATE;
-      kasAdviceReason = "💧 Kas te klam (VPD " + String(kasVpd, 2) + "); woninglucht wordt ingezet voor ontvochtiging.";
+      kasAdviceReason = "💧 Kas te klam; woninglucht wordt ingezet.";
     } else {
       rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "🌧️ Kas te klam, maar woninglucht helpt niet. Kas blijft dicht op interne circulatie.";
+      kasAdviceReason = "🌧️ Kas te klam, maar woninglucht helpt niet.";
     }
   }
-  // --- FASE 4: UITDROGINGSRISICO ---
   else if (isTooDry) {
     if (indoorCanHelpHumidify && (kasVpd - VPD_MAX_OPTIMAL > 0.05f)) {
       rawDecision = GREENHOUSE_VENTILATE;
-      kasAdviceReason = "🔥 Kas te droog; woninglucht biedt gecontroleerde vochtcorrectie.";
+      kasAdviceReason = "🔥 Kas te droog; woninglucht biedt vochtcorrectie.";
     } else {
       rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
-      kasAdviceReason = "💡 Droogte gedetecteerd; interne circulatie houdt microklimaat stabiel.";
+      kasAdviceReason = "💡 Droogte gedetecteerd; interne circulatie actief.";
     }
   }
-  // --- FASE 5: NORMAAL OPTIMAAL KLIMAAT ---
   else {
     rawDecision = GREENHOUSE_CIRCULATE_INTERNAL;
     kasAdviceReason = "🔄 Interne circulatie actief (standaard kas-balans).";
   }
 
-  // --- ANTI-HUNTING & STABILISATIE FILTER ---
+  // Anti-hunting filter toepassen
   if (rawDecision != lastAppliedKasAdvice) {
     if (rawDecision == candidateDecision) {
       persistentCheckCounter++;

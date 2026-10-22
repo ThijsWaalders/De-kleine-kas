@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [🇬🇧 English](#-english)
+    - [Upcoming v3.5](#upcoming-v35)
     - [v3.4.4](#v344)
     - [What's New in De kleine kas v3.4.3](#whats-new-in-de-kleine-kas-v343)
     - [🌀 Fan Architecture \& Test Modes (Optimized)](#-fan-architecture--test-modes-optimized)
@@ -19,6 +20,10 @@
       - [Telegram commands](#telegram-commands)
 
 ## 🇬🇧 English
+
+### Upcoming v3.5
+
+- Advise what times are better to enable/disable De kleine kas, climate and energy costs wise.
 
 ### v3.4.4
 

@@ -25,7 +25,7 @@
 #include <Preferences.h>      // Slaapstand (isKasSleeping) Opslaan in NVS (Flash-geheugen)
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.4.4"
+#define FIRMWARE_VERSION "v3.5"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 // SHT31 sensor check
@@ -156,8 +156,8 @@ namespace LedConfig {
   constexpr LedSetting WIFI_DISCONNECTED = {   0,   0, 180,   5, BLINK,  300 };
   constexpr LedSetting WEATHER_ALARM   = { 255, 180,   0,   4, BREATHE, 3000 };
   constexpr LedSetting HOUSE_ADVICE    = { 255,  90,   0,   5, SOLID,     0 };
-  constexpr LedSetting SYSTEM_ACTIVE   = {   0,   0,   0,   3, SOLID,     0 }; 
-  constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   3, SOLID,     0 };
+  constexpr LedSetting SYSTEM_ACTIVE   = {   0,   0,   0,   6, SOLID,     0 }; 
+  constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   6, SOLID,     0 };
   // constexpr LedSetting SYSTEM_ACTIVE   = {   0,   0,   0,   0, OFF,     0 }; 
   // constexpr LedSetting ALL_OK_IDLE     = {   0,   0,   0,   0, OFF,     0 };
 }
@@ -235,6 +235,15 @@ extern float traySensor1Temp, traySensor2Temp;
 extern bool traySensor1Connected, traySensor2Connected;
 extern bool isTray1GerminatingMode; // true = Kiemfase (17.5-23.5°C), false = Groeifase (15-25°C)
 extern bool isTray2GerminatingMode;
+extern float traySensor1Temp, traySensor2Temp;
+extern bool traySensor1Connected, traySensor2Connected;
+
+// Tray modi (0 = Kiemfase, 1 = Groeifase, 2 = Warmtemat-modus)
+extern int tray1Mode;
+extern int tray2Mode;
+
+void saveTrayModesToPreferences();
+void loadTrayModesFromPreferences();
 
 // Sensor uitlees- en foutentellers (SHT31 & BME280)
 extern unsigned long totalKasReads, failedKasReads, lastValidKasTime;
