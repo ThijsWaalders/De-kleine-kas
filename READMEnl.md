@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [🇳🇱 Nederlands](#-nederlands)
+    - [v3.4.4](#v344)
     - [Wat is er nieuw in De kleine kas v3.4.3](#wat-is-er-nieuw-in-de-kleine-kas-v343)
       - [🌀 Fan-architectuur \& Testmodi (Geoptimaliseerd)](#-fan-architectuur--testmodi-geoptimaliseerd)
       - [📊 Tacho \& RPM Kalibratie](#-tacho--rpm-kalibratie)
@@ -18,6 +19,15 @@
       - [Telegram commando's](#telegram-commandos)
 
 ## 🇳🇱 Nederlands
+
+### v3.4.4
+
+Added:
+
+- 2 BS18D20 temp sensors als tray sensors
+- Kiem vs groei fase modus per sensor
+- Checks & waarschuwingen voor beide modussen
+- Besliboom aangepast voor beide modussen
 
 ### Wat is er nieuw in De kleine kas v3.4.3
 

@@ -25,7 +25,7 @@
 #include <Preferences.h>      // Slaapstand (isKasSleeping) Opslaan in NVS (Flash-geheugen)
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.4.3"
+#define FIRMWARE_VERSION "v3.4.4"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 // SHT31 sensor check
@@ -71,12 +71,16 @@ const float HEAT_MAT_TEMP_LOW               = 16.0;
 const float HEAT_MAT_TEMP_HIGH              = 20.0;  
 
 // --- 1.5 Sensor Correctie Offsets ---
+// --- TEMP
 const float KAS_TEMP_OFFSET                 = -0.5; // -0.6; // -0.9; // Kalibratie offset kas SHT31 temperatuur
 const float INDOOR_TEMP_OFFSET              = -2.0; // -2.1; // -2.3; // -2.2  // Kalibratie offset woning BME280 temperatuur
-
+// DS18B20 tray sensoren
+const float TRAY_SENSOR_1_OFFSET            =  0.0f; 
+const float TRAY_SENSOR_2_OFFSET            =  0.0f;
+// --- LUCHTVOCHTIGHEID
 const float KAS_HUM_OFFSET                  = -1.8; //-0.2; // -0.4; // Kalibratie offset kas SHT31 luchtvochtigheid
 const float INDOOR_HUM_OFFSET               = +6.8; // +7.4; // +8.3; // +6.9; // Kalibratie offset woning BME280 luchtvochtigheid
-
+// --- LUCHTDRUK
 const float PRESSURE_OFFSET                 = -2.2; // -2.2  // Kalibratie offset luchtdruk (BME280)
 
 
@@ -87,6 +91,7 @@ const int FLASH_BUTTON_PIN                  = 0;     // Boot knop op ESP32-S3
 #define PIN_PIR                             2        // HW-416-B Bewegingssensor
 #define PIN_SCL                             4        // I2C Clock (Gedeeld voor SHT31, BME280, BH1750)
 #define PIN_SDA                             5        // I2C Data  (Gedeeld voor SHT31, BME280, BH1750)
+#define PIN_DS18B20                         7        // 1-Wire B18D20's
 
 // Pinnen voor Ventilatoren (PWM & Tacho pulsen)
 #define PIN_FAN_INT_TACHO                   13   
@@ -224,6 +229,10 @@ extern float kasTempLow, kasTempHigh, indoorTempHigh, indoorTempLow;
 
 extern float kasSmoothedTemp, kasSmoothedHum, indoorSmoothedTemp, indoorSmoothedHum, displayedTemp;
 extern unsigned long lastTempUpdate;
+extern float traySensor1Temp, traySensor2Temp;
+extern bool traySensor1Connected, traySensor2Connected;
+extern bool isTray1GerminatingMode; // true = Kiemfase (17.5-23.5°C), false = Groeifase (15-25°C)
+extern bool isTray2GerminatingMode;
 
 // Sensor uitlees- en foutentellers (SHT31 & BME280)
 extern unsigned long totalKasReads, failedKasReads, lastValidKasTime;

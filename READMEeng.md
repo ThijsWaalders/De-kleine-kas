@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [🇬🇧 English](#-english)
+    - [v3.4.4](#v344)
     - [What's New in De kleine kas v3.4.3](#whats-new-in-de-kleine-kas-v343)
     - [🌀 Fan Architecture \& Test Modes (Optimized)](#-fan-architecture--test-modes-optimized)
     - [📊 Tacho \& RPM Calibration](#-tacho--rpm-calibration)
@@ -18,6 +19,15 @@
       - [Telegram commands](#telegram-commands)
 
 ## 🇬🇧 English
+
+### v3.4.4
+
+Added:
+
+- 2 BS18D20 temp sensors as tray sensors
+- Germination vs grow fase
+- Checks & warnings for both modes
+- Decisions for both modes
 
 ### What's New in De kleine kas v3.4.3
 

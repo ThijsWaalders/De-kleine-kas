@@ -535,3 +535,32 @@ void updateFanSweepTest() {
   ledcWrite(PIN_FAN_EXT2_PWM, fanExt2Speed);
 }
 
+/**
+- @brief Bewaakt de gezondheid van de DS18B20 tray sensoren en detecteert vochtinfiltratie of kabelbreuk.
+ */
+void checkTraySensorHealth() {
+  static unsigned long lastTrayAlertTime = 0;
+  unsigned long currentMillis = millis();
+
+  // Controleer Tray 1
+  if (traySensor1Connected) {
+    if (traySensor1Temp == -999.0 || traySensor1Temp <= -10.0 || traySensor1Temp >= 60.0) {
+      traySensor1Connected = false; // Markeer tijdelijk als ontkoppeld/onbetrouwbaar
+      if (currentMillis - lastTrayAlertTime > 3600000UL) { // Max 1x per uur melding
+        sendTelegramAlert("⚠️ *WAARSCHUWING:* Tray Sensor 1 geeft ongeldige data (`" + String(traySensor1Temp) + "°C`). Mogelijk vochtinfiltratie in de huls!");
+        lastTrayAlertTime = currentMillis;
+      }
+    }
+  }
+
+  // Controleer Tray 2
+  if (traySensor2Connected) {
+    if (traySensor2Temp == -999.0 || traySensor2Temp <= -10.0 || traySensor2Temp >= 60.0) {
+      traySensor2Connected = false;
+      if (currentMillis - lastTrayAlertTime > 3600000UL) {
+        sendTelegramAlert("⚠️ *WAARSCHUWING:* Tray Sensor 2 geeft ongeldige data (`" + String(traySensor2Temp) + "°C`). Mogelijk vochtinfiltratie in de huls!");
+        lastTrayAlertTime = currentMillis;
+      }
+    }
+  }
+}

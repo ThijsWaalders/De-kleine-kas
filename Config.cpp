@@ -106,6 +106,14 @@ bool isLampTransitionActive = false;
 unsigned long lampTransitionStartTime = 0;
 
 float kasDewPoint = -999.0, kasVpd = -999.0, indoorDewPoint = -999.0, indoorVpd = -999.0, currentPressure = 0.0, currentLuxValue = 0.0, outdoorVpd = -999.0;
+// --- TRAY SENSOREN (DS18B20) ---
+float traySensor1Temp = -999.0;
+float traySensor2Temp = -999.0;
+bool traySensor1Connected = false;
+bool traySensor2Connected = false;
+bool isTray1GerminatingMode = true; // Standaard / true = kiemmodus
+bool isTray2GerminatingMode = true;
+//
 bool moldRisk = false;
 String moldReasonText = "";
 float kasDpMargin = 0.0;
