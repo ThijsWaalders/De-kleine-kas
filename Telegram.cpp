@@ -134,34 +134,33 @@ String buildStatusReport() {
 
   String modeStatus = "🟢 Normale Klimaatregeling";
   if (isKasSleeping) {
-    modeStatus = "😴 Slaapstand Actief (Rust)";
+    modeStatus = "😴 Slaapstand";
   } else if (isCalibrationModeActive) {
-    modeStatus = "⚖️ Kalibratiemodus Actief";
+    modeStatus = "⚖️ Kalibratiemodus";
   } else if (!isSystemReady()) {
-    modeStatus = "⏳ Systeem Kalibreert / Opstarten";
+    modeStatus = "⏳ Systeem kalibreert nog even..";
   }
 
   String kasActieLogica = kasAdviceReason;
   if (isHeatMatRecommended) kasActieLogica += "\nWarmtemat (Kas): AAN 🔥";
   else kasActieLogica += "\nWarmtemat (Kas): UIT 💤";
 
-  String actieVereist = "🟢 Geen actie nodig. De kleine kas kan het helemaal zelf aan!";
+  // Bereken de dauwpuntmarge (Temperatuur - Dauwpunt) voor de veiligheidscheck
+  float kasDpMargin = displayedTemp - kasDewPoint;
+
+  String actieVereist = "🟢 Geen actie nodig. Alles is onder controle.";
   if (isKasSleeping) {
-    actieVereist = "😴 Geen actie nodig, de kas is in slaapstand.";
+    actieVereist = "😴 Slaapstand...";
   } else if (isCalibrationModeActive) {
-    actieVereist = "⚖️ Kalibratie actief. Typ `/cal` om terug te keren naar automatische regeling.";
+    actieVereist = "⚖️ Kalibratiemodus";
   } else if (!isSystemReady()) {
-    actieVereist = "⏳ Even geduld: Systeem kalibreert nog.";
-  } else if (moldRisk) {
-    if (outdoorDewPoint >= indoorDewPoint) {
-      actieVereist = "🔴 Schimmelrisico, MAAR buitenlucht is te klam (dauwpunt hoog). **Houd ramen dicht!**";
-    } else {
-      actieVereist = "🏠🪟 **Jouw actie vereist:** Zet het raam/binnendeur open om drogere bufferlucht naar de kas te leiden.";
-    }
+    actieVereist = "⏳ Systeem is aan het opstarten...";
+  } else if (moldRisk || kasDpMargin < 2.0f) {
+    actieVereist = "🔴 **ACTIE:** Risico op klamheid! Dauwpuntmarge te klein (" + String(kasDpMargin, 1) + "°C). Zet ventilatie open.";
   } else if (homeVentActive) {
-    actieVereist = "🏠🪟 **Jouw actie vereist:** Ventileer de woningruimte om drogere buitenlucht aan te voeren voor de buffer.";
+    actieVereist = "🏠 **ACTIE:** Open woningventilatie (buffer inzetten).";
   } else if (kasVpd > 1.0f) {
-    actieVereist = "💡 *Toelichting:* De VPD is tijdelijk verhoogd door lampwarmte. Het microklimaat corrigeert zichzelf zodra de warmte daalt.";
+    actieVereist = "🟢 Kas is tikje droog (VPD " + String(kasVpd, 2) + "), maar dauwpuntmarge is veilig (" + String(kasDpMargin, 1) + "°C).";
   }
 
   String kasVpdStr    = (kasVpd <= -900.0) ? "N/A" : String(kasVpd, 2) + " kPa";
@@ -187,20 +186,20 @@ String buildStatusReport() {
     "%s *Statusrapport 'De Kleine Kas'*\n\n"
     "⚙️ *Modus:* %s\n\n"
     "🌡️ *1. Huidige Waarden (VPD / Temp / LV):*\n"
-    "• Kas:        `%s` | `%s` | `%s`\n"
     "• Tray 1:     `%s` [%s]\n"
     "• Tray 2:     `%s` [%s]\n"
+    "• Kas:        `%s` | `%s` | `%s`\n"
     "• Woning: `%s` | `%s` | `%s`\n"
     "• Buiten:   `%s` | `%s` | `%s`\n\n"
     "⚙️ *3. Wat doet De kleine kas?*\n"
     "%s\n\n"
-    "👤 *4. Wat moet JIJ doen (Woning-actuator)?*\n"
+    "👤 *4. Wat moet jij doen (als woning-actuator)?*\n"
     "%s",
     statusIcon.c_str(),
     modeStatus.c_str(),
-    kasVpdStr.c_str(), kasTempStr.c_str(), kasHumStr.c_str(),
     tray1Str.c_str(), tray1ModeStr.c_str(),
     tray2Str.c_str(), tray2ModeStr.c_str(),
+    kasVpdStr.c_str(), kasTempStr.c_str(), kasHumStr.c_str(),
     indoorVpdStr.c_str(), indoorTempStr.c_str(), indoorHumStr.c_str(),
     outdoorVpdStr.c_str(), outdoorTempStr.c_str(), outdoorHumStr.c_str(),
     kasActieLogica.c_str(),
@@ -351,13 +350,13 @@ void handleTelegramIncoming() {
     String kasDiagnose = kasAdviceReason;
 
     if (kasKleur == "🟢") {
-      kasHeader = "KLIMAAT OPTIMAAL (IN BALANS)";
+      kasHeader = "KLIMAAT IS OPTIMAAL";
     } else if (kasKleur == "🔵") {
-      kasHeader = "ONDER CONTROLE (KAS STUURT BIJ)";
+      kasHeader = "ONDER CONTROLE: KAS REGELT BIJ";
     } else if (kasKleur == "🟠") {
-      kasHeader = "HOGE BELASTING (KAS ZWEET)";
+      kasHeader = "HOGE BELASTING: KAS ZWEET";
     } else if (kasKleur == "🔴") {
-      kasHeader = "ACTIE VEREIST (NOOD/SCHIMMEL)";
+      kasHeader = "ACTIE VEREIST: NOOD/SCHIMMEL RISICO!";
     }
 
     String woningKleur = "🟢";
@@ -366,11 +365,11 @@ void handleTelegramIncoming() {
 
     if (isKasSleeping) {
       woningKleur = "⚪";
-      woningDiagnose = "Slaapstand actief.";
+      woningDiagnose = "Slaapstand...";
       actieVoorJij = "Geen actie nodig, de kas slaapt.";
     } else if (isCalibrationModeActive) {
       woningKleur = "⚪";
-      woningDiagnose = "Kalibratiemodus actief.";
+      woningDiagnose = "Kalibratiemodus";
       actieVoorJij = "Typ `/cal` om kalibratie uit te schakelen.";
     } else if (!isSystemReady()) {
       woningKleur = "🟡";
@@ -381,7 +380,7 @@ void handleTelegramIncoming() {
       woningDiagnose = "Woningventilatie open aanbevolen (Buitenlucht kan ontvochtigen op basis van dauwpunt).";
       actieVoorJij = "Ventileer de woningruimte om drogere buitenlucht aan te voeren.";
     } else if (kasVpd > 1.0f) {
-      actieVoorJij = "Geen actie zinvol; het microklimaat corrigeert zichzelf naarmate de warmte afneemt.";
+      actieVoorJij = "De kleine kas corrigeert het klimaat mbt VPD naarmate de warmte afneemt.";
     }
 
     String buitenKleur = "🟢";
@@ -414,7 +413,7 @@ void handleTelegramIncoming() {
     adviesReport += "  _Diagnose:_ " + kasDiagnose + "\n";
     adviesReport += "• " + woningKleur + " *Woning:* " + woningDiagnose + "\n";
     adviesReport += "• " + buitenKleur + " *Buiten:* " + buitenStatus + "\n\n";
-    adviesReport += "👤 *Wat moet JIJ doen?*\n";
+    adviesReport += "👤 *Wat moet jij doen?*\n";
     adviesReport += "• " + actieVoorJij + "\n\n";
     adviesReport += hwKleur + " *Hardware Status*\n";
     adviesReport += "• " + hwStatus;
@@ -422,27 +421,35 @@ void handleTelegramIncoming() {
     sendTelegramAlert(adviesReport);
   }
   else if (text == "minmax" || text == "mm") {
-    String kasTempLowStr  = (kasTempLow <= -900.0 || kasTempLow >= 900.0)   ? "N/A" : String(kasTempLow, 1) + "°C";
-    String kasTempHighStr = (kasTempHigh <= -900.0 || kasTempHigh >= 900.0) ? "N/A" : String(kasTempHigh, 1) + "°C";
-    String kasHumLowStr   = (kasLowHum < 0.0 || kasLowHum > 100.0)         ? "N/A" : String(kasLowHum, 1) + "%";
-    String kasHumHighStr  = (kasHighHum < 0.0 || kasHighHum > 100.0)       ? "N/A" : String(kasHighHum, 1) + "%";
+  String kasTempLowStr  = (kasTempLow <= -900.0 || kasTempHigh >= 900.0)   ? "N/A" : String(kasTempLow, 1) + "°C";
+  String kasTempHighStr = (kasTempHigh <= -900.0 || kasTempHigh >= 900.0) ? "N/A" : String(kasTempHigh, 1) + "°C";
+  String kasHumLowStr   = (kasLowHum < 0.0 || kasLowHum > 105.0)         ? "N/A" : String(kasLowHum, 1) + "%";
+  String kasHumHighStr  = (kasHighHum < 0.0 || kasHighHum > 105.0)       ? "N/A" : String(kasHighHum, 1) + "%";
 
-    String indTempLowStr  = (indoorTempLow <= -900.0 || indoorTempLow >= 900.0)   ? "N/A" : String(indoorTempLow, 1) + "°C";
-    String indTempHighStr = (indoorTempHigh <= -900.0 || indoorTempHigh >= 900.0) ? "N/A" : String(indoorTempHigh, 1) + "°C";
-    String indHumLowStr   = (indoorLowHum < 0.0 || indoorLowHum > 100.0)         ? "N/A" : String(indoorLowHum, 1) + "%";
-    String indHumHighStr  = (indoorHighHum < 0.0 || indoorHighHum > 100.0)       ? "N/A" : String(indoorHighHum, 1) + "%";
+  // Tray min/max strings
+  String tray1LowStr  = (traySensor1TempLow > 900.0)  ? "N/A" : String(traySensor1TempLow, 1) + "°C";
+  String tray1HighStr = (traySensor1TempHigh < -900.0) ? "N/A" : String(traySensor1TempHigh, 1) + "°C";
+  String tray2LowStr  = (traySensor2TempLow > 900.0)  ? "N/A" : String(traySensor2TempLow, 1) + "°C";
+  String tray2HighStr = (traySensor2TempHigh < -900.0) ? "N/A" : String(traySensor2TempHigh, 1) + "°C";
 
-    String outTempLowStr  = (outdoorTempMin <= -900.0 || outdoorTempMin >= 900.0) ? "N/A" : String(outdoorTempMin, 1) + "°C";
-    String outTempHighStr = (outdoorTempMax <= -900.0 || outdoorTempMax >= 900.0) ? "N/A" : String(outdoorTempMax, 1) + "°C";
-    String outHumLowStr   = (outdoorLowHum < 0.0 || outdoorLowHum > 100.0)         ? "N/A" : String(outdoorLowHum, 1) + "%";
-    String outHumHighStr  = (outdoorHighHum < 0.0 || outdoorHighHum > 100.0)       ? "N/A" : String(outdoorHighHum, 1) + "%";
+  String indTempLowStr  = (indoorTempLow <= -900.0 || indoorTempHigh >= 900.0)   ? "N/A" : String(indoorTempLow, 1) + "°C";
+  String indTempHighStr = (indoorTempHigh <= -900.0 || indoorTempHigh >= 900.0) ? "N/A" : String(indoorTempHigh, 1) + "°C";
+  String indHumLowStr   = (indoorLowHum < 0.0 || indoorLowHum > 105.0)         ? "N/A" : String(indoorLowHum, 1) + "%";
+  String indHumHighStr  = (indoorHighHum < 0.0 || indoorHighHum > 105.0)       ? "N/A" : String(indoorHighHum, 1) + "%";
 
-    char mmBuffer[500];
+  String outTempLowStr  = (outdoorTempMin <= -900.0 || outdoorTempMin >= 900.0) ? "N/A" : String(outdoorTempMin, 1) + "°C";
+  String outTempHighStr = (outdoorTempMax <= -900.0 || outdoorTempMax >= 900.0) ? "N/A" : String(outdoorTempMax, 1) + "°C";
+  String outHumLowStr   = (outdoorLowHum < 0.0 || outdoorLowHum > 105.0)         ? "N/A" : String(outdoorLowHum, 1) + "%";
+  String outHumHighStr  = (outdoorHighHum < 0.0 || outdoorHighHum > 105.0)       ? "N/A" : String(outdoorHighHum, 1) + "%";
+
+    char mmBuffer[600];
     snprintf(mmBuffer, sizeof(mmBuffer),
       "📊 *Min / Max Extremen per Locatie*\n\n"
-      "🪴 *Kas:*\n"
-      "• Temp: `%s` | `%s`\n"
-      "• LV:   `%s` | `%s`\n\n"
+      "🪴 *Kas & Trays:*\n"
+      "• Kas Temp: `%s` | `%s`\n"
+      "• Kas LV:   `%s` | `%s`\n"
+      "• Tray 1:   `%s` | `%s`\n"
+      "• Tray 2:   `%s` | `%s`\n\n"
       "🏡 *Woning:*\n"
       "• Temp: `%s` | `%s`\n"
       "• LV:   `%s` | `%s`\n\n"
@@ -450,6 +457,8 @@ void handleTelegramIncoming() {
       "• Temp: `%s` | `%s`\n"
       "• LV:   `%s` | `%s`",
       kasTempLowStr.c_str(), kasTempHighStr.c_str(), kasHumLowStr.c_str(), kasHumHighStr.c_str(),
+      tray1LowStr.c_str(), tray1HighStr.c_str(),
+      tray2LowStr.c_str(), tray2HighStr.c_str(),
       indTempLowStr.c_str(), indTempHighStr.c_str(), indHumLowStr.c_str(), indHumHighStr.c_str(),
       outTempLowStr.c_str(), outTempHighStr.c_str(), outHumLowStr.c_str(), outHumHighStr.c_str()
     );
@@ -647,8 +656,6 @@ void handleTelegramIncoming() {
     char hcBuf[1300];
     snprintf(hcBuf, sizeof(hcBuf),
       "%s *Hardware & Sensor Check*\n\n"
-      "⚙️ *Systeem:*\n"
-      "• RAM: `%.1f KB` | Chip: `%.1f°C` 🧠\n\n"
       "🌿 *Kas & Trays:*\n"
       "• Temp: `%s` | LV: `%s` | Fout: `%.1f%%`\n"
       "• Tray 1: `%s` (%s) [%s]\n"
@@ -662,9 +669,10 @@ void handleTelegramIncoming() {
       "🌀 *Ventilatoren:*\n"
       "• Int:   `%d%%` (`%d RPM`)\n"
       "• Ext1: `%d%%` (`%d RPM`)\n"
-      "• Ext2: `%d%%` (`%d RPM`)",
+      "• Ext2: `%d%%` (`%d RPM`)\n\n"
+      "⚙️ *Systeem:*\n"
+      "• RAM: `%.1f KB` | Chip: `%.1f°C` 🧠\n\n",
       statusIcon.c_str(),
-      heapKb, internalTemp,
       kasTempStr.c_str(), kasHumStr.c_str(), failKas,
       tray1Str.c_str(), traySensor1Connected ? "Online 🟢" : "Offline / Vocht 🔴", tray1ModeStr.c_str(),
       tray2Str.c_str(), traySensor2Connected ? "Online 🟢" : "Offline / Vocht 🔴", tray2ModeStr.c_str(),
@@ -673,7 +681,8 @@ void handleTelegramIncoming() {
       pirStatus.c_str(),
       fanIntPct, fanIntRPM,
       fanExt1Pct, fanExt1RPM,
-      fanExt2Pct, fanExt2RPM
+      fanExt2Pct, fanExt2RPM,
+      heapKb, internalTemp
     );
     sendTelegramAlert(String(hcBuf));
   }

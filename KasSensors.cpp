@@ -260,6 +260,11 @@ void updateKasSensors() {
       float t1 = dsSensors.getTempCByIndex(0);
       if (t1 != DEVICE_DISCONNECTED_C && t1 > -55.0 && t1 < 125.0) {
         traySensor1Temp = t1 + TRAY_SENSOR_1_OFFSET; // Offset toegepast
+        
+        // Min/max bijwerken voor Tray 1
+        if (traySensor1Temp < traySensor1TempLow)  traySensor1TempLow = traySensor1Temp;
+        if (traySensor1Temp > traySensor1TempHigh) traySensor1TempHigh = traySensor1Temp;
+
       } else {
         traySensor1Temp = -999.0;
       }
@@ -270,6 +275,11 @@ void updateKasSensors() {
       float t2 = dsSensors.getTempCByIndex(1);
       if (t2 != DEVICE_DISCONNECTED_C && t2 > -55.0 && t2 < 125.0) {
         traySensor2Temp = t2 + TRAY_SENSOR_2_OFFSET; // Offset toegepast
+        
+        // Min/max bijwerken voor Tray 2
+        if (traySensor2Temp < traySensor2TempLow)  traySensor2TempLow = traySensor2Temp;
+        if (traySensor2Temp > traySensor2TempHigh) traySensor2TempHigh = traySensor2Temp;
+
       } else {
         traySensor2Temp = -999.0;
       }

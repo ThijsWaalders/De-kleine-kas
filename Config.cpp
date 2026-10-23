@@ -107,10 +107,14 @@ unsigned long lampTransitionStartTime = 0;
 
 float kasDewPoint = -999.0, kasVpd = -999.0, indoorDewPoint = -999.0, indoorVpd = -999.0, currentPressure = 0.0, currentLuxValue = 0.0, outdoorVpd = -999.0;
 // --- TRAY SENSOREN (DS18B20) ---
-float traySensor1Temp = -999.0;
-float traySensor2Temp = -999.0;
 bool traySensor1Connected = false;
 bool traySensor2Connected = false;
+float traySensor1Temp = -999.0;
+float traySensor2Temp = -999.0;
+float traySensor1TempLow = 999.0;
+float traySensor1TempHigh = -999.0;
+float traySensor2TempLow = 999.0;
+float traySensor2TempHigh = -999.0;
 
 int tray1Mode = 0; // Standaard 0 (Kiemfase)
 int tray2Mode = 0;
@@ -168,7 +172,7 @@ float kasHighHum = -1.0;
 float indoorLowHum = 999.0;
 float indoorHighHum = -1.0;
 float outdoorLowHum = 999.0;
-float outdoorHighHum = -1.0;
+float outdoorHighHum = -999.0;;
 // float kasLowHum = 100.0;
 // float kasHighHum = 0.0;
 // float indoorLowHum = 100.0;

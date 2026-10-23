@@ -60,9 +60,30 @@ void fetchInternetWeather() {
           outdoorPressure = newPressure;
         }
 
-        // ZELF DAGELIJKSE MIN/MAX BUITEN BIJHOUDEN
+        // ZELF DAGELIJKSE MIN/MAX BUITEN TEMPERATUUR BIJHOUDEN
         if (outdoorTempMin == 0.0 || outdoorTemp < outdoorTempMin) outdoorTempMin = outdoorTemp;
         if (outdoorTemp > outdoorTempMax) outdoorTempMax = outdoorTemp;
+
+        // ZELF DAGELIJKSE MIN/MAX BUITEN LV BIJHOUDEN 👈 (DEZE TOEVOEGEN)
+        if (outdoorLowHum > 105.0 || outdoorHumidity < outdoorLowHum) outdoorLowHum = outdoorHumidity;
+        if (outdoorHumidity > outdoorHighHum) outdoorHighHum = outdoorHumidity;
+        // outdoorTemp = doc["main"]["temp"].as<float>();
+        // outdoorHumidity = doc["main"]["humidity"].as<float>();
+        
+        // // Luchtdruk ophalen uit OpenWeather JSON (in hPa)
+        // if (doc["main"]["pressure"].is<float>()) {
+        //   float newPressure = doc["main"]["pressure"].as<float>();
+        //   if (outdoorPressure > 0.0) {
+        //     if (newPressure > outdoorPressure + 0.5) outdoorPressureTrendText = "Stijgend 📈";
+        //     else if (newPressure < outdoorPressure - 0.5) outdoorPressureTrendText = "Dalend 📉";
+        //     else outdoorPressureTrendText = "Stabiel ⚖️";
+        //   }
+        //   outdoorPressure = newPressure;
+        // }
+
+        // // ZELF DAGELIJKSE MIN/MAX BUITEN BIJHOUDEN
+        // if (outdoorTempMin == 0.0 || outdoorTemp < outdoorTempMin) outdoorTempMin = outdoorTemp;
+        // if (outdoorTemp > outdoorTempMax) outdoorTempMax = outdoorTemp;
 
         const char* descStr = doc["weather"][0]["description"];
         weatherDesc = descStr ? String(descStr) : "Onbekend";

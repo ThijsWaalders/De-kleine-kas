@@ -25,7 +25,7 @@
 #include <Preferences.h>      // Slaapstand (isKasSleeping) Opslaan in NVS (Flash-geheugen)
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.5"
+#define FIRMWARE_VERSION "v3.5.1"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 // SHT31 sensor check
@@ -75,8 +75,8 @@ const float HEAT_MAT_TEMP_HIGH              = 20.0;
 const float KAS_TEMP_OFFSET                 = -0.5; // -0.6; // -0.9; // Kalibratie offset kas SHT31 temperatuur
 const float INDOOR_TEMP_OFFSET              = -2.0; // -2.1; // -2.3; // -2.2  // Kalibratie offset woning BME280 temperatuur
 // DS18B20 tray sensoren
-const float TRAY_SENSOR_1_OFFSET            =  0.0f; 
-const float TRAY_SENSOR_2_OFFSET            =  0.0f;
+const float TRAY_SENSOR_1_OFFSET            = -0.0f; 
+const float TRAY_SENSOR_2_OFFSET            = -0.1f;
 // --- LUCHTVOCHTIGHEID
 const float KAS_HUM_OFFSET                  = -1.8; //-0.2; // -0.4; // Kalibratie offset kas SHT31 luchtvochtigheid
 const float INDOOR_HUM_OFFSET               = +6.8; // +7.4; // +8.3; // +6.9; // Kalibratie offset woning BME280 luchtvochtigheid
@@ -213,7 +213,7 @@ extern uint32_t freeHeap;
 extern const char* BUFFER_FILE;
 
 extern float kasTemp, kasHum, indoorTemp, indoorHum;
-extern float outdoorTemp, outdoorHumidity, outdoorDewPoint, outdoorPressure, outdoorVpd;
+extern float outdoorTemp, outdoorHumidity, outdoorDewPoint, outdoorPressure, outdoorVpd, outdoorLowHum, outdoorHighHum;
 extern float kasDewPoint, kasVpd, indoorDewPoint, indoorVpd;
 
 extern float kasDpMargin;
@@ -231,12 +231,14 @@ extern float kasTempLow, kasTempHigh, indoorTempHigh, indoorTempLow;
 
 extern float kasSmoothedTemp, kasSmoothedHum, indoorSmoothedTemp, indoorSmoothedHum, displayedTemp;
 extern unsigned long lastTempUpdate;
-extern float traySensor1Temp, traySensor2Temp;
 extern bool traySensor1Connected, traySensor2Connected;
 extern bool isTray1GerminatingMode; // true = Kiemfase (17.5-23.5°C), false = Groeifase (15-25°C)
 extern bool isTray2GerminatingMode;
 extern float traySensor1Temp, traySensor2Temp;
-extern bool traySensor1Connected, traySensor2Connected;
+extern float traySensor1TempLow;
+extern float traySensor1TempHigh;
+extern float traySensor2TempLow;
+extern float traySensor2TempHigh;
 
 // Tray modi (0 = Kiemfase, 1 = Groeifase, 2 = Warmtemat-modus)
 extern int tray1Mode;
