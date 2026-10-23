@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [🇳🇱 Nederlands](#-nederlands)
+    - [v3.5.1](#v351)
     - [Versie v3.5 is officieel een feit!](#versie-v35-is-officieel-een-feit)
     - [Upcoming v3.5](#upcoming-v35)
     - [v3.4.4](#v344)
@@ -21,6 +22,12 @@
       - [Telegram commando's](#telegram-commandos)
 
 ## 🇳🇱 Nederlands
+
+### v3.5.1
+
+1. TraySensors min/max toegevoegd
+2. Outdoor min/max N/A fix voor relatieve luchtvochtigheid
+3. Telegram bijgewerkt
 
 ### Versie v3.5 is officieel een feit!
 

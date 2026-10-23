@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [🇬🇧 English](#-english)
+    - [v3.5.1](#v351)
     - [Version v3.5 is officially live!](#version-v35-is-officially-live)
     - [Upcoming v3.5](#upcoming-v35)
     - [v3.4.4](#v344)
@@ -21,6 +22,12 @@
       - [Telegram commands](#telegram-commands)
 
 ## 🇬🇧 English
+
+### v3.5.1
+
+1. TraySensors min/max added
+2. Outdoor min/max N/A fix for relative humidity
+3. Telegram updated
 
 ### Version v3.5 is officially live!
 
