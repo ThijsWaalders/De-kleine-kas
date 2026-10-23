@@ -283,37 +283,27 @@ void updateKasSensors() {
       } else {
         traySensor2Temp = -999.0;
       }
-    }
+    }    
   }
-  // // --- 2. DS18B20 TRAY SENSOR(EN) UITLEZEN (Elke 5 seconden) ---
-  // if (currentMillis - lastTrayReadTime >= 5000 || lastTrayReadTime == 0) {
-  //   lastTrayReadTime = currentMillis;
-
-  //   dsSensors.requestTemperatures();
-    
-  //   // Tray sensor 1 (Index 0)
-  //   if (traySensor1Connected) {
-  //     float t1 = dsSensors.getTempCByIndex(0);
-  //     if (t1 != DEVICE_DISCONNECTED_C && t1 > -55.0 && t1 < 125.0) {
-  //       traySensor1Temp = t1;
-  //     } else {
-  //       traySensor1Temp = -999.0;
-  //     }
-  //   }
-
-  //   // Tray sensor 2 (Index 1)
-  //   if (traySensor2Connected) {
-  //     float t2 = dsSensors.getTempCByIndex(1);
-  //     if (t2 != DEVICE_DISCONNECTED_C && t2 > -55.0 && t2 < 125.0) {
-  //       traySensor2Temp = t2;
-  //     } else {
-  //       traySensor2Temp = -999.0;
-  //     }
-  //   }
-  // }
 
   // Controleer & verwerk de SHT31 heater-check (non-blocking)
   checkAndRunShtHeater();
+}
+
+float getTrayMinTemp(int mode) {
+  if (mode == 0) return 17.5f; // Kiem
+  if (mode == 1) return 15.0f; // Groei
+  if (mode == 2) return 18.0f; // Warmtemat
+  if (mode == 3) return -999.0f; // Uit (geen grenzen)
+  return 15.0f;                // Veilige fallback (voorkomt 0 of NAN flitsen!)
+}
+
+float getTrayMaxTemp(int mode) {
+  if (mode == 0) return 23.5f; // Kiem
+  if (mode == 1) return 25.0f; // Groei
+  if (mode == 2) return 29.0f; // Warmtemat
+  if (mode == 3) return -999.0f; // Uit (geen grenzen)
+  return 25.0f;                // Veilige fallback
 }
 
 // /**

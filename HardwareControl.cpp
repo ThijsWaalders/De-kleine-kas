@@ -222,15 +222,16 @@ void updateFanSpeeds(float currentVpd) {
     return; 
   }
 
-  // Voer de PID-berekening elke 2 seconden uit
-  if (currentMillis - lastPidTime < 2000) return; 
+  // Voer de PID-berekening elke seconden uit
+  if (currentMillis - lastPidTime < 1000) return; 
   
   float dt = (currentMillis - lastPidTime) / 1000.0;
   lastPidTime = currentMillis;
   yield(); 
 
   // --- ECHTE VLOEIENDE PID-REGELING ---
-  float error = pidSetPointVPD - currentVpd; 
+  float error = currentVpd - pidSetPointVPD;
+  // float error = pidSetPointVPD - currentVpd;
   float proportional = kp * error;
 
   iError += error * dt;
@@ -251,7 +252,7 @@ void updateFanSpeeds(float currentVpd) {
   if (kasAdvice == GREENHOUSE_VENTILATE) {
     int extPwm;
     
-    if (isClimateCrash || abs(error) > 0.4) {
+    if (isClimateCrash || abs(error) > VPD_MAX_ERROR_THRESHOLD) {
       extPwm = FAN_MAX_PWM; 
     } 
     else {

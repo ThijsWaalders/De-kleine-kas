@@ -94,26 +94,53 @@ String getSystemStatusIcon() {
 void sendTelegramAlert(String message) {
   if (WiFi.status() != WL_CONNECTED) return;
 
+  // Filter fan-alerts als ze zijn uitgeschakeld
   if (!fanAlertsEnabled) {
     if (message.indexOf("ventilator") != -1 || message.indexOf("FAN") != -1 || message.indexOf("Fan") != -1) {
       return;
     }
   }
 
-  yield();
-
-  unsigned long timeSinceLastMsg = millis() - lastTelegramSentTime;
-  if (timeSinceLastMsg < TELEGRAM_MIN_INTERVAL) {
-    delay(50); 
+  // 1. BEVEILIGING TEGEN TELEGRAM RATE-LIMIT: 
+  // Als het vorige bericht te recent is, wachten we NIET met delay(), 
+  // maar stellen we het verzenden heel even uit totdat het interval wel verstreken is.
+  while (millis() - lastTelegramSentTime < TELEGRAM_MIN_INTERVAL) {
+    yield(); // Geef de achtergrondtaken/WiFi de ruimte in plaats van de CPU stil te zetten
   }
 
+  // 2. VERSTUREN BERICHT
   if (bot.sendMessage(telid, message, "Markdown")) {
     lastTelegramSentTime = millis();
+
+    // 3. LED INDICATIE (Visuele feedback dat bericht verstuurd is)
     digitalWrite(LED_BUILTIN, LOW);   
-    delay(100);                        
+    delay(15); // Korte, felle puls die wél goed zichtbaar is voor het oog
     digitalWrite(LED_BUILTIN, HIGH);  
   }
 }
+// void sendTelegramAlert(String message) {
+//   if (WiFi.status() != WL_CONNECTED) return;
+
+//   if (!fanAlertsEnabled) {
+//     if (message.indexOf("ventilator") != -1 || message.indexOf("FAN") != -1 || message.indexOf("Fan") != -1) {
+//       return;
+//     }
+//   }
+
+//   yield();
+
+//   unsigned long timeSinceLastMsg = millis() - lastTelegramSentTime;
+//   if (timeSinceLastMsg < TELEGRAM_MIN_INTERVAL) {
+//     delay(50); 
+//   }
+
+//   if (bot.sendMessage(telid, message, "Markdown")) {
+//     lastTelegramSentTime = millis();
+//     digitalWrite(LED_BUILTIN, LOW);   
+//     delay(100);                        
+//     digitalWrite(LED_BUILTIN, HIGH);  
+//   }
+// }
 
 // Helper om traymodus tekst op te halen
 String getTrayModeName(int mode) {
@@ -148,19 +175,23 @@ String buildStatusReport() {
   // Bereken de dauwpuntmarge (Temperatuur - Dauwpunt) voor de veiligheidscheck
   float kasDpMargin = displayedTemp - kasDewPoint;
 
-  String actieVereist = "🟢 Geen actie nodig. Alles is onder controle.";
+  String actieVereist = "🟢 Geen handmatige actie nodig. De kleine kas regelt het zelf.";
   if (isKasSleeping) {
-    actieVereist = "😴 Slaapstand...";
+    actieVereist = "😴 Ssst... de kleine kas slaapt.";
   } else if (isCalibrationModeActive) {
-    actieVereist = "⚖️ Kalibratiemodus";
+    actieVereist = "⚖️ Even wachten: Systeem kalibreert (fans staan stil).";
   } else if (!isSystemReady()) {
-    actieVereist = "⏳ Systeem is aan het opstarten...";
+    actieVereist = "⏳ Even geduld: Systeem is nog aan het opstarten.";
   } else if (moldRisk || kasDpMargin < 2.0f) {
-    actieVereist = "🔴 **ACTIE:** Risico op klamheid! Dauwpuntmarge te klein (" + String(kasDpMargin, 1) + "°C). Zet ventilatie open.";
+    if (outdoorDewPoint >= kasDewPoint) {
+      actieVereist = "🛑 **DOE DEUR DICHT!** Er is schimmelrisico, MAAR de buitenlucht is te klam. Niet ventileren!";
+    } else {
+      actieVereist = "🪟 **DOE DEUR OPEN!** (dauwpuntmarge is te klein en de buitenlucht is droog genoeg).";
+    }
   } else if (homeVentActive) {
-    actieVereist = "🏠 **ACTIE:** Open woningventilatie (buffer inzetten).";
+    actieVereist = "🟢 **Niets:** De kleine kas gebruikt automatisch de woningbuffer om bij te sturen.";
   } else if (kasVpd > 1.0f) {
-    actieVereist = "🟢 Kas is tikje droog (VPD " + String(kasVpd, 2) + "), maar dauwpuntmarge is veilig (" + String(kasDpMargin, 1) + "°C).";
+    actieVereist = "🟢 **Niets:** De kleine Kas is tikje droog, maar de dauwpuntmarge is veilig ruim. Stelt bij.";
   }
 
   String kasVpdStr    = (kasVpd <= -900.0) ? "N/A" : String(kasVpd, 2) + " kPa";
@@ -222,9 +253,11 @@ String buildHelpMenu() {
          "• TS1 Kiemfase (/ts1k) - TS1 kiemmodus (17.5-23.5°C)\n"
          "• TS1 Groeifase (/ts1g) - TS1 groeimodus (15-25°C)\n"
          "• TS1 Warmtemat (/ts1wm) - TS1 warmtemat-modus (max 29°C)\n"
+         "• TS1 Uit (/ts1off) - TS1 uitgeschakeld\n"
          "• TS2 Kiemfase (/ts2k) - TS2 kiemmodus (17.5-23.5°C)\n"
          "• TS2 Groeifase (/ts2g) - TS2 groeimodus (15-25°C)\n"
-         "• TS2 Warmtemat (/ts2wm) - TS2 warmtemat-modus (max 29°C)\n\n"
+         "• TS2 Warmtemat (/ts2wm) - TS2 warmtemat-modus (max 29°C)\n"
+         "• TS2 Uit (/ts2off) - TS2 uitgeschakeld\n\n"
 
          "• Test Sweep (/tfs) - Sweep alle fans (MIN ↔ MAX)\n"
          "• Test Low RPM (/tfl) - Alle 3 fans op MIN-PWM\n"
@@ -293,33 +326,51 @@ void handleTelegramIncoming() {
   }
   else if (text == "ts1k") {
     tray1Mode = 0;
+    sendMqttData();
     saveTrayModesToPreferences();
     sendTelegramAlert("🫘 *Tray 1 Modus:* Ingesteld op **Kiemfase** (17.5°C - 23.5°C) en opgeslagen in geheugen.");
   }
   else if (text == "ts1g") {
     tray1Mode = 1;
+    sendMqttData();
     saveTrayModesToPreferences();
     sendTelegramAlert("🌿 *Tray 1 Modus:* Ingesteld op **Groeifase** (15.0°C - 25.0°C) en opgeslagen in geheugen.");
   }
   else if (text == "ts1wm") {
     tray1Mode = 2;
+    sendMqttData();
     saveTrayModesToPreferences();
     sendTelegramAlert("🔥 *Tray 1 Modus:* Ingesteld op **Warmtemat-modus** (max 29.0°C) en opgeslagen in geheugen.");
   }
   else if (text == "ts2k") {
     tray2Mode = 0;
+    sendMqttData();
     saveTrayModesToPreferences();
     sendTelegramAlert("🫘 *Tray 2 Modus:* Ingesteld op **Kiemfase** (17.5°C - 23.5°C) en opgeslagen in geheugen.");
   }
   else if (text == "ts2g") {
     tray2Mode = 1;
+    sendMqttData();
     saveTrayModesToPreferences();
     sendTelegramAlert("🌿 *Tray 2 Modus:* Ingesteld op **Groeifase** (15.0°C - 25.0°C) en opgeslagen in geheugen.");
   }
   else if (text == "ts2wm") {
     tray2Mode = 2;
+    sendMqttData();
     saveTrayModesToPreferences();
     sendTelegramAlert("🔥 *Tray 2 Modus:* Ingesteld op **Warmtemat-modus** (max 29.0°C) en opgeslagen in geheugen.");
+  }
+  else if (text == "ts1off") {
+    tray1Mode = 3;
+    sendMqttData();
+    saveTrayModesToPreferences();
+    sendTelegramAlert("🔌 *Tray 1 Modus:* Ingesteld op **Uit** (uitgeschakeld).");
+  }
+  else if (text == "ts2off") {
+    tray2Mode = 3;
+    sendMqttData();
+    saveTrayModesToPreferences();
+    sendTelegramAlert("🔌 *Tray 2 Modus:* Ingesteld op **Uit** (uitgeschakeld).");
   }
   else if (text == "pe" || text == "paasei") {
     String eggMessage = "🥚 *Geheime Kiem-Easter Egg*\n\n" + String(getNextMicrogreenEasterEgg());
@@ -337,7 +388,7 @@ void handleTelegramIncoming() {
     } else {
       ktReport += "⭐️ *Aanbevolen venster:* `20:00 - 12:00` (16u licht)\n\n";
       ktReport += "🔍 *Waarom dit venster?*\n";
-      ktReport += "• *Nachtkoeling:* Woningbuffer is 's nachts koeler (" + String(indoorSmoothedTemp, 1) + "°C), waardoor lampwarmte de kas perfect op temperatuur houdt.\n";
+      ktReport += "• *Nachtkoeling:* Woningbuffer is 's nachts koeler (" + String(indoorSmoothedTemp, 1) + "°C), waardoor lampwarmte de kleine kas perfect op temperatuur houdt.\n";
       ktReport += "• *Voorkom Hittepiek:* Overdag stijgt de kamertemperatuur; extra lampwarmte dwingt de fans tot maximaal zwoegen.\n";
       ktReport += "• *VPD Stabiliteit:* Minder schommelingen in de luchtvochtigheid tijdens de nachtelijke uren.";
     }
@@ -366,7 +417,7 @@ void handleTelegramIncoming() {
     if (isKasSleeping) {
       woningKleur = "⚪";
       woningDiagnose = "Slaapstand...";
-      actieVoorJij = "Geen actie nodig, de kas slaapt.";
+      actieVoorJij = "Geen actie nodig, de kleine kas slaapt.";
     } else if (isCalibrationModeActive) {
       woningKleur = "⚪";
       woningDiagnose = "Kalibratiemodus";
@@ -410,13 +461,13 @@ void handleTelegramIncoming() {
     String adviesReport = "🌿 *Klimaat & Teeltadvies*\n\n";
     adviesReport += "🚦 *Status:*\n";
     adviesReport += "• " + kasKleur + " *Kas:* " + kasHeader + "\n";
-    adviesReport += "  _Diagnose:_ " + kasDiagnose + "\n";
+    adviesReport += kasDiagnose + "\n";
     adviesReport += "• " + woningKleur + " *Woning:* " + woningDiagnose + "\n";
     adviesReport += "• " + buitenKleur + " *Buiten:* " + buitenStatus + "\n\n";
-    adviesReport += "👤 *Wat moet jij doen?*\n";
-    adviesReport += "• " + actieVoorJij + "\n\n";
     adviesReport += hwKleur + " *Hardware Status*\n";
-    adviesReport += "• " + hwStatus;
+    adviesReport += "• " + hwStatus + "\n\n";
+    adviesReport += "👤 *Wat moet jij doen?*\n";
+    adviesReport += "• " + actieVoorJij + "";
 
     sendTelegramAlert(adviesReport);
   }

@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [🇬🇧 English](#-english)
+    - [🇬🇧 What's New in v3.5.2 (English)](#-whats-new-in-v352-english)
     - [v3.5.1](#v351)
     - [Version v3.5 is officially live!](#version-v35-is-officially-live)
     - [Upcoming v3.5](#upcoming-v35)
@@ -22,6 +23,13 @@
       - [Telegram commands](#telegram-commands)
 
 ## 🇬🇧 English
+
+### 🇬🇧 What's New in v3.5.2 (English)
+
+1. **Complete Configuration Centralization**: All remaining magic numbers, thresholds, and safety margins (such as VPD error margins, crash offsets, and humidity velocity triggers) have been moved from the logic files into Config.h for centralized management.
+2. **Smooth PID Fan Control**: By lowering the proportional gain (kp to 0.5) and externalizing the VPD_MAX_ERROR_THRESHOLD, the harsh "bang-bang" (on/off) fan behavior has been replaced with smooth, proportional PWM modulation.
+3. **Real-Time Grafana & Data Flow**: Data flow has been synchronized, and Grafana dashboard queries have been updated to fixed time windows (time >= now() - 1h) using fill(previous) and rapid grouping (GROUP BY time(10s)), permanently eliminating the previous one-hour reaction delay.
+4. **Code Refactoring**: Config.h has been completely reorganized into logical, well-documented sections for easier maintenance.
 
 ### v3.5.1
 

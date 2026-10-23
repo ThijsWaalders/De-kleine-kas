@@ -31,6 +31,8 @@ extern float currentLuxValue;
 // Functie prototypes
 void setupKasSensors();
 void updateKasSensors();
+float getTrayMinTemp(int mode);
+float getTrayMaxTemp(int mode);
 
 #endif
 // /**

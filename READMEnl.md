@@ -2,6 +2,7 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [🇳🇱 Nederlands](#-nederlands)
+    - [🇳🇱 What's New in v3.5.2 (Nederlands)](#-whats-new-in-v352-nederlands)
     - [v3.5.1](#v351)
     - [Versie v3.5 is officieel een feit!](#versie-v35-is-officieel-een-feit)
     - [Upcoming v3.5](#upcoming-v35)
@@ -22,6 +23,13 @@
       - [Telegram commando's](#telegram-commandos)
 
 ## 🇳🇱 Nederlands
+
+### 🇳🇱 What's New in v3.5.2 (Nederlands)
+
+1. **Volledige Configuratie-centralisatie**: Alle resterende 'magic numbers', harde drempelwaarden en veiligheidsmarges (zoals de VPD-foutmarge, crash-offsets en vochtigheidssnelheid-triggers) zijn uit de logica gehaald en ondergebracht in Config.h. Dit maakt het beheer een stuk overzichtelijker.
+2. **Vloeiende PID-ventilatorregeling**: Door de proportionele factor (kp) te verlagen naar 0.5 en de VPD_MAX_ERROR_THRESHOLD configureerbaar te maken, is de abrupte "bang-bang" (aan/uit) aansturing van de ventilatoren veranderd in een soepele, proportionele PWM-modulatie.
+3. **Real-Time Grafana & Data Flow**: De datastroom is geoptimaliseerd en de Grafana-dashboardqueries zijn bijgewerkt naar een vast tijdsvenster (time >= now() - 1h) met fill(previous) en snelle groepering (GROUP BY time(10s)). Hierdoor is de oude vertraging van een uur definitief verdwenen.
+4. **Code Schoonmaak**: Config.h is volledig heringedeeld in logische, gedocumenteerde secties voor optimaal onderhoud.
 
 ### v3.5.1
 

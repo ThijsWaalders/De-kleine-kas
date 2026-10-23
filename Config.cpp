@@ -6,18 +6,22 @@
 #include "nono.h" 
 #include "Config.h"
 
-// =========================================================================
-// 1. PID REGELAAR VARIABELEN
-// =========================================================================
-float kp = 2.2; // 2.2 voor bounce/werking systeem test was 1.5;       // Proportioneel
-float ki = 0.15;                    // Integraal
-float kd = 0.6;                     // Derivatief
+// // =========================================================================
+// // 1. PID REGELAAR VARIABELEN
+// // =========================================================================
+extern float kp;                                     
+extern float ki;                                     
+extern float kd;  
+// --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
+// float kp = 2.2; // 2.2 voor bounce/werking systeem test was 1.5;       // Proportioneel
+// float ki = 0.15;                    // Integraal
+// float kd = 0.6;                     // Derivatief
 
 
 // =========================================================================
 // 2. SYSTEEM & HARDWARE STATEN
 // =========================================================================
-const float ESP_CRITICAL_TEMP = 70.0;
+extern const float ESP_CRITICAL_TEMP;
 
 bool mfOverrideActive = false;
 bool isKasSleeping = false;

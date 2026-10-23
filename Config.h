@@ -25,7 +25,7 @@
 #include <Preferences.h>      // Slaapstand (isKasSleeping) Opslaan in NVS (Flash-geheugen)
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.5.1"
+#define FIRMWARE_VERSION "v3.5.2"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 // SHT31 sensor check
@@ -39,15 +39,35 @@ extern Preferences preferences;
 // Kritieke VPD drempels voor alarmering en weergave
 #define VPD_CRITICAL_HIGH 1.00f  // Vanaf hier springt het scherm op hard alarm (Uitdroging)
 
-// --- 1.1 VPD & Klimaat Doelen (Kiemgroenten) ---
-const float VPD_MAX_OPTIMAL                 = 0.95; //0.85;  // Iets strakker dan 0.94 om uitdroging door lampen voor te zijn
-const float VPD_MIN_OPTIMAL                 = 0.50; // Veilig boven de schimmelgrens (voorkom onder 0.45 = schimmelrisico!)
-const float pidSetPointVPD                  = 0.70; //0.68;  // Het ideale middelpunt voor kiemgroenten
+const unsigned long CLIMATE_CHECK_INTERVAL_MS = 15000; // Tijd tussen checks: 15 seconden (was 60s)
+const unsigned long MQTT_SEND_INTERVAL_MS = 30000; // Stuur elke 30 seconden data naar MQTT
 
-// --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
-extern float kp;                                     
-extern float ki;                                     
-extern float kd;                                     
+// --- Klimaatlogica & Veiligheid Grenswaarden ---
+const float GREENHOUSE_CRASH_OFFSET       = 2.0f;   // Extra marge boven crash temp
+const float SYSTEM_READY_LUX_THRESHOLD    = 1.0f;   // Lux drempel voor snelle opstart bij daglicht
+const unsigned long SYSTEM_READY_SHORT_DELAY_MS = 5000UL; // Snelle start delay bij licht (ms)
+const float HEAT_MAT_DISABLE_TEMP         = 22.0f;  // Harde bovengrens waarbij de warmtemat altijd uitschakelt
+const float HUMIDITY_VELOCITY_THRESHOLD   = 3.0f;   // Maximale stijging in %/min voor interne circulatie
+const float HUMIDITY_VELOCITY_MIN_HUM     = 60.0f;  // Minimale luchtvochtigheid om snelheidstrigger toe te staan
+const float BARO_TREND_THRESHOLD          = 0.2f;   // Luchtdrukverschil drempel voor trend (pijl omhoog/omlaag)
+
+
+// --- 1.1 VPD & Klimaat Doelen (Kiemgroenten) ---
+const float VPD_MAX_ERROR_THRESHOLD = 0.3f; // Foutmarge waarbij de ventilator direct naar max springt
+const float VPD_MAX_OPTIMAL                 = 0.95f; //0.95; //0.85;  // Iets strakker dan 0.94 om uitdroging door lampen voor te zijn
+const float VPD_MIN_OPTIMAL                 = 0.50f; //0.50; // Veilig boven de schimmelgrens (voorkom onder 0.45 = schimmelrisico!)
+const float pidSetPointVPD                  = 0.70f; //0.70; //0.68;  // Het ideale middelpunt voor kiemgroenten
+
+// // --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
+inline float kp = 0.5; // was 1.5;       // Proportioneel
+inline float ki = 0.15;                    // Integraal
+inline float kd = 0.6;                     // Derivatief
+// =========================================================================
+// 1. PID REGELAAR VARIABELEN
+// =========================================================================
+// extern float kp;                                     
+// extern float ki;                                     
+// extern float kd;                                     
 
 // --- 1.3 Ventilator PWM Snelheden & Grenzen ---
 // FAN_MIN = De absolute harde ondergrens (hardware-bescherming om te voorkomen dat ze stilvallen).
@@ -61,22 +81,22 @@ const int INT_FAN_BASE_PWM                  = 111; // 111 = ~1600 rpm
 const int INT_FAN_MIN_PWM                   = 110; //65;     
 
 // --- 1.4 Klimaat Drempelwaarden & Veiligheid ---
-const float GREENHOUSE_MAX_TEMP             = 26.0;  
+const float GREENHOUSE_MAX_TEMP             = 25.0;  
 const float GREENHOUSE_CRASH_TEMP           = 28.0;   
 const float OUTDOOR_MAX_HUMIDITY_FOR_VENT   = 85.0;  
 const float HUM_MOLD_THRESHOLD              = 70.0; //75.0;  
 const float DP_MARGIN_MIN                   = 2.0;   
 
-const float HEAT_MAT_TEMP_LOW               = 16.0;  
-const float HEAT_MAT_TEMP_HIGH              = 20.0;  
+const float HEAT_MAT_TEMP_LOW               = 0.0; //16.0;  
+const float HEAT_MAT_TEMP_HIGH              = 22.0; //20.0;  
 
 // --- 1.5 Sensor Correctie Offsets ---
 // --- TEMP
 const float KAS_TEMP_OFFSET                 = -0.5; // -0.6; // -0.9; // Kalibratie offset kas SHT31 temperatuur
 const float INDOOR_TEMP_OFFSET              = -2.0; // -2.1; // -2.3; // -2.2  // Kalibratie offset woning BME280 temperatuur
 // DS18B20 tray sensoren
-const float TRAY_SENSOR_1_OFFSET            = -0.0f; 
-const float TRAY_SENSOR_2_OFFSET            = -0.1f;
+const float TRAY_SENSOR_1_OFFSET            = +0.2f; //-0.0f; 
+const float TRAY_SENSOR_2_OFFSET            = +0.2f; //-0.1f;
 // --- LUCHTVOCHTIGHEID
 const float KAS_HUM_OFFSET                  = -1.8; //-0.2; // -0.4; // Kalibratie offset kas SHT31 luchtvochtigheid
 const float INDOOR_HUM_OFFSET               = +6.8; // +7.4; // +8.3; // +6.9; // Kalibratie offset woning BME280 luchtvochtigheid
@@ -118,7 +138,7 @@ const unsigned long TEMP_UPDATE_INTERVAL    = 5000;
 const float TEMP_HYSTERESIS_THRESHOLD       = 0.3;
 const unsigned long BUTTON_DEBOUNCE_DELAY   = 50;
 const unsigned long LUX_STABILITY_TIMEOUT   = 10000;
-const int MOLD_SAMPLES                      = 60;
+const int MOLD_SAMPLES                      = 10; //60;
 const int MAX_BUFFER_SIZE                   = 50;
 const unsigned long HEAT_MAT_DELAY          = 300000; 
 
@@ -169,7 +189,7 @@ enum KasVentState   { KAS_OFF, GREENHOUSE_CIRCULATE_INTERNAL, KasVentState_dummy
 // =========================================================================
 // 📦 DEEL 5: EXTERN DECLARATIES (MACHINEKAMER KOPPELING)
 // =========================================================================
-extern const float ESP_CRITICAL_TEMP;
+const float ESP_CRITICAL_TEMP = 70.0;
 extern unsigned long lastEspTempCheck;
 inline bool fanAlertsEnabled = true;
 
