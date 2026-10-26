@@ -6,41 +6,29 @@
 #include "nono.h" 
 #include "Config.h"
 
-// // =========================================================================
-// // 1. PID REGELAAR VARIABELEN
-// // =========================================================================
-extern float kp;                                     
-extern float ki;                                     
-extern float kd;  
-// --- 1.2 PID Regelaar Tuning (Ventilator-sturing op VPD) ---
-// float kp = 2.2; // 2.2 voor bounce/werking systeem test was 1.5;       // Proportioneel
-// float ki = 0.15;                    // Integraal
-// float kd = 0.6;                     // Derivatief
-
+// --- FEEDFORWARD LAMP ANTICIPATIE ---
+bool isPreemptiveLampConditioningActive = false;
+int testMinutesUntilLightsOn = 180; // Vaste startwaarde: test alsof de lampen over 3 uur aangaan
 
 // =========================================================================
-// 2. SYSTEEM & HARDWARE STATEN
+// 1. SYSTEEM & HARDWARE STATEN
 // =========================================================================
-extern const float ESP_CRITICAL_TEMP;
-
 bool mfOverrideActive = false;
 bool isKasSleeping = false;
 bool pendingTelegramAlert = false;
 
-// Interne temperatuursensor handle
 static temperature_sensor_handle_t global_temp_sensor_handle = NULL;
 static bool tempSensorInitialized = false;
 
-// PIR sensor Display de-/activatie
 bool isDisplayActiveByMotion = true;
 unsigned long lastMotionTime = 0;
 
 
 // =========================================================================
-// 3. NETWERK & SERVERS
+// 2. NETWERK & SERVERS
 // =========================================================================
-char ssid [] = SECRET_SSID;
-char password [] = SECRET_PASS;
+char ssid[] = SECRET_SSID;
+char password[] = SECRET_PASS;
 String openWeatherKey = API_KEY;
 String cityID = CITY_ID;
 
@@ -56,7 +44,7 @@ const char* BUFFER_FILE = "/data_buffer.txt";
 
 
 // =========================================================================
-// 4. SENSOR & KLIMAAT VARIABELEN
+// 3. SENSOR & KLIMAAT VARIABELEN
 // =========================================================================
 unsigned long totalKasReads = 0;
 unsigned long failedKasReads = 0;
@@ -102,15 +90,14 @@ unsigned long darkStartTime = 0;
 
 
 // =========================================================================
-// 5. GLOBALE KLIMAAT & MARGE VARIABELEN
+// 4. LAMPEN, TRAY SENSOREN & MODUS
 // =========================================================================
-// LAMP-TRANSITIE & PREDICTIVE CONTROL VARIABELEN
 bool lampsAreOn = false;
 bool isLampTransitionActive = false;
 unsigned long lampTransitionStartTime = 0;
 
 float kasDewPoint = -999.0, kasVpd = -999.0, indoorDewPoint = -999.0, indoorVpd = -999.0, currentPressure = 0.0, currentLuxValue = 0.0, outdoorVpd = -999.0;
-// --- TRAY SENSOREN (DS18B20) ---
+
 bool traySensor1Connected = false;
 bool traySensor2Connected = false;
 float traySensor1Temp = -999.0;
@@ -120,7 +107,7 @@ float traySensor1TempHigh = -999.0;
 float traySensor2TempLow = 999.0;
 float traySensor2TempHigh = -999.0;
 
-int tray1Mode = 0; // Standaard 0 (Kiemfase)
+int tray1Mode = 0; 
 int tray2Mode = 0;
 
 void saveTrayModesToPreferences() {
@@ -132,11 +119,15 @@ void saveTrayModesToPreferences() {
 
 void loadTrayModesFromPreferences() {
   preferences.begin("kas_config", true);
-  tray1Mode = preferences.getInt("tray1_mode", 0); // Standaard op 0 als het nog niet bestaat
+  tray1Mode = preferences.getInt("tray1_mode", 0);
   tray2Mode = preferences.getInt("tray2_mode", 0);
   preferences.end();
 }
-//
+
+
+// =========================================================================
+// 5. EVALUATIE, SCHIMMELRISICO & UI TEKSTEN
+// =========================================================================
 bool moldRisk = false;
 String moldReasonText = "";
 float kasDpMargin = 0.0;
@@ -163,8 +154,7 @@ unsigned long lastTelegramSentTime = 0;
 
 
 // =========================================================================
-// 6. VOCHTIGHEID & MIN/MAX STATISTIEKEN
-// - Ruwe start waardes -999.0 voor leeg/ongeldig, 999.0 / -1.0 voor min/max
+// 6. VOCHTIGHEID & EXTREMEN
 // =========================================================================
 float indoorHum = 0.0;
 float indoorTemp = 0.0;
@@ -176,16 +166,11 @@ float kasHighHum = -1.0;
 float indoorLowHum = 999.0;
 float indoorHighHum = -1.0;
 float outdoorLowHum = 999.0;
-float outdoorHighHum = -999.0;;
-// float kasLowHum = 100.0;
-// float kasHighHum = 0.0;
-// float indoorLowHum = 100.0;
-// float indoorHighHum = 0.0;
-// float outdoorLowHum = 100.0;
-// float outdoorHighHum = 0.0;
+float outdoorHighHum = -1.0;
+
 
 // =========================================================================
-// 7. VENTILATOREN, TACHO & PID RUNTIME VARIABELEN
+// 7. VENTILATOREN, TACHO & PID RUNTIME
 // =========================================================================
 volatile unsigned long rpmCountInt = 0;
 volatile unsigned long rpmCountExt1 = 0;
@@ -202,11 +187,12 @@ float pidOutput = 0.0;
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
+
 // =========================================================================
 // 8. ADVIEZEN & BESTURING
 // =========================================================================
 HouseVentState houseAdvice = HOUSE_CLOSED;
-KasVentState kasAdvice = KAS_OFF; // <--- Met type KasVentState
+KasVentState kasAdvice = KAS_OFF; 
 HouseVentState previousHouseAdvice = HOUSE_CLOSED;
 KasVentState previousKasAdvice = KAS_OFF;
 
@@ -216,6 +202,7 @@ bool isClimateCrash = false;
 unsigned long lastVelocityCheckTime = 0;
 float previousHumForVelocity = -999.0;
 float humidityVelocity = 0.0;
+
 
 // =========================================================================
 // 9. HARDWARE & NETWERK OBJECTEN
@@ -230,9 +217,8 @@ UniversalTelegramBot bot(BOT_TOKEN, telegramSslClient);
 
 SSD1306Wire display(0x3c, PIN_SDA, PIN_SCL);
 
-// Nieuwe I2C Sensor Objecten
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
-Adafruit_BME280 bme; // Gebruikt standaard I2C adres (0x76 of 0x77)
+Adafruit_BME280 bme; 
 bool lightMeterConnected = false;
 bool sht31Connected = false;
 bool bmeConnected = false;

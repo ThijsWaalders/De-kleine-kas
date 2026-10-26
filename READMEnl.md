@@ -2,7 +2,10 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [🇳🇱 Nederlands](#-nederlands)
-    - [🇳🇱 What's New in v3.5.2 (Nederlands)](#-whats-new-in-v352-nederlands)
+    - [Over het Project](#over-het-project)
+  - [v3.5.4](#v354)
+    - [v3.5.3](#v353)
+    - [v3.5.2](#v352)
     - [v3.5.1](#v351)
     - [Versie v3.5 is officieel een feit!](#versie-v35-is-officieel-een-feit)
     - [Upcoming v3.5](#upcoming-v35)
@@ -24,7 +27,31 @@
 
 ## 🇳🇱 Nederlands
 
-### 🇳🇱 What's New in v3.5.2 (Nederlands)
+### Over het Project
+
+**De Kleine Kas** is een geavanceerd, robuust klimaat- en kweekstation voor een indoor kweekkas, aangestuurd door een **ESP32-S3-Zero (N8R8)**. De firmware regelt autonoom het binnenklimaat op basis van **VPD (Vapor Pressure Deficit)**, beheert tweekanaals tray-verwarming met onafhankelijke kiem- en groeimodus, en bewaakt de veiligheid via een unieke **3-zone hiërarchie (Kas $\iff$ Woning $\iff$ Buiten)**.
+
+Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
+
+## v3.5.4
+
+- **Dynamische Feedforward Lamp-anticipatie (De 21-uur regel):** Het systeem leert nu automatisch wanneer de verlichting aanspringt en start precies 3 uur vóór dat verwachte moment (binnen een 24-uurs cyclus) met het proactief conditioneren van de woningbuffer (`targetIndoorVpdMin = 0.95 kPa`).
+- **Code-architectuur & Scope Fixes:** `upcomingLightsOn` en de timingvariabelen zijn omgezet naar file-scope variabelen met een schone getter (`getMinutesUntilLightsOn()`), waardoor alle compiler-fouten zijn opgelost.
+- **Telegram `/st` Statusrapport Integratie:** Wanneer je handmatig `/st` opvraagt, toont het rapport nu direct de actieve anticipatiestatus en een nauwkeurige countdown (in uren en minuten) tot de lampen weer aanspringen.
+- **Stilte op de Achtergrond:** Geen onnodige pushmeldingen voor routine-aanpassingen; push-alerts zijn strikt voorbehouden aan kritieke alarmen en mislukte klimaat-escalaties. Volledige transparantie blijft wel beschikbaar op on-demand basis via `/st`.
+
+### v3.5.3
+
+- **3-Zone Klimaat- en Bufferlogica:** De kas wisselt gecontroleerd lucht uit met de woning. De woning fungeert als thermische buffer en wordt getoetst tegen de buitenlucht via dauwpuntsberekening (`houseAdvice`).
+- **Onafhankelijke Tray-Bewaking:** Twee DS18B20 sensoren bewaken de trays afzonderlijk met instelbare modi (Kiemfase, Groeifase, Warmtemat) en persistente opslag via Preferences (NVS).
+- **Slimme Anti-Jojo & Zelflerende Regeling:** *Inertia Learning* en dynamische setpoint-offsets voorkomen oscillerend gedrag bij wisselende warmtelasten.
+- **Waterdichte PWM-veiligheid:** Geen "niemandsland" tussen 1 en `MIN_PWM`. Ventilatoren draaien óf op 0, óf op minimaal `MIN_PWM` met een harde `BASE_PWM` kickstart.
+- **Offline LittleFS Buffering:** MQTT-metingen worden lokaal opgeslagen in LittleFS bij netwerkuitval en non-blocking ingehaald zodra de verbinding herstelt.
+- **Vast OLED Display Layout:** Kas (links) en Woning (rechts) staan op een vaste locatie; de bovenste regel roteert slim tussen buitenweer en tray-temperaturen.
+
+---
+
+### v3.5.2
 
 1. **Volledige Configuratie-centralisatie**: Alle resterende 'magic numbers', harde drempelwaarden en veiligheidsmarges (zoals de VPD-foutmarge, crash-offsets en vochtigheidssnelheid-triggers) zijn uit de logica gehaald en ondergebracht in Config.h. Dit maakt het beheer een stuk overzichtelijker.
 2. **Vloeiende PID-ventilatorregeling**: Door de proportionele factor (kp) te verlagen naar 0.5 en de VPD_MAX_ERROR_THRESHOLD configureerbaar te maken, is de abrupte "bang-bang" (aan/uit) aansturing van de ventilatoren veranderd in een soepele, proportionele PWM-modulatie.
@@ -58,8 +85,10 @@ Added:
 
 - 2 BS18D20 temp sensors als tray sensors
 - Kiem vs groei fase modus per sensor
-- Checks & waarschuwingen voor beide modussen
-- Besliboom aangepast voor beide modussen
+- Checks & waarschuwingen voor beide modus
+- Beslisboom aangepast voor beide modus
+
+---
 
 ### Wat is er nieuw in De kleine kas v3.4.3
 

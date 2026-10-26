@@ -102,6 +102,7 @@ inline float calcVPD(float tempC, float hum) {
 
 // Functie prototypes (v3.4.0 centrale evaluatie met kas én woning parameters)
 bool isSystemReady();
+int getMinutesUntilLightsOn();
 void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float indoorHum);
 void checkClimateVelocity(float currentHum);
 void updateVentilationAdvice(float inTemp, float inHum, float inDp, float outTemp, float outHum, float outDp);

@@ -41,40 +41,6 @@ bool isCalibrationModeActive = false;
 unsigned long calibrationStartTime = 0;
 const unsigned long CALIBRATION_DURATION = 180000; // 3 minuten in milliseconden
 
-// =========================================================================
-// EASTER EGG: Unieke kiemgroenten-feitjes en humor
-// =========================================================================
-const char* microgreensEasterEggs[] = {
-    "🌱 *Wist je dat:* Broccolikiemen tot wel 50 keer meer sulforafaan bevatten dan volwassen broccoliroosjes? Pure anti-oxidantenbom!",
-    "🌿 *Kiem-wijsheid:* Zonnebloem kiemgroenten smaken heerlijk naar verse noten, maar vergeet niet de zaadhulpen tijdig weg te spoelen tegen schimmelvorming!",
-    "💡 *Easter Egg:* Als je te hard naar je radijskiemen blaast, gaan ze niet sneller groeien, maar worden ze wel verlegen.",
-    "🌱 *Feitje:* Erwtenkiemen (Pea Shoots) groeien zo snel dat ze bijna kunnen horen 'drinken' als je VPD-waarde exact op 0.70 kPa staat.",
-    "🪴 *Pro-tip:* Te veel water = natte voeten = ellende. Houd die wortels vochtig, niet verzopen!",
-    "🌿 *Weetje:* Luzerne (Alfalfa) wortelt zo diep in je mat dat ze bijna naar Australië proberen te boren.",
-    "🌱 *Kiem-humor:* Wat is de favoriete muziek van een kiemgroente? Soul- en funk-muziek, vanwege al die wortel-grooves.",
-    "🪴 *Feitje:* Radijskiemen hebben een pittige 'bite' omdat ze glucosinolaten aanmaken om insecten af te schrikken.",
-    "🌱 *Weetje:* Mosterdkiemen groeien zo snel dat ze binnen een week al klaar zijn om je boterham te veroveren.",
-    "🌿 *Kiem-wijsheid:* Licht is pas nodig *nadat* je kiemen uit hun donkere kiemfase komen.",
-    "💡 *Easter Egg:* De ESP32-S3 in De kleine kas droomt 's nachts van elektrische schapen en perfecte VPD-curves.",
-    "🌱 *Feitje:* Tuinkers was al populair bij de oude Romeinen voor een snelle vitamineshot.",
-    "🪴 *Weetje:* Als je kiemgroenten te dicht op elkaar zaait, krijgen ze claustrofobie en vallen ze massaal om.",
-    "🌿 *Kiem-humor:* Waarom won de taugé de hardloopwedstrijd? Omdat hij in no-time ontkiemde!",
-    "🌱 *Feitje:* Boekweitkiemen zien er futuristisch uit en smaken een beetje aards.",
-    "🪴 *Weetje:* Rode kool kiemen hebben prachtige paarse steeltjes als kunstwerkjes op je bord.",
-    "🌿 *Kiem-wijsheid:* Een stabiele temperatuur rond de 20 graden houdt je kiemen gelukkig.",
-    "💡 *Easter Egg:* Dit systeem heeft meer liefde voor jouw kiemgroenten dan je eigen wekker voor jouw ochtendhumeur.",
-    "🌱 *Feitje:* Kiemgroenten zijn de 'baby-plantjes' op hun piekwaarde van vitamine-concentratie.",
-    "🪴 *Slotfeit:* De beste kas is een automatische kas. Terwijl jij dit leest, regelt De kleine kas de rest wel weer!"
-};
-
-const int totalEasterEggs = sizeof(microgreensEasterEggs) / sizeof(microgreensEasterEggs[0]);
-
-const char* getNextMicrogreenEasterEgg() {
-    static int eggIndex = 0;
-    const char* selectedEgg = microgreensEasterEggs[eggIndex];
-    eggIndex = (eggIndex + 1) % totalEasterEggs; 
-    return selectedEgg;
-}
 
 // Helper om het juiste status-icoon te bepalen op basis van de toestand
 String getSystemStatusIcon() {
@@ -149,6 +115,27 @@ String getTrayModeName(int mode) {
   return "Warmtemat 🔥";
 }
 
+void checkAndSendHouseAdviceAlert() {
+  static HouseVentState prevHouseAdvice = HOUSE_CLOSED;
+  static unsigned long lastAdviceAlertTime = 0;
+
+  // Alleen sturen bij een statuswijziging naar VENTILATE
+  if (houseAdvice != prevHouseAdvice) {
+    prevHouseAdvice = houseAdvice;
+    if (houseAdvice == HOUSE_VENTILATE) {
+      sendTelegramAlert("🏠 *Woning Ventilatie Advies:*\n" + houseAdviceReason);
+      lastAdviceAlertTime = millis();
+    } else {
+      sendTelegramAlert("✅ *Woning Ventilatie Advies:* Woningklimaat is weer stabiel.");
+    }
+  }
+  // Periodieke herinnering (elke 2 uur) zolang het advies actief blijft
+  else if (houseAdvice == HOUSE_VENTILATE && (millis() - lastAdviceAlertTime >= 7200000UL)) {
+    sendTelegramAlert("🏠 *Herinnering Woning Ventilatie:*\n" + houseAdviceReason);
+    lastAdviceAlertTime = millis();
+  }
+}
+
 // =========================================================================
 // 📊 /st - STATUSRAPPORT
 // =========================================================================
@@ -172,7 +159,7 @@ String buildStatusReport() {
   if (isHeatMatRecommended) kasActieLogica += "\nWarmtemat (Kas): AAN 🔥";
   else kasActieLogica += "\nWarmtemat (Kas): UIT 💤";
 
-  // Bereken de dauwpuntmarge (Temperatuur - Dauwpunt) voor de veiligheidscheck
+  // Bereken de dauwpuntmarge voor de veiligheidscheck
   float kasDpMargin = displayedTemp - kasDewPoint;
 
   String actieVereist = "🟢 Geen handmatige actie nodig. De kleine kas regelt het zelf.";
@@ -188,11 +175,36 @@ String buildStatusReport() {
     } else {
       actieVereist = "🪟 **DOE DEUR OPEN!** (dauwpuntmarge is te klein en de buitenlucht is droog genoeg).";
     }
+  } else if (houseAdvice == HOUSE_VENTILATE) {
+    actieVereist = "🏠 **VENTILEER WONING:** " + houseAdviceReason;
   } else if (homeVentActive) {
     actieVereist = "🟢 **Niets:** De kleine kas gebruikt automatisch de woningbuffer om bij te sturen.";
-  } else if (kasVpd > 1.0f) {
-    actieVereist = "🟢 **Niets:** De kleine Kas is tikje droog, maar de dauwpuntmarge is veilig ruim. Stelt bij.";
+  } else if (indoorVpd < 0.80f) {
+    actieVereist = "🟡 **Let op:** Woning-VPD is aan de klamme kant; buffer raakt vol.";
+  } else {
+    actieVereist = "🟢 **Niets:** Woningbuffer en kas-VPD zijn optimaal in balans.";
   }
+  // // Bereken de dauwpuntmarge (Temperatuur - Dauwpunt) voor de veiligheidscheck
+  // float kasDpMargin = displayedTemp - kasDewPoint;
+
+  // String actieVereist = "🟢 Geen handmatige actie nodig. De kleine kas regelt het zelf.";
+  // if (isKasSleeping) {
+  //   actieVereist = "😴 Ssst... de kleine kas slaapt.";
+  // } else if (isCalibrationModeActive) {
+  //   actieVereist = "⚖️ Even wachten: Systeem kalibreert (fans staan stil).";
+  // } else if (!isSystemReady()) {
+  //   actieVereist = "⏳ Even geduld: Systeem is nog aan het opstarten.";
+  // } else if (moldRisk || kasDpMargin < 2.0f) {
+  //   if (outdoorDewPoint >= kasDewPoint) {
+  //     actieVereist = "🛑 **DOE DEUR DICHT!** Er is schimmelrisico, MAAR de buitenlucht is te klam. Niet ventileren!";
+  //   } else {
+  //     actieVereist = "🪟 **DOE DEUR OPEN!** (dauwpuntmarge is te klein en de buitenlucht is droog genoeg).";
+  //   }
+  // } else if (homeVentActive) {
+  //   actieVereist = "🟢 **Niets:** De kleine kas gebruikt automatisch de woningbuffer om bij te sturen.";
+  // } else if (kasVpd > 1.0f) {
+  //   actieVereist = "🟢 **Niets:** De kleine Kas is tikje droog, maar de dauwpuntmarge is veilig ruim. Stelt bij.";
+  // }
 
   String kasVpdStr    = (kasVpd <= -900.0) ? "N/A" : String(kasVpd, 2) + " kPa";
   String kasTempStr   = (displayedTemp <= -900.0) ? "N/A" : String(displayedTemp, 1) + "°C";
@@ -372,10 +384,6 @@ void handleTelegramIncoming() {
     saveTrayModesToPreferences();
     sendTelegramAlert("🔌 *Tray 2 Modus:* Ingesteld op **Uit** (uitgeschakeld).");
   }
-  else if (text == "pe" || text == "paasei") {
-    String eggMessage = "🥚 *Geheime Kiem-Easter Egg*\n\n" + String(getNextMicrogreenEasterEgg());
-    sendTelegramAlert(eggMessage);
-  }
   else if (text == "kweekadvies" || text == "ka") {
     String ktReport = "🕒 *Advies Slimme Kweektijden*\n\n";
     
@@ -411,7 +419,7 @@ void handleTelegramIncoming() {
     }
 
     String woningKleur = "🟢";
-    String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer.";
+    String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer (VPD: " + String(indoorVpd, 2) + " kPa).";
     String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf.";
 
     if (isKasSleeping) {
@@ -426,13 +434,41 @@ void handleTelegramIncoming() {
       woningKleur = "🟡";
       woningDiagnose = "Systeem kalibreert nog.";
       actieVoorJij = "Even geduld: Systeem kalibreert nog.";
-    } else if (homeVentActive) {
-      woningKleur = "🟢";
-      woningDiagnose = "Woningventilatie open aanbevolen (Buitenlucht kan ontvochtigen op basis van dauwpunt).";
-      actieVoorJij = "Ventileer de woningruimte om drogere buitenlucht aan te voeren.";
-    } else if (kasVpd > 1.0f) {
-      actieVoorJij = "De kleine kas corrigeert het klimaat mbt VPD naarmate de warmte afneemt.";
+    } else if (houseAdvice == HOUSE_VENTILATE) {
+      woningKleur = "🟠";
+      woningDiagnose = "Woningbuffer moet gelucht worden: " + houseAdviceReason;
+      actieVoorJij = "Zet woningventilatie/raam open (buitenlucht is fysiek droger).";
+    } else if (indoorVpd < 0.80f) {
+      woningKleur = "🟡";
+      woningDiagnose = "Woning-VPD is laag (" + String(indoorVpd, 2) + " kPa); buffer dreigt te verzadigen.";
+      actieVoorJij = "Bereid woningventilatie voor om de buffer te herstellen.";
+    } else {
+      actieVoorJij = "De kleine kas beheerst het klimaat via de woningbuffer.";
     }
+
+    // String woningKleur = "🟢";
+    // String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer.";
+    // String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf.";
+
+    // if (isKasSleeping) {
+    //   woningKleur = "⚪";
+    //   woningDiagnose = "Slaapstand...";
+    //   actieVoorJij = "Geen actie nodig, de kleine kas slaapt.";
+    // } else if (isCalibrationModeActive) {
+    //   woningKleur = "⚪";
+    //   woningDiagnose = "Kalibratiemodus";
+    //   actieVoorJij = "Typ `/cal` om kalibratie uit te schakelen.";
+    // } else if (!isSystemReady()) {
+    //   woningKleur = "🟡";
+    //   woningDiagnose = "Systeem kalibreert nog.";
+    //   actieVoorJij = "Even geduld: Systeem kalibreert nog.";
+    // } else if (homeVentActive) {
+    //   woningKleur = "🟢";
+    //   woningDiagnose = "Woningventilatie open aanbevolen (Buitenlucht kan ontvochtigen op basis van dauwpunt).";
+    //   actieVoorJij = "Ventileer de woningruimte om drogere buitenlucht aan te voeren.";
+    // } else if (kasVpd > 1.0f) {
+    //   actieVoorJij = "De kleine kas corrigeert het klimaat mbt VPD naarmate de warmte afneemt.";
+    // }
 
     String buitenKleur = "🟢";
     String buitenStatus = "Geschikt om in te zetten als ventilatielucht.";

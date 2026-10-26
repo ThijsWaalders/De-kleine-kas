@@ -2,7 +2,10 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [🇬🇧 English](#-english)
-    - [🇬🇧 What's New in v3.5.2 (English)](#-whats-new-in-v352-english)
+    - [About the Project](#about-the-project)
+    - [What's New? v3.5.4](#whats-new-v354)
+    - [Key Features in v3.5.3](#key-features-in-v353)
+    - [🇬🇧 v3.5.2](#-v352)
     - [v3.5.1](#v351)
     - [Version v3.5 is officially live!](#version-v35-is-officially-live)
     - [Upcoming v3.5](#upcoming-v35)
@@ -24,7 +27,29 @@
 
 ## 🇬🇧 English
 
-### 🇬🇧 What's New in v3.5.2 (English)
+### About the Project
+
+**De Kleine Kas** is an advanced climate and greenhouse controller built on an **ESP32-S3-Zero (N8R8)**. The firmware autonomously regulates the indoor climate using **VPD (Vapor Pressure Deficit)**, manages dual tray heating with independent germination and growth profiles, and enforces safety through a unique **3-zone architecture (Greenhouse $\iff$ Indoor Living Space $\iff$ Outdoor)**.
+
+### What's New? v3.5.4
+
+- **Dynamic Feedforward Lamp Anticipation (The 21-Hour Rule):** The system now dynamically tracks when greenhouse lights turn on and initiates proactive indoor buffer conditioning 3 hours prior (within a 24-hour cycle) to optimize moisture buffering (`targetIndoorVpdMin = 0.95 kPa`).
+- **Code Architecture & Scope Fixes:** `upcomingLightsOn` and timing variables have been structured using file-scope variables alongside a clean getter function (`getMinutesUntilLightsOn()`), resolving all scope-related compilation errors.
+- **Telegram `/st` Status Report Integration:** Requesting `/st` on-demand now seamlessly displays the current anticipation status and an exact countdown (hours and minutes) until the lights activate.
+- **Silent Background Operation:** Zero push notification spam for routine adjustments; push alerts remain strictly reserved for critical alarms and unresolved climate escalations, while on-demand transparency via `/st` remains fully detailed.
+
+### Key Features in v3.5.3
+
+- **3-Zone Climate & Buffer Hierarchy:** The greenhouse exchanges air exclusively with the indoor living space. The indoor space acts as a thermal buffer and is continuously evaluated against outdoor weather via dew point calculations (`houseAdvice`).
+- **Independent Tray Monitoring:** Two DS18B20 sensors track individual trays with selectable modes (Germination, Growth, Heat Mat) backed by persistent NVS storage.
+- **Anti-Oscillation & Self-Learning:** *Inertia Learning* and dynamic setpoint offsets suppress hunting and toggling behavior under changing thermal loads.
+- **Fail-Safe PWM Limits:** No dead zones between 1 and `MIN_PWM`. Fans operate strictly at 0 or `>= MIN_PWM` with a hard-coded startup kick (`BASE_PWM`).
+- **Offline LittleFS Buffering:** Telemetry payloads are safely cached locally in LittleFS during network outages and non-blockingly flushed upon reconnection.
+- **Fixed OLED Display Layout:** Greenhouse (left) and Indoor (right) remain locked in position; the top banner smoothly alternates between outdoor weather and tray temperatures.
+
+---
+
+### 🇬🇧 v3.5.2
 
 1. **Complete Configuration Centralization**: All remaining magic numbers, thresholds, and safety margins (such as VPD error margins, crash offsets, and humidity velocity triggers) have been moved from the logic files into Config.h for centralized management.
 2. **Smooth PID Fan Control**: By lowering the proportional gain (kp to 0.5) and externalizing the VPD_MAX_ERROR_THRESHOLD, the harsh "bang-bang" (on/off) fan behavior has been replaced with smooth, proportional PWM modulation.
@@ -64,19 +89,19 @@ Added:
 
 ### 🌀 Fan Architecture & Test Modes (Optimized)
 
-* **Pure Direct Pin Writes:** Completely stripped complex ramping and artificial limiting logic; pins are now driven directly and instantaneously via `ledcWrite` on the ESP32-S3 (Core v3.x).
-* **Smart Toggle Test Modes:** Test commands (`/tfl`, `/tfh`, `/tfs`, `/tfv`) now function as a direct on/off toggle. Automatic 30-second timeouts are gone; simply send the same command again to instantly stop the test and resume automatic climate regulation.
-* **Stepped Fan Sweep (`/tfs`):** The sweep test is structured into fixed 30-second blocks per level (Min $\rightarrow$ Mid $\rightarrow$ Max $\rightarrow$ Mid). This perfectly aligns with your Grafana telemetry interval, resulting in a clean, readable step-wave pattern in your graphs.
+- **Pure Direct Pin Writes:** Completely stripped complex ramping and artificial limiting logic; pins are now driven directly and instantaneously via `ledcWrite` on the ESP32-S3 (Core v3.x).
+- **Smart Toggle Test Modes:** Test commands (`/tfl`, `/tfh`, `/tfs`, `/tfv`) now function as a direct on/off toggle. Automatic 30-second timeouts are gone; simply send the same command again to instantly stop the test and resume automatic climate regulation.
+- **Stepped Fan Sweep (`/tfs`):** The sweep test is structured into fixed 30-second blocks per level (Min $\rightarrow$ Mid $\rightarrow$ Max $\rightarrow$ Mid). This perfectly aligns with your Grafana telemetry interval, resulting in a clean, readable step-wave pattern in your graphs.
 
 ### 📊 Tacho & RPM Calibration
 
-* **Clean External Fan Mapping:** Electrical 'chopping' noise at low PWM voltages (such as 25% / PWM 65), which previously caused tacho readings to stick at a false 100 RPM, has been resolved. External fans now map cleanly and linearly between the hardware specs of **300 RPM (at PWM 65)** and **1500 RPM (at PWM 255)**.
-* **Internal Fan Isolation:** The internal circulation fan is fully decoupled from external fan tests, retaining its own reliable pulse counting and baseline behavior.
+- **Clean External Fan Mapping:** Electrical 'chopping' noise at low PWM voltages (such as 25% / PWM 65), which previously caused tacho readings to stick at a false 100 RPM, has been resolved. External fans now map cleanly and linearly between the hardware specs of **300 RPM (at PWM 65)** and **1500 RPM (at PWM 255)**.
+- **Internal Fan Isolation:** The internal circulation fan is fully decoupled from external fan tests, retaining its own reliable pulse counting and baseline behavior.
 
 ### 🛠️ System & Observability
 
-* **MQTT & Grafana Synchronization:** All manual overrides, test flags, and calibrated RPM values are immediately broadcasted to the broker for real-time observability in Grafana.
-* **Ready for Expansion:** Prepared for the integration of the two additional DS18B20 sensors for substrate and tray temperature monitoring.
+- **MQTT & Grafana Synchronization:** All manual overrides, test flags, and calibrated RPM values are immediately broadcasted to the broker for real-time observability in Grafana.
+- **Ready for Expansion:** Prepared for the integration of the two additional DS18B20 sensors for substrate and tray temperature monitoring.
 
 ---
 

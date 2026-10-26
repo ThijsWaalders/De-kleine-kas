@@ -1,12 +1,57 @@
 # To-Do List
 
 - [To-Do List](#to-do-list)
+  - [De Kleine Kas - Architectuur \& Besluitenmanifest (BluePrint v3.5.3)](#de-kleine-kas---architectuur--besluitenmanifest-blueprint-v353)
+- [📐 Blueprint / Architectuurmanifest (v3.5.3)](#-blueprint--architectuurmanifest-v353)
+  - [1. Topologie \& De 3-Zone Hiërarchie](#1-topologie--de-3-zone-hiërarchie)
+  - [2. Hardware \& PWM Veiligheidsregels](#2-hardware--pwm-veiligheidsregels)
+  - [3. Tray-Modi \& Opslag](#3-tray-modi--opslag)
+  - [4. Non-Blocking Achtergrondtaken](#4-non-blocking-achtergrondtaken)
   - [Voor dev board](#voor-dev-board)
   - [Code](#code)
     - [Sensor Offsets](#sensor-offsets)
   - [v3.4](#v34)
   - [v3.4.1](#v341)
     - [De 4 Pijlers van de Slimme Lampen-optimalisatie (v3.4.2)](#de-4-pijlers-van-de-slimme-lampen-optimalisatie-v342)
+
+## De Kleine Kas - Architectuur & Besluitenmanifest (BluePrint v3.5.3)
+
+*Dit hoofdstuk bevat alle onwrikbare wetten, fysieke randvoorwaarden en beslissingsregels van de firmware.*
+
+
+# 📐 Blueprint / Architectuurmanifest (v3.5.3)
+
+*Dit document legt de onwrikbare technische wetten en beslissingsregels vast waaraan de firmware van De Kleine Kas voldoet.*
+
+## 1. Topologie & De 3-Zone Hiërarchie
+
+1. **Kas (Zone 1):** Bevindt zich indoor. Kan en mag **nooit** direct met de buitenlucht ventileren. Alle luchtwisseling loopt via de **Woning (Zone 2)**.
+2. **Woning (Zone 2):** Fungeert als thermische en vochtbuffer. Als de kas naar de woning ventileert, bewaakt het systeem of de woning zelf gebaat is bij buitenventilatie (`HOUSE_VENTILATE`), wat resulteert in een Telegram-advies voor de bewoner.
+3. **Buiten (Zone 3):** Externe referentie via OpenWeather. Wordt gebruikt voor dauwpunts- en vochtvergelijking.
+
+## 2. Hardware & PWM Veiligheidsregels
+
+* **Geen Dode Zones:** PWM-signalen voor ventilatoren zijn binair gedefinieerd in hun ondergrens: `0` (uit) of `>= MIN_PWM` (aan). Kleine waarden (1-64) zijn hardware-technisch uitgesloten om brommen of stilstand te voorkomen.
+* **Tachometer Interrupted:** Alle drie de ventilatoren worden via `IRAM_ATTR` interrupts gemonitord op RPM. Stilstand bij actieve aansturing (>140 PWM) triggert na 30 seconden een Telegram-alarm.
+* **CPU Optimalisatie:** De ESP32-S3 draait stabiel op 160 MHz om hittestress op de LDO te minimaliseren.
+
+## 3. Tray-Modi & Opslag
+
+* **Modi:**
+* `0`: Kiemfase (17.5°C - 23.5°C)
+* `1`: Groeifase (15.0°C - 25.0°C)
+* `2`: Warmtemat-modus (max 29.0°C)
+* `3`: Uitgeschakeld
+
+
+* **Persistentie:** Modi worden opgeslagen in NVS via `Preferences` zodat ze na een herstart behouden blijven. Bij sensorstoringsval vallen trays terug naar `-999.0` (geen valse dummy-waarden).
+
+## 4. Non-Blocking Achtergrondtaken
+
+* **SHT31 Condens-Heater:** Draait op een veilige State Machine (`HEATER_PREPARE_FANS` $\rightarrow$ `HEATER_HEATING` $\rightarrow$ `HEATER_COOLING`) zonder de `loop()` te blokkeren.
+* **MQTT LittleFS Queue:** Bij netwerkuitval worden berichten tijdelijk lokaal gebufferd (max 50 regels om flash-wear te beperken) en non-blocking verstuurd zodra de verbinding herstelt.
+
+
 
 ## Voor dev board
 

@@ -239,7 +239,8 @@ void loop() {
         // updateVentilationAdvice(kasSmoothedTemp, kasSmoothedHum, kasDewPoint, outdoorTemp, outdoorHumidity, outdoorDewPoint);
       }
 
-      checkKasTrends(kasSmoothedHum, kasSmoothedHum, currentPressure);
+      // checkKasTrends(kasSmoothedHum, kasSmoothedHum, currentPressure);
+      checkKasTrends(kasSmoothedTemp, kasSmoothedHum, currentPressure);
 
       if (kasSmoothedHum < kasLowHum) kasLowHum = kasSmoothedHum;
       if (kasSmoothedHum > kasHighHum) kasHighHum = kasSmoothedHum;
