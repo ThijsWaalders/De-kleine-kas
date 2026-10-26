@@ -1,16 +1,15 @@
 # ESP32-S3 Kiemgroente Klimaat Regeling
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
-  - [🇳🇱 Nederlands](#-nederlands)
-    - [Over het Project](#over-het-project)
-  - [v3.5.4](#v354)
+  - [Over het Project](#over-het-project)
+  - [Wat is er nieuw?](#wat-is-er-nieuw)
+    - [v3.5.4](#v354)
     - [v3.5.3](#v353)
     - [v3.5.2](#v352)
     - [v3.5.1](#v351)
-    - [Versie v3.5 is officieel een feit!](#versie-v35-is-officieel-een-feit)
-    - [Upcoming v3.5](#upcoming-v35)
+    - [v3.5](#v35)
     - [v3.4.4](#v344)
-    - [Wat is er nieuw in De kleine kas v3.4.3](#wat-is-er-nieuw-in-de-kleine-kas-v343)
+    - [v3.4.3](#v343)
       - [🌀 Fan-architectuur \& Testmodi (Geoptimaliseerd)](#-fan-architectuur--testmodi-geoptimaliseerd)
       - [📊 Tacho \& RPM Kalibratie](#-tacho--rpm-kalibratie)
       - [🛠️ Systeem \& Observability](#️-systeem--observability)
@@ -25,15 +24,15 @@
       - [Grafana Dashboard Tijdlijn](#grafana-dashboard-tijdlijn)
       - [Telegram commando's](#telegram-commandos)
 
-## 🇳🇱 Nederlands
-
-### Over het Project
+## Over het Project
 
 **De Kleine Kas** is een geavanceerd, robuust klimaat- en kweekstation voor een indoor kweekkas, aangestuurd door een **ESP32-S3-Zero (N8R8)**. De firmware regelt autonoom het binnenklimaat op basis van **VPD (Vapor Pressure Deficit)**, beheert tweekanaals tray-verwarming met onafhankelijke kiem- en groeimodus, en bewaakt de veiligheid via een unieke **3-zone hiërarchie (Kas $\iff$ Woning $\iff$ Buiten)**.
 
 Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
 
-## v3.5.4
+## Wat is er nieuw?
+
+### v3.5.4
 
 - **Dynamische Feedforward Lamp-anticipatie (De 21-uur regel):** Het systeem leert nu automatisch wanneer de verlichting aanspringt en start precies 3 uur vóór dat verwachte moment (binnen een 24-uurs cyclus) met het proactief conditioneren van de woningbuffer (`targetIndoorVpdMin = 0.95 kPa`).
 - **Code-architectuur & Scope Fixes:** `upcomingLightsOn` en de timingvariabelen zijn omgezet naar file-scope variabelen met een schone getter (`getMinutesUntilLightsOn()`), waardoor alle compiler-fouten zijn opgelost.
@@ -64,7 +63,7 @@ Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
 2. Outdoor min/max N/A fix voor relatieve luchtvochtigheid
 3. Telegram bijgewerkt
 
-### Versie v3.5 is officieel een feit!
+### v3.5
 
 Met deze update staat er echt een ijzersterke en slimme architectuur op de ESP32-S3:
 
@@ -75,22 +74,16 @@ Met deze update staat er echt een ijzersterke en slimme architectuur op de ESP32
 
 Slimme Kweektijden (`/kt`): Inzicht in de meest optimale belichtingstijden op basis van de woningbuffer.
 
-### Upcoming v3.5
-
-- Advies welke tijden beter zijn om De kleine kas aan/uit te zetten, gezien klimaat en energiekosten.
-
 ### v3.4.4
 
-Added:
+Toegevoegd:
 
 - 2 BS18D20 temp sensors als tray sensors
 - Kiem vs groei fase modus per sensor
 - Checks & waarschuwingen voor beide modus
 - Beslisboom aangepast voor beide modus
 
----
-
-### Wat is er nieuw in De kleine kas v3.4.3
+### v3.4.3
 
 #### 🌀 Fan-architectuur & Testmodi (Geoptimaliseerd)
 
@@ -107,40 +100,6 @@ Added:
 
 - **MQTT & Grafana Synchronisatie:** Alle handmatige overrules, testvlaggen en gekalibreerde toerentalwaarden worden direct doorgegeven aan de broker voor real-time inzicht in Grafana.
 - **Klaar voor uitbreiding:** Voorbereid op de integratie van de twee extra DS18B20-sensoren voor substraat- en traytemperatuurmetingen.
-- 
-<!-- ### Firmware Versie`v3.3.0`
-
-**Target Hardware:** ESP32-S3-ZERO-N8R8-M
-
-### Netwerk & OTA Stabiliteit (De Grote Doorbraak)
-
-- **AP/OTA Loops opgelost**: De netwerk initialisatie (ArduinoOTA.begin() binnen setupNetwork()) gecentraliseerd om hardnekkige opstartloops naar Access Point-modus en post-flash bevriezingen definitief te elimineren.
-
-- **Directe OTA Reboot**: Het systeem herstart nu direct en vlekkeloos zodra een software-update succesvol is voltooid.
-
-### Telegram Bot & Commando Suite (v3.3.0)
-
-- **Commando-routing hersteld**: De bericht-matching in `Telegram.cpp` opgeschoond, waardoor commando's (inclusief `/h` en `/help`) weer direct reageren zonder onterechte "Onbekend commando" meldingen.
-
-- **Fan-commando's gestroomlijnd en hernoemd**:
-
-  - `/tfs` — Test Sweep (5 min ramp MIN ↔ MAX)
-  - `/tfl` — Alle 3 de fans 30s op `MIN_PWM`
-  - `/tfh` — Alle 3 de fans 30s op `MAX_PWM`
-  - `/tfv` (Test Van Vent) — Interne fan UIT, externe fans max PWM (30s)
-  - Overbodige handmatige overrides (`/mf`) zijn opgeruimd.
-
-- **Nieuwe klimaat-test commando's toegevoegd**:
-
-  - `/tu` (Test Uitdroging) — Simuleert hoge VPD / te droge kas.
-  - `/tk` (Test Klam) — Simuleert klamme kas / schimmelrisico.
-  - `/tw` (Test Woning) — Simuleert de woning-ventilatiebuffer.
-
-- **Menu-opmaak gecorrigeerd**: Alle Markdown-foutjes en afbrekingen in het help menu rechtgezet zodat Telegram het weer strak en uniform uiterlijk geeft.
-
-### Systeem & Versiebeheer
-
-- **Versie en Build Timestamps**: Firmware-versie definitief vastgezet op v3.3.0, gekoppeld aan automatische build timestamps (`__DATE__` `__TIME__`) die netjes via netwerk info logs en opstartmeldingen (`/ni`) worden uitgelezen. -->
 
 ## Handleiding & Documentatie
 

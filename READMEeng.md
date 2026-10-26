@@ -1,44 +1,43 @@
 # ESP32-S3 Microgreens Climate Control System
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
-  - [🇬🇧 English](#-english)
-    - [About the Project](#about-the-project)
-    - [What's New? v3.5.4](#whats-new-v354)
-    - [Key Features in v3.5.3](#key-features-in-v353)
-    - [🇬🇧 v3.5.2](#-v352)
+  - [About the Project](#about-the-project)
+  - [What's New?](#whats-new)
+    - [v3.5.4](#v354)
+    - [v3.5.3](#v353)
+    - [v3.5.2](#v352)
     - [v3.5.1](#v351)
-    - [Version v3.5 is officially live!](#version-v35-is-officially-live)
-    - [Upcoming v3.5](#upcoming-v35)
+    - [v3.5](#v35)
     - [v3.4.4](#v344)
-    - [What's New in De kleine kas v3.4.3](#whats-new-in-de-kleine-kas-v343)
-    - [🌀 Fan Architecture \& Test Modes (Optimized)](#-fan-architecture--test-modes-optimized)
-    - [📊 Tacho \& RPM Calibration](#-tacho--rpm-calibration)
-    - [🛠️ System \& Observability](#️-system--observability)
-    - [Manual \& Documentation](#manual--documentation)
-      - [1. Hardware Architecture, Pinout \& System Setup](#1-hardware-architecture-pinout--system-setup)
-      - [2. Microgreens Agronomy: Why VPD, Thresholds \& Buffers Matter](#2-microgreens-agronomy-why-vpd-thresholds--buffers-matter)
-      - [3. Core Components of the Climate Control System (`ClimateLogic.cpp`)](#3-core-components-of-the-climate-control-system-climatelogiccpp)
-      - [4. Layered Fan Control \& Climate Safety](#4-layered-fan-control--climate-safety)
-      - [5. Environmental Assessment \& 3-Climate Chain](#5-environmental-assessment--3-climate-chain)
-      - [6. Display, PIR Motion Sensor \& Automatic Lux Dimming](#6-display-pir-motion-sensor--automatic-lux-dimming)
-      - [7. Telemetry, MQTT, Syslog \& Telegram Commands](#7-telemetry-mqtt-syslog--telegram-commands)
+    - [v3.4.3](#v343)
+      - [🌀 Fan Architecture \& Test Modes (Optimized)](#-fan-architecture--test-modes-optimized)
+      - [📊 Tacho \& RPM Calibration](#-tacho--rpm-calibration)
+      - [🛠️ System \& Observability](#️-system--observability)
+  - [Manual \& Documentation](#manual--documentation)
+    - [1. Hardware Architecture, Pinout \& System Setup](#1-hardware-architecture-pinout--system-setup)
+    - [2. Microgreens Agronomy: Why VPD, Thresholds \& Buffers Matter](#2-microgreens-agronomy-why-vpd-thresholds--buffers-matter)
+    - [3. Core Components of the Climate Control System (`ClimateLogic.cpp`)](#3-core-components-of-the-climate-control-system-climatelogiccpp)
+    - [4. Layered Fan Control \& Climate Safety](#4-layered-fan-control--climate-safety)
+    - [5. Environmental Assessment \& 3-Climate Chain](#5-environmental-assessment--3-climate-chain)
+    - [6. Display, PIR Motion Sensor \& Automatic Lux Dimming](#6-display-pir-motion-sensor--automatic-lux-dimming)
+    - [7. Telemetry, MQTT, Syslog \& Telegram Commands](#7-telemetry-mqtt-syslog--telegram-commands)
       - [Grafana Dashboard Timeline](#grafana-dashboard-timeline)
       - [Telegram commands](#telegram-commands)
 
-## 🇬🇧 English
-
-### About the Project
+## About the Project
 
 **De Kleine Kas** is an advanced climate and greenhouse controller built on an **ESP32-S3-Zero (N8R8)**. The firmware autonomously regulates the indoor climate using **VPD (Vapor Pressure Deficit)**, manages dual tray heating with independent germination and growth profiles, and enforces safety through a unique **3-zone architecture (Greenhouse $\iff$ Indoor Living Space $\iff$ Outdoor)**.
 
-### What's New? v3.5.4
+## What's New?
+
+### v3.5.4
 
 - **Dynamic Feedforward Lamp Anticipation (The 21-Hour Rule):** The system now dynamically tracks when greenhouse lights turn on and initiates proactive indoor buffer conditioning 3 hours prior (within a 24-hour cycle) to optimize moisture buffering (`targetIndoorVpdMin = 0.95 kPa`).
 - **Code Architecture & Scope Fixes:** `upcomingLightsOn` and timing variables have been structured using file-scope variables alongside a clean getter function (`getMinutesUntilLightsOn()`), resolving all scope-related compilation errors.
 - **Telegram `/st` Status Report Integration:** Requesting `/st` on-demand now seamlessly displays the current anticipation status and an exact countdown (hours and minutes) until the lights activate.
 - **Silent Background Operation:** Zero push notification spam for routine adjustments; push alerts remain strictly reserved for critical alarms and unresolved climate escalations, while on-demand transparency via `/st` remains fully detailed.
 
-### Key Features in v3.5.3
+### v3.5.3
 
 - **3-Zone Climate & Buffer Hierarchy:** The greenhouse exchanges air exclusively with the indoor living space. The indoor space acts as a thermal buffer and is continuously evaluated against outdoor weather via dew point calculations (`houseAdvice`).
 - **Independent Tray Monitoring:** Two DS18B20 sensors track individual trays with selectable modes (Germination, Growth, Heat Mat) backed by persistent NVS storage.
@@ -47,9 +46,7 @@
 - **Offline LittleFS Buffering:** Telemetry payloads are safely cached locally in LittleFS during network outages and non-blockingly flushed upon reconnection.
 - **Fixed OLED Display Layout:** Greenhouse (left) and Indoor (right) remain locked in position; the top banner smoothly alternates between outdoor weather and tray temperatures.
 
----
-
-### 🇬🇧 v3.5.2
+### v3.5.2
 
 1. **Complete Configuration Centralization**: All remaining magic numbers, thresholds, and safety margins (such as VPD error margins, crash offsets, and humidity velocity triggers) have been moved from the logic files into Config.h for centralized management.
 2. **Smooth PID Fan Control**: By lowering the proportional gain (kp to 0.5) and externalizing the VPD_MAX_ERROR_THRESHOLD, the harsh "bang-bang" (on/off) fan behavior has been replaced with smooth, proportional PWM modulation.
@@ -62,7 +59,7 @@
 2. Outdoor min/max N/A fix for relative humidity
 3. Telegram updated
 
-### Version v3.5 is officially live!
+### v3.5
 
 With this update, a robust and intelligent architecture is running on the ESP32-S3:
 
@@ -71,10 +68,6 @@ With this update, a robust and intelligent architecture is running on the ESP32-
 - **Dynamic PID-Driven Fan Control**: Fans smoothly scale in real time with the PID controller output rather than relying on static step thresholds.
 - **System Load Status Icons**: Instantly check status in Telegram to see if the greenhouse is resting (⚪), initializing/calibrating (🟡), actively controlling climate (🔵), operating under high system load (🟠), or requiring manual intervention (🔴).
 - **Smart Cultivation Advisory (`/kt`)**: Delivers insights into optimal lighting windows based on indoor buffer conditions.
-
-### Upcoming v3.5
-
-- Advise what times are better to enable/disable De kleine kas, climate and energy costs wise.
 
 ### v3.4.4
 
@@ -85,33 +78,33 @@ Added:
 - Checks & warnings for both modes
 - Decisions for both modes
 
-### What's New in De kleine kas v3.4.3
+### v3.4.3
 
-### 🌀 Fan Architecture & Test Modes (Optimized)
+#### 🌀 Fan Architecture & Test Modes (Optimized)
 
 - **Pure Direct Pin Writes:** Completely stripped complex ramping and artificial limiting logic; pins are now driven directly and instantaneously via `ledcWrite` on the ESP32-S3 (Core v3.x).
 - **Smart Toggle Test Modes:** Test commands (`/tfl`, `/tfh`, `/tfs`, `/tfv`) now function as a direct on/off toggle. Automatic 30-second timeouts are gone; simply send the same command again to instantly stop the test and resume automatic climate regulation.
 - **Stepped Fan Sweep (`/tfs`):** The sweep test is structured into fixed 30-second blocks per level (Min $\rightarrow$ Mid $\rightarrow$ Max $\rightarrow$ Mid). This perfectly aligns with your Grafana telemetry interval, resulting in a clean, readable step-wave pattern in your graphs.
 
-### 📊 Tacho & RPM Calibration
+#### 📊 Tacho & RPM Calibration
 
 - **Clean External Fan Mapping:** Electrical 'chopping' noise at low PWM voltages (such as 25% / PWM 65), which previously caused tacho readings to stick at a false 100 RPM, has been resolved. External fans now map cleanly and linearly between the hardware specs of **300 RPM (at PWM 65)** and **1500 RPM (at PWM 255)**.
 - **Internal Fan Isolation:** The internal circulation fan is fully decoupled from external fan tests, retaining its own reliable pulse counting and baseline behavior.
 
-### 🛠️ System & Observability
+#### 🛠️ System & Observability
 
 - **MQTT & Grafana Synchronization:** All manual overrides, test flags, and calibrated RPM values are immediately broadcasted to the broker for real-time observability in Grafana.
 - **Ready for Expansion:** Prepared for the integration of the two additional DS18B20 sensors for substrate and tray temperature monitoring.
 
 ---
 
-### Manual & Documentation
+## Manual & Documentation
 
 📖 **Manual: Robust Climate Control, Agronomic Logic & Telemetry Architecture**
 
 This manual describes the technical and agronomic architecture of the ESP32-S3 microgreens greenhouse system ("De kleine kas"). It is engineered to run completely headless, combining strict agronomic safety margins with robust industrial patterns.
 
-#### 1. Hardware Architecture, Pinout & System Setup
+### 1. Hardware Architecture, Pinout & System Setup
 
 The brain of the system is an **ESP32-S3-ZERO-N8R8-M** (running at 160 MHz for optimal thermal and power efficiency), communicating via I2C, PWM, and Interrupts.
 
@@ -126,7 +119,7 @@ The brain of the system is an **ESP32-S3-ZERO-N8R8-M** (running at 160 MHz for o
 
 - **Actuators & Status**: PWM Heat mat recommendation logic and onboard Status Neopixel LED (`PIN_NEOPIXEL` on GPIO 21).
 
-#### 2. Microgreens Agronomy: Why VPD, Thresholds & Buffers Matter
+### 2. Microgreens Agronomy: Why VPD, Thresholds & Buffers Matter
 
 Microgreens are extremely sensitive to microclimates in enclosed spaces:
 
@@ -137,7 +130,7 @@ Microgreens are extremely sensitive to microclimates in enclosed spaces:
 - **Dew Point Margin (`DP_MARGIN_MIN = 2.0°C`)**: Prevents leaf surface temperature from approaching the dew point, avoiding destructive leaf condensation.
 - **Indoor Buffer Strategy**: Instead of drawing cold/damp outdoor air directly into a small greenhouse, the system leverages conditioned indoor air from the living room as a stable climate buffer.
 
-#### 3. Core Components of the Climate Control System (`ClimateLogic.cpp`)
+### 3. Core Components of the Climate Control System (`ClimateLogic.cpp`)
 
 1. **Moving Average Sensor Filter**: Maintains a sliding buffer (`SENSOR_BUFFER_SIZE = 3`) to eliminate sensor noise and prevent actuator chattering.
 2. **Anti-Hunt Protection**: Enforces a minimum fan run time (`MIN_FAN_RUN_TIME = 180000 ms / 3 min`) to protect motor bearings and electronics.
@@ -145,7 +138,7 @@ Microgreens are extremely sensitive to microclimates in enclosed spaces:
 4. **Boot-Bypass & Light Detection**: If ambient light exceeds 1.0 lux during boot (grow lights detected), the standard 3-minute calibration delay is bypassed, immediately activating automated climate control.
 5. **NVS State Memory**: Retains sleep mode (`isKasSleeping`) across reboots via ESP32 `Preferences` non-volatile storage.
 
-#### 4. Layered Fan Control & Climate Safety
+### 4. Layered Fan Control & Climate Safety
 
 - **Green Zone (Optimal)**: VPD between `0.60` and `0.80` kPa. Climate stable; fans idle.
 - **Orange Zone (Soft Warning)**: Minor clamminess. Internal fan circulates softly (~45% PWM) to break the boundary layer.
@@ -153,16 +146,16 @@ Microgreens are extremely sensitive to microclimates in enclosed spaces:
 - **Ultra Max (Emergency Crash)**: Triggered if greenhouse temperature exceeds `GREENHOUSE_CRASH_TEMP` (28°C / 30°C). All external fans force 100% duty cycle with an instant Telegram emergency alert.
 - **Sleep Mode (`/sl`)**: Climate regulation pauses and fan PWM signals drop to 0%, while sensors continue logging background data.
 
-#### 5. Environmental Assessment & 3-Climate Chain
+### 5. Environmental Assessment & 3-Climate Chain
 
 Compares Greenhouse vs. Indoor vs. Outdoor (via OpenWeather API) to dynamically decide whether to vent, circulate, or seal the greenhouse enclosure.
 
-#### 6. Display, PIR Motion Sensor & Automatic Lux Dimming
+### 6. Display, PIR Motion Sensor & Automatic Lux Dimming
 
 - **PIR Display Control**: OLED display sleeps by default and wakes for 30 seconds upon motion detection.
 - **Lux Dimming**: Automatically dims display brightness to `10` when ambient light drops below `1.0` lux at night.
 
-#### 7. Telemetry, MQTT, Syslog & Telegram Commands
+### 7. Telemetry, MQTT, Syslog & Telegram Commands
 
 Integrates with Grafana Dashboard via MQTT on Raspberry Pi server (with local LittleFS buffering for offline recovery), Syslog logging, Telnet monitoring, Wireless AP OTA updates, and Telegram bot commands:
 
