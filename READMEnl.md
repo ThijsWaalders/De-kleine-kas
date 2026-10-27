@@ -3,6 +3,7 @@
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [Over het Project](#over-het-project)
   - [Wat is er nieuw?](#wat-is-er-nieuw)
+    - [v3.5.5](#v355)
     - [v3.5.4](#v354)
     - [v3.5.3](#v353)
     - [v3.5.2](#v352)
@@ -31,6 +32,16 @@
 Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
 
 ## Wat is er nieuw?
+
+### v3.5.5
+
+- **Centrale & Lamp-Aware VPD Grenzen**: Alle VPD-drempels zijn gecentraliseerd in Config.h en zijn nu volledig "lamp-aware". Het systeem onderscheidt automatisch strakke dagwaarden van ruimere nachtwaarden (VPD_MIN/MAX_OPTIMAL_DAY/NIGHT).
+
+- **Slimme Nachtdip (Geen Valse Alarmen)**: De vochtigheidsgrens voor actieve correctie (HUM_MOLD_THRESHOLD) is verruimd naar 80%. Hierdoor triggert de natuurlijke nachtelijke dip geen onnodige stressmeldingen of klam-alarmen meer.
+
+- **Grafana-Geoptimaliseerde Statusredenen**: Alle statusredenen (kasAdviceReason) in de beslisboom zijn opgeschoond. Overbodige emoji's, markdown-sterretjes en lange, afgebroken zinnen zijn verwijderd. Dit zorgt voor een superstrakke, overzichtelijke en professionele tijdlijnweergave in Grafana.
+
+- **Volledige Technische Harmonisatie**: Modules zoals ClimateLogic, DecisionEngine, Display, MQTT en Telegram grijpen nu allemaal foutloos en zonder losse "magic numbers" terug op dezelfde centrale configuratiebron.
 
 ### v3.5.4
 

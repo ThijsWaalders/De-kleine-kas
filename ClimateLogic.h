@@ -81,6 +81,11 @@ extern float minKasHum, maxKasHum;
 extern float minOutdoorHum, maxOutdoorHum;
 extern float indoorHum;
 
+// Zelflerende lampcorrectie
+extern float learnedLampTempOffset;
+void applyLampLearning(bool currentLampsOn, float kasTemp);
+
+
 void updateHumidityHighLow(float kasHum, float indoorHum, float outHum);
 
 // Forward declaration voor alert functionaliteit

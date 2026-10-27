@@ -3,6 +3,7 @@
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [About the Project](#about-the-project)
   - [What's New?](#whats-new)
+    - [v3.5.5](#v355)
     - [v3.5.4](#v354)
     - [v3.5.3](#v353)
     - [v3.5.2](#v352)
@@ -29,6 +30,16 @@
 **De Kleine Kas** is an advanced climate and greenhouse controller built on an **ESP32-S3-Zero (N8R8)**. The firmware autonomously regulates the indoor climate using **VPD (Vapor Pressure Deficit)**, manages dual tray heating with independent germination and growth profiles, and enforces safety through a unique **3-zone architecture (Greenhouse $\iff$ Indoor Living Space $\iff$ Outdoor)**.
 
 ## What's New?
+
+### v3.5.5
+
+- **Centralized & Lamp-Aware VPD Thresholds**: All VPD thresholds are now centralized in Config.h and fully "lamp-aware", automatically distinguishing between strict daytime values and broader nighttime values (VPD_MIN/MAX_OPTIMAL_DAY/NIGHT).
+
+- **Smart Night Dip (No False Alarms)**: The humidity threshold for active correction (HUM_MOLD_THRESHOLD) has been widened to 80%, preventing the natural night dip from triggering unnecessary stress warnings or false "clammy air" alerts.
+
+- **Grafana-Optimized Status Reasons**: All status reasons (kasAdviceReason) in the decision engine have been cleaned up. Unnecessary emojis, markdown asterisks (*), and long wrapped sentences have been removed to ensure a clean, professional timeline view in Grafana.
+
+- **Full Technical Harmonization**: Modules like ClimateLogic, DecisionEngine, Display, MQTT, and Telegram now cleanly pull from the same central configuration source without scattered "magic numbers."
 
 ### v3.5.4
 

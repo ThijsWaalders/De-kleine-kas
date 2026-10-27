@@ -188,12 +188,14 @@ void renderDisplay() {
     statusLine = blinkState ? "🔥 ALARM: UITDROGING!" : "🚨 INGRIJPEN VEREIST";
   }
   else {
-    bool hasRisk = (kasVpd > VPD_MAX_OPTIMAL || moldRisk || kasVpd < VPD_MIN_OPTIMAL);
+    float maxOpt = lampsAreOn ? VPD_MAX_OPTIMAL_DAY : VPD_MAX_OPTIMAL_NIGHT;
+    float minOpt = lampsAreOn ? VPD_MIN_OPTIMAL_DAY : VPD_MIN_OPTIMAL_NIGHT;
+    bool hasRisk = (kasVpd > maxOpt || moldRisk || kasVpd < minOpt);
     
     String riskText = "";
-    if (kasVpd > VPD_MAX_OPTIMAL)     riskText = "🔥 Risico: Uitdroging";
+    if (kasVpd > maxOpt)               riskText = "🔥 Risico: Uitdroging";
     else if (moldRisk)                 riskText = "🌧️ Risico: Schimmel";
-    else if (kasVpd < VPD_MIN_OPTIMAL) riskText = "💧 Risico: Te klam";
+    else if (kasVpd < minOpt)          riskText = "💧 Risico: Te klam";
 
     String actionText = "🔒 Kas rust / dicht";
     if (kasAdvice == GREENHOUSE_VENTILATE && fanExt1Pct > 0) {
@@ -220,7 +222,7 @@ void renderDisplay() {
       }
     }
   }
-
+  
   display.setFont(ArialMT_Plain_10);
   display.drawString(0, 52, statusLine);
 

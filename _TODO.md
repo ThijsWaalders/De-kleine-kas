@@ -1,12 +1,14 @@
 # To-Do List
 
 - [To-Do List](#to-do-list)
+    - [v3.5.5](#v355)
+    - [v3.5.3](#v353)
   - [De Kleine Kas - Architectuur \& Besluitenmanifest (BluePrint v3.5.3)](#de-kleine-kas---architectuur--besluitenmanifest-blueprint-v353)
-- [📐 Blueprint / Architectuurmanifest (v3.5.3)](#-blueprint--architectuurmanifest-v353)
-  - [1. Topologie \& De 3-Zone Hiërarchie](#1-topologie--de-3-zone-hiërarchie)
-  - [2. Hardware \& PWM Veiligheidsregels](#2-hardware--pwm-veiligheidsregels)
-  - [3. Tray-Modi \& Opslag](#3-tray-modi--opslag)
-  - [4. Non-Blocking Achtergrondtaken](#4-non-blocking-achtergrondtaken)
+  - [📐 Blueprint / Architectuurmanifest](#-blueprint--architectuurmanifest)
+    - [1. Topologie \& De 3-Zone Hiërarchie](#1-topologie--de-3-zone-hiërarchie)
+      - [2. Hardware \& PWM Veiligheidsregels](#2-hardware--pwm-veiligheidsregels)
+      - [3. Tray-Modi \& Opslag](#3-tray-modi--opslag)
+      - [4. Non-Blocking Achtergrondtaken](#4-non-blocking-achtergrondtaken)
   - [Voor dev board](#voor-dev-board)
   - [Code](#code)
     - [Sensor Offsets](#sensor-offsets)
@@ -14,43 +16,64 @@
   - [v3.4.1](#v341)
     - [De 4 Pijlers van de Slimme Lampen-optimalisatie (v3.4.2)](#de-4-pijlers-van-de-slimme-lampen-optimalisatie-v342)
 
+### v3.5.5
+
+1. Ont-alarmeren van het Schimmelrisico (moldRisk)
+
+   - **Wat**: De drempels worden ruimer en de teksten rustiger. Een nachtelijke dip naar 70% LV of 0.65 kPa VPD is volkomen normaal en veilig. Dit krijgt voortaan de status “Vochtcorrectie actief” in plaats van een hard schimmelalarm, zodat je dashboard en grafieken niet meer ten onrechte rood kleuren. Alleen bij echt condensgevaar op de zaadjes triggert nog een kritieke melding.
+
+2. Interne Ventilator Vloeiend Maken (Smoothing)
+
+   - **Wat**: Net als de externe ventilator krijgt de interne circulatieventilator een geleidelijke in- en uitrol (-= 3). Geen abrupt aan/uit geklapper meer rond de grenswaarden, maar een zijdezachte regeling.
+
+3. Telegram Statusrapport (/st) Uitbreiden
+
+   - **Wat**: On-demand inzicht in de anticipatiestatus en een nauwkeurige countdown (uren en minuten) tot de lampen weer aanspringen, zonder vervelende pushmeldingen op de achtergrond.
+
+4. Code-architectuur & Scope Fixes
+
+   - **Wat**: Oplossen van de eerdere scope-fout (upcomingLightsOn) en de typefout bij outsideAirIsSignificantlyDrier zodat alles foutloos compileert.
+
+5. Zelflerende Lampcorrectie
+
+### v3.5.3
+
+*Dit document legt de onwrikbare technische wetten en beslissingsregels vast waaraan de firmware van De Kleine Kas voldoet.*
+
 ## De Kleine Kas - Architectuur & Besluitenmanifest (BluePrint v3.5.3)
 
 *Dit hoofdstuk bevat alle onwrikbare wetten, fysieke randvoorwaarden en beslissingsregels van de firmware.*
 
+## 📐 Blueprint / Architectuurmanifest
 
-# 📐 Blueprint / Architectuurmanifest (v3.5.3)
-
-*Dit document legt de onwrikbare technische wetten en beslissingsregels vast waaraan de firmware van De Kleine Kas voldoet.*
-
-## 1. Topologie & De 3-Zone Hiërarchie
+### 1. Topologie & De 3-Zone Hiërarchie
 
 1. **Kas (Zone 1):** Bevindt zich indoor. Kan en mag **nooit** direct met de buitenlucht ventileren. Alle luchtwisseling loopt via de **Woning (Zone 2)**.
 2. **Woning (Zone 2):** Fungeert als thermische en vochtbuffer. Als de kas naar de woning ventileert, bewaakt het systeem of de woning zelf gebaat is bij buitenventilatie (`HOUSE_VENTILATE`), wat resulteert in een Telegram-advies voor de bewoner.
 3. **Buiten (Zone 3):** Externe referentie via OpenWeather. Wordt gebruikt voor dauwpunts- en vochtvergelijking.
 
-## 2. Hardware & PWM Veiligheidsregels
+#### 2. Hardware & PWM Veiligheidsregels
 
 * **Geen Dode Zones:** PWM-signalen voor ventilatoren zijn binair gedefinieerd in hun ondergrens: `0` (uit) of `>= MIN_PWM` (aan). Kleine waarden (1-64) zijn hardware-technisch uitgesloten om brommen of stilstand te voorkomen.
 * **Tachometer Interrupted:** Alle drie de ventilatoren worden via `IRAM_ATTR` interrupts gemonitord op RPM. Stilstand bij actieve aansturing (>140 PWM) triggert na 30 seconden een Telegram-alarm.
 * **CPU Optimalisatie:** De ESP32-S3 draait stabiel op 160 MHz om hittestress op de LDO te minimaliseren.
 
-## 3. Tray-Modi & Opslag
+#### 3. Tray-Modi & Opslag
 
-* **Modi:**
-* `0`: Kiemfase (17.5°C - 23.5°C)
-* `1`: Groeifase (15.0°C - 25.0°C)
-* `2`: Warmtemat-modus (max 29.0°C)
-* `3`: Uitgeschakeld
+- **Modi:**
+- `0`: Kiemfase (17.5°C - 23.5°C)
+- `1`: Groeifase (15.0°C - 25.0°C)
+- `2`: Warmtemat-modus (max 29.0°C)
+- `3`: Uitgeschakeld
 
+- **Persistentie:** Modi worden opgeslagen in NVS via `Preferences` zodat ze na een herstart behouden blijven. Bij sensorstoringsval vallen trays terug naar `-999.0` (geen valse dummy-waarden).
 
-* **Persistentie:** Modi worden opgeslagen in NVS via `Preferences` zodat ze na een herstart behouden blijven. Bij sensorstoringsval vallen trays terug naar `-999.0` (geen valse dummy-waarden).
+#### 4. Non-Blocking Achtergrondtaken
 
-## 4. Non-Blocking Achtergrondtaken
+- **SHT31 Condens-Heater:** Draait op een veilige State Machine (`HEATER_PREPARE_FANS` $\rightarrow$ `HEATER_HEATING` $\rightarrow$ `HEATER_COOLING`) zonder de `loop()` te blokkeren.
+- **MQTT LittleFS Queue:** Bij netwerkuitval worden berichten tijdelijk lokaal gebufferd (max 50 regels om flash-wear te beperken) en non-blocking verstuurd zodra de verbinding herstelt.
 
-* **SHT31 Condens-Heater:** Draait op een veilige State Machine (`HEATER_PREPARE_FANS` $\rightarrow$ `HEATER_HEATING` $\rightarrow$ `HEATER_COOLING`) zonder de `loop()` te blokkeren.
-* **MQTT LittleFS Queue:** Bij netwerkuitval worden berichten tijdelijk lokaal gebufferd (max 50 regels om flash-wear te beperken) en non-blocking verstuurd zodra de verbinding herstelt.
-
+5. Hou de emojis lekker in de Telegram-specifieke functies (zoals in buildStatusReport()), maar zorg dat de MQTT-payload (MQTT.cpp) en de interne statussen strak en schoon blijven zonder emojis. Zo bedien je beide werelden optimaal zonder concessies.
 
 
 ## Voor dev board

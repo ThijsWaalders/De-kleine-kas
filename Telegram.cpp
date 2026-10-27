@@ -52,7 +52,10 @@ String getSystemStatusIcon() {
   if (fanExt1Speed > 200 || vpdRedZoneActive) return "🟠"; 
   
   // Kas stuurt actief bij en heeft het onder controle
-  if (homeVentActive || kasVpd > VPD_MAX_OPTIMAL || kasVpd < VPD_MIN_OPTIMAL) return "🔵"; 
+  float maxOpt = lampsAreOn ? VPD_MAX_OPTIMAL_DAY : VPD_MAX_OPTIMAL_NIGHT;
+  float minOpt = lampsAreOn ? VPD_MIN_OPTIMAL_DAY : VPD_MIN_OPTIMAL_NIGHT;
+
+  if (homeVentActive || kasVpd > maxOpt || kasVpd < minOpt) return "🔵";
 
   return "🟢"; // Volledig in balans (Optimaal)
 }
@@ -155,9 +158,37 @@ String buildStatusReport() {
     modeStatus = "⏳ Systeem kalibreert nog even..";
   }
 
-  String kasActieLogica = kasAdviceReason;
+  // --- ANTICIPATIE & COUNTDOWN INTEGRATIE ---
+  String kasActieLogica = "";
+  if (isPreemptiveLampConditioningActive) {
+    int mins = getMinutesUntilLightsOn();
+    kasActieLogica += "🔮 *ANTICIPATIE ACTIEF:* Lampen gaan over ca. " + String(mins) + " min aan. Woningbuffer wordt voorbereid.\n";
+  } else if (!lampsAreOn) {
+    int mins = getMinutesUntilLightsOn();
+    int hours = mins / 60;
+    int remainingMins = mins % 60;
+    kasActieLogica += "🔄 *Lamp-anticipatie:* Stand-by (lampen over ca. " + String(hours) + "u " + String(remainingMins) + "m).\n";
+  }
+  
+  kasActieLogica += kasAdviceReason;
   if (isHeatMatRecommended) kasActieLogica += "\nWarmtemat (Kas): AAN 🔥";
   else kasActieLogica += "\nWarmtemat (Kas): UIT 💤";
+  // // --- ANTICIPATIE & COUNTDOWN INTEGRATIE ---
+  // String kasActieLogica = "";
+  // if (isPreemptiveLampConditioningActive) {
+  //   int mins = getMinutesUntilLightsOn();
+  //   kasActieLogica += "🔮 *ANTICIPATIE ACTIEF:* Lampen gaan over ca. " + String(mins) + " min aan. Woningbuffer wordt voorbereid.\n";
+  // } else if (!lampsAreOn) {
+  //   int mins = getMinutesUntilLightsOn();
+  //   int hours = mins / 60;
+  //   int remainingMins = mins % 60;
+  //   kasActieLogica += "🔄 *Lamp-anticipatie:* Stand-by (lampen over ca. " + String(hours) + "u " + String(remainingMins) + "m).\n";
+  // }
+  
+  // kasActieLogica += kasAdviceReason;
+  
+  // if (isHeatMatRecommended) kasActieLogica += "\nWarmtemat (Kas): AAN 🔥";
+  // else kasActieLogica += "\nWarmtemat (Kas): UIT 💤";
 
   // Bereken de dauwpuntmarge voor de veiligheidscheck
   float kasDpMargin = displayedTemp - kasDewPoint;
@@ -184,27 +215,6 @@ String buildStatusReport() {
   } else {
     actieVereist = "🟢 **Niets:** Woningbuffer en kas-VPD zijn optimaal in balans.";
   }
-  // // Bereken de dauwpuntmarge (Temperatuur - Dauwpunt) voor de veiligheidscheck
-  // float kasDpMargin = displayedTemp - kasDewPoint;
-
-  // String actieVereist = "🟢 Geen handmatige actie nodig. De kleine kas regelt het zelf.";
-  // if (isKasSleeping) {
-  //   actieVereist = "😴 Ssst... de kleine kas slaapt.";
-  // } else if (isCalibrationModeActive) {
-  //   actieVereist = "⚖️ Even wachten: Systeem kalibreert (fans staan stil).";
-  // } else if (!isSystemReady()) {
-  //   actieVereist = "⏳ Even geduld: Systeem is nog aan het opstarten.";
-  // } else if (moldRisk || kasDpMargin < 2.0f) {
-  //   if (outdoorDewPoint >= kasDewPoint) {
-  //     actieVereist = "🛑 **DOE DEUR DICHT!** Er is schimmelrisico, MAAR de buitenlucht is te klam. Niet ventileren!";
-  //   } else {
-  //     actieVereist = "🪟 **DOE DEUR OPEN!** (dauwpuntmarge is te klein en de buitenlucht is droog genoeg).";
-  //   }
-  // } else if (homeVentActive) {
-  //   actieVereist = "🟢 **Niets:** De kleine kas gebruikt automatisch de woningbuffer om bij te sturen.";
-  // } else if (kasVpd > 1.0f) {
-  //   actieVereist = "🟢 **Niets:** De kleine Kas is tikje droog, maar de dauwpuntmarge is veilig ruim. Stelt bij.";
-  // }
 
   String kasVpdStr    = (kasVpd <= -900.0) ? "N/A" : String(kasVpd, 2) + " kPa";
   String kasTempStr   = (displayedTemp <= -900.0) ? "N/A" : String(displayedTemp, 1) + "°C";

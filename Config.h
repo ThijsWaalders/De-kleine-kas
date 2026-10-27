@@ -25,7 +25,7 @@
 #include <Preferences.h>
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.5.4"
+#define FIRMWARE_VERSION "v3.5.5"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 #define ENABLE_TELEGRAM true
@@ -34,10 +34,10 @@
 // --- FEEDFORWARD LAMP ANTICIPATIE ---
 #define PREEMPTIVE_LAMP_LOOKAHEAD_MINUTES 180 // 3 uur van tevoren anticiperen op de lampen
 extern bool isPreemptiveLampConditioningActive; // Vlag voor actieve anticipatiefase
-extern int testMinutesUntilLightsOn;             // Testvariabele (bijv. 60 of 180 min) om het te testen
+extern int testMinutesUntilLightsOn;             // Testvariabele om het te testen
 
 // =========================================================================
-// 🎛️ DEEL 1: GEBRUIKERSINSTELLINGEN & GRENSWAARDEN
+// 🎛️ DEEL 1: GEBRUIKERSINSTELLINGEN & GRENSWAARDEN (CENTRALE BRON)
 // =========================================================================
 const unsigned long CLIMATE_CHECK_INTERVAL_MS    = 15000; // 15 seconden
 const unsigned long MQTT_SEND_INTERVAL_MS        = 30000; // 30 seconden
@@ -56,10 +56,12 @@ inline float kp = 0.5f;       // Proportioneel
 inline float ki = 0.15f;      // Integraal
 inline float kd = 0.6f;       // Derivatief
 
-// --- VPD & Klimaat Doelen (Kiemgroenten) ---
+// --- VPD & Klimaat Doelen (Lamp-Aware & Centraal) ---
 const float VPD_MAX_ERROR_THRESHOLD            = 0.3f;
-const float VPD_MAX_OPTIMAL                    = 0.95f;
-const float VPD_MIN_OPTIMAL                    = 0.50f;
+const float VPD_MIN_OPTIMAL_DAY                = 0.60f; // Met lampen AAN
+const float VPD_MIN_OPTIMAL_NIGHT              = 0.50f; // Met lampen UIT (ruimer voor nachtdip)
+const float VPD_MAX_OPTIMAL_DAY                = 1.25f; // Ruimer onder lampen
+const float VPD_MAX_OPTIMAL_NIGHT              = 1.10f; // Standaard nacht max
 const float pidSetPointVPD                     = 0.70f;
 
 // --- Ventilator PWM Snelheden & Grenzen ---
@@ -70,22 +72,85 @@ const int INT_FAN_BASE_PWM                     = 111;
 const int INT_FAN_MIN_PWM                      = 110;     
 
 // --- Drempelwaarden & Veiligheid ---
-const float GREENHOUSE_MAX_TEMP                = 25.0;  
-const float GREENHOUSE_CRASH_TEMP              = 28.0;   
-const float OUTDOOR_MAX_HUMIDITY_FOR_VENT      = 85.0;  
-const float HUM_MOLD_THRESHOLD                 = 70.0;  
-const float DP_MARGIN_MIN                      = 2.0;   
-const float HEAT_MAT_TEMP_LOW                  = 0.0;  
-const float HEAT_MAT_TEMP_HIGH                 = 22.0;  
+const float GREENHOUSE_MAX_TEMP                = 25.0f;  
+const float GREENHOUSE_CRASH_TEMP              = 28.0f;   
+const float OUTDOOR_MAX_HUMIDITY_FOR_VENT      = 85.0f;  
+const float HUM_MOLD_THRESHOLD                 = 80.0f;  // Verruimd naar 80% om valse klam-meldingen te voorkomen
+const float DP_MARGIN_MIN                      = 2.0f;   
+const float HEAT_MAT_TEMP_LOW                  = 0.0f;  
+const float HEAT_MAT_TEMP_HIGH                 = 22.0f;  
+const float HOUSE_VPD_MIN_TARGET               = 0.80f;  // Minimale gewenste woning-VPD
+const float HOUSE_HUM_MAX_TARGET               = 62.0f;  // Woningvochtigheid grens voor ontluchting
 
 // --- Sensor Correctie Offsets ---
-const float KAS_TEMP_OFFSET                    = -0.5;
-const float INDOOR_TEMP_OFFSET                 = -2.0;
+const float KAS_TEMP_OFFSET                    = -0.5f;
+const float INDOOR_TEMP_OFFSET                 = -2.0f;
 const float TRAY_SENSOR_1_OFFSET               = +0.2f; 
 const float TRAY_SENSOR_2_OFFSET               = +0.2f;
-const float KAS_HUM_OFFSET                     = -1.8;
-const float INDOOR_HUM_OFFSET                  = +6.8;
-const float PRESSURE_OFFSET                    = -2.2;
+const float KAS_HUM_OFFSET                     = -1.8f;
+const float INDOOR_HUM_OFFSET                  = +6.8f;
+const float PRESSURE_OFFSET                    = -2.2f;
+// #define FIRMWARE_VERSION "v3.5.5"
+// #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
+
+// #define ENABLE_TELEGRAM true
+// #define VPD_CRITICAL_HIGH 1.00f  // Vanaf hier springt het scherm op hard alarm
+
+// // --- FEEDFORWARD LAMP ANTICIPATIE ---
+// #define PREEMPTIVE_LAMP_LOOKAHEAD_MINUTES 180 // 3 uur van tevoren anticiperen op de lampen
+// extern bool isPreemptiveLampConditioningActive; // Vlag voor actieve anticipatiefase
+// extern int testMinutesUntilLightsOn;             // Testvariabele (bijv. 60 of 180 min) om het te testen
+
+// // =========================================================================
+// // 🎛️ DEEL 1: GEBRUIKERSINSTELLINGEN & GRENSWAARDEN
+// // =========================================================================
+// const unsigned long CLIMATE_CHECK_INTERVAL_MS    = 15000; // 15 seconden
+// const unsigned long MQTT_SEND_INTERVAL_MS        = 30000; // 30 seconden
+
+// // --- Klimaatlogica & Veiligheid ---
+// const float GREENHOUSE_CRASH_OFFSET            = 2.0f;
+// const float SYSTEM_READY_LUX_THRESHOLD         = 1.0f;
+// const unsigned long SYSTEM_READY_SHORT_DELAY_MS = 5000UL;
+// const float HEAT_MAT_DISABLE_TEMP              = 22.0f;
+// const float HUMIDITY_VELOCITY_THRESHOLD        = 3.0f;
+// const float HUMIDITY_VELOCITY_MIN_HUM          = 60.0f;
+// const float BARO_TREND_THRESHOLD               = 0.2f;
+
+// // --- PID Regelaar Tuning (Ventilator-sturing op VPD) ---
+// inline float kp = 0.5f;       // Proportioneel
+// inline float ki = 0.15f;      // Integraal
+// inline float kd = 0.6f;       // Derivatief
+
+// // --- VPD & Klimaat Doelen (Kiemgroenten) ---
+// const float VPD_MAX_ERROR_THRESHOLD            = 0.3f;
+// const float VPD_MAX_OPTIMAL                    = 0.95f;
+// const float VPD_MIN_OPTIMAL                    = 0.50f;
+// const float pidSetPointVPD                     = 0.70f;
+
+// // --- Ventilator PWM Snelheden & Grenzen ---
+// const int FAN_MAX_PWM                          = 255;   
+// const int EXT_FAN_MIN_PWM                      = 65; 
+// const int EXT_FAN_BASE_PWM                     = 95; 
+// const int INT_FAN_BASE_PWM                     = 111;   
+// const int INT_FAN_MIN_PWM                      = 110;     
+
+// // --- Drempelwaarden & Veiligheid ---
+// const float GREENHOUSE_MAX_TEMP                = 25.0;  
+// const float GREENHOUSE_CRASH_TEMP              = 28.0;   
+// const float OUTDOOR_MAX_HUMIDITY_FOR_VENT      = 85.0;  
+// const float HUM_MOLD_THRESHOLD                 = 70.0;  
+// const float DP_MARGIN_MIN                      = 2.0;   
+// const float HEAT_MAT_TEMP_LOW                  = 0.0;  
+// const float HEAT_MAT_TEMP_HIGH                 = 22.0;  
+
+// // --- Sensor Correctie Offsets ---
+// const float KAS_TEMP_OFFSET                    = -0.5;
+// const float INDOOR_TEMP_OFFSET                 = -2.0;
+// const float TRAY_SENSOR_1_OFFSET               = +0.2f; 
+// const float TRAY_SENSOR_2_OFFSET               = +0.2f;
+// const float KAS_HUM_OFFSET                     = -1.8;
+// const float INDOOR_HUM_OFFSET                  = +6.8;
+// const float PRESSURE_OFFSET                    = -2.2;
 
 
 // =========================================================================
