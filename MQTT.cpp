@@ -1,30 +1,77 @@
 /**
  * @file MQTT.cpp
- * @brief Implementatie van MQTT-communicatie, offline LittleFS buffering en JSON-telemetrie voor ESP32-S3.
+ * @brief Implementatie van MQTT-communicatie, offline LittleFS buffering, Home Assistant Discovery en JSON-telemetrie voor ESP32-S3.
  */
 
 #include "Config.h"
 #include "MQTT.h"
 #include "ClimateLogic.h"
-#include "KasSensors.h" // Nodig voor traySensor1Temp en traySensor2Temp
+#include "KasSensors.h" 
 #include "Logger.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
-// Maximale hoeveelheid opgeslagen regels tijdens netwerkuitval om flash-overbelasting te voorkomen
 const int MAX_BUFFER_LINES = 50; 
+
+// =========================================================================
+// 🏡 HOME ASSISTANT DISCOVERY REGISTRATIE
+// =========================================================================
+void sendHomeAssistantDiscovery() {
+  if (!mqttClient.connected()) return;
+
+  // Unieke ID basis op basis van ChipID
+  uint64_t chipId = ESP.getEfuseMac();
+  String devId = "esp32s3_kas_" + String((uint32_t)(chipId >> 32), HEX);
+
+  // Helper lambda om een discovery sensor aan te melden bij Home Assistant
+  auto registerSensor = [&](String uniqueName, String name, String deviceClass, String unit, String stateClass, String jsonKey) {
+    String topic = "homeassistant/sensor/" + devId + "/" + uniqueName + "/config";
+    
+    JsonDocument doc;
+    doc["name"] = name;
+    doc["uniq_id"] = devId + "_" + uniqueName;
+    doc["stat_t"] = mqtt_topic;
+    doc["val_tpl"] = "{{ value_json." + jsonKey + " }}";
+    
+    if (deviceClass.length() > 0) doc["dev_cla"] = deviceClass;
+    if (unit.length() > 0) doc["unit_of_meas"] = unit;
+    if (stateClass.length() > 0) doc["stat_cla"] = stateClass;
+
+    // Apparaat informatie zodat alles netjes onder één "De kleine kas" device groepeert
+    JsonObject dev = doc["dev"].to<JsonObject>();
+    dev["ids"][0] = devId;
+    dev["name"] = "De kleine kas";
+    dev["mf"] = "ESP32-S3";
+    dev["sw"] = FIRMWARE_VERSION;
+
+    char payload[512];
+    serializeJson(doc, payload);
+    mqttClient.publish(topic.c_str(), payload, true); // Retained message
+  };
+
+  // --- Registreer alle belangrijkste sensoren voor Home Assistant ---
+  registerSensor("kas_temp", "Kas Temperatuur", "temperature", "°C", "measurement", "kas_temp");
+  registerSensor("kas_vochtigheid", "Kas Luchtvochtigheid", "humidity", "%", "measurement", "kas_vochtigheid");
+  registerSensor("kas_vpd", "Kas VPD", "", "kPa", "measurement", "kas_vpd");
+  registerSensor("binnen_temp", "Binnen / Buffer Temperatuur", "temperature", "°C", "measurement", "binnen_temp");
+  registerSensor("binnen_vochtigheid", "Binnen Luchtvochtigheid", "humidity", "%", "measurement", "binnen_vochtigheid");
+  registerSensor("buiten_temp", "Buiten Temperatuur", "temperature", "°C", "measurement", "buiten_temp");
+  registerSensor("buiten_vochtigheid", "Buiten Luchtvochtigheid", "humidity", "%", "measurement", "buiten_vochtigheid");
+  registerSensor("licht_lux", "Kas Licht", "illuminance", "lx", "measurement", "licht_lux");
+  registerSensor("fan_int_pct", "Interne Ventilator", "", "%", "measurement", "fan_int_pct");
+  registerSensor("fan_ext1_pct", "Externe Ventilator 1", "", "%", "measurement", "fan_ext1_pct");
+  registerSensor("wifi_rssi", "WiFi Sterkte", "signal_strength", "dBm", "measurement", "wifi_rssi");
+
+  logToSyslogAndSerial("[MQTT] Home Assistant Discovery configuratie verzonden.");
+}
 
 
 // =========================================================================
 // 📁 DEEL 1: OFFLINE BUFFER BEHEER (LITTLEFS)
 // =========================================================================
 
-/**
- * @brief Bewaakt en bewaart MQTT-payloads lokaal in LittleFS wanneer de verbinding wegvalt.
- */
 void savePayloadToBuffer(const String& payload) {
-  // Tel eerst hoeveel regels er al in het bufferbestand staan
   File checkFile = LittleFS.open(BUFFER_FILE, "r");
   int lineCount = 0;
   if (checkFile) {
@@ -34,13 +81,11 @@ void savePayloadToBuffer(const String& payload) {
     checkFile.close();
   }
 
-  // Als de buffer vol is, weiger nieuwe toevoegingen om flash-wear tegen te gaan
   if (lineCount >= MAX_BUFFER_LINES) {
-    logToSyslogAndSerial("[MQTT BUFFER WARNING] Buffer vol (" + String(MAX_BUFFER_LINES) + " regels). Oude metingen worden niet overschreven.");
+    logToSyslogAndSerial("[MQTT BUFFER WARNING] Buffer vol (" + String(MAX_BUFFER_LINES) + " regels).");
     return;
   }
 
-  // Voeg de payload toe aan het einde van het bufferbestand
   File file = LittleFS.open(BUFFER_FILE, "a");
   if (file) {
     file.println(payload);
@@ -49,41 +94,33 @@ void savePayloadToBuffer(const String& payload) {
   }
 }
 
-/**
- * @brief Non-blocking buffer flush: verwerkt exact 1 gebufferd bericht per interval zodra online.
- */
 void processBufferedMqtt() {
   if (!mqttClient.connected() || !LittleFS.exists(BUFFER_FILE)) return;
 
   static unsigned long lastBufferFlushTime = 0;
-  // Pauzeer minimaal 50ms tussen het verzenden van opeenvolgende bufferberichten
   if (millis() - lastBufferFlushTime < 50) return;
 
   File file = LittleFS.open(BUFFER_FILE, "r");
   if (!file || !file.available()) {
     if (file) file.close();
-    LittleFS.remove(BUFFER_FILE); // Wis leeg bestand
+    LittleFS.remove(BUFFER_FILE);
     return;
   }
 
-  // Lees het EERSTE bericht uit het bufferbestand
   String lineToSend = file.readStringUntil('\n');
   lineToSend.trim();
 
-  // Lees de REST van het bestand in om later terug te schrijven
   String remainingBuffer = "";
   while (file.available()) {
     remainingBuffer += file.readStringUntil('\n') + "\n";
   }
   file.close();
 
-  // Probeer het oudste gebufferde bericht te publiceren
   if (lineToSend.length() > 0) {
     if (mqttClient.publish(mqtt_topic, lineToSend.c_str())) {
       lastBufferFlushTime = millis();
-      logToSyslogAndSerial("[MQTT BUFFER] Gebufferd bericht succesvol ingehaald!");
+      logToSyslogAndSerial("[MQTT BUFFER] Gebufferd bericht succesvol verzonden!");
 
-      // Werk het bestand bij met de resterende wachtende berichten
       if (remainingBuffer.length() > 0) {
         File outFile = LittleFS.open(BUFFER_FILE, "w");
         if (outFile) {
@@ -91,8 +128,8 @@ void processBufferedMqtt() {
           outFile.close();
         }
       } else {
-        LittleFS.remove(BUFFER_FILE); // Buffer is volledig leeg!
-        logToSyslogAndSerial("[MQTT BUFFER] Alle gebufferde berichten succesvol ingehaald! Buffer gewist.");
+        LittleFS.remove(BUFFER_FILE);
+        logToSyslogAndSerial("[MQTT BUFFER] Buffer volledig leeg.");
       }
     }
   }
@@ -103,16 +140,10 @@ void processBufferedMqtt() {
 // 🌐 DEEL 2: NETWERK & MQTT VERBINDINGSBEHEER
 // =========================================================================
 
-/**
- * @brief Callback voor inkomende MQTT-berichten (indien van toepassing).
- */
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  // Implementatie voor inkomende sturingen (indien gewenst)
+  // Inkomende berichten (indien nodig)
 }
 
-/**
- * @brief Initialiseert de MQTT client configuratie en buffers.
- */
 void setupMqtt() {
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setBufferSize(1536);
@@ -120,33 +151,27 @@ void setupMqtt() {
   logToSyslogAndSerial("[MQTT] MQTT client geconfigureerd.");
 }
 
-/**
- * @brief Handelt automatische herverbinding en Last Will & Testament (LWT) af.
- */
 void reconnectMqtt() {
   if (!mqttClient.connected()) {
     uint64_t chipId = ESP.getEfuseMac();
     String clientId = "Esp32S3Kas-";
     clientId += String((uint32_t)(chipId >> 32), HEX);
     
-    // Verbind met LWT topic (offline status bij plotselinge disconnect)
     if (mqttClient.connect(clientId.c_str(), mqtt_status_topic, 1, true, "offline")) {
       mqttClient.publish(mqtt_status_topic, "online", true); 
       logToSyslogAndSerial("[MQTT] Opnieuw verbonden met MQTT broker.");
+      
+      // Stuur direct Home Assistant Discovery info mee na verbinding
+      sendHomeAssistantDiscovery();
     }
   }
 }
 
-/**
- * @brief Hoofdhandler voor netwerkstatus, verbinding en periodieke verzending in de loop.
- */
 void handleMqtt() {
   if (WiFi.status() == WL_CONNECTED) {
     static bool mqttInitialized = false;
     if (!mqttInitialized) {
-      mqttClient.setServer(mqtt_server, mqtt_port);
-      mqttClient.setBufferSize(1536);
-      mqttClient.setCallback(mqttCallback);
+      setupMqtt();
       mqttInitialized = true;
     }
 
@@ -155,10 +180,8 @@ void handleMqtt() {
     }
     mqttClient.loop();
 
-    // Verwerk eventuele offline opgeslagen bufferberichten
     processBufferedMqtt();
 
-    // Stuur nieuwe telemetrie op basis van het ingestelde interval
     static unsigned long lastMqttSend = 0;
     if (millis() - lastMqttSend >= MQTT_SEND_INTERVAL_MS) {
       lastMqttSend = millis();
@@ -167,96 +190,46 @@ void handleMqtt() {
   }
 }
 
+
 // =========================================================================
 // 📊 DEEL 3: JSON PAYLOAD OPBOUW & PUBLICATIE
 // =========================================================================
 
-/**
- * @brief Verzamelt alle sensordata, statussen en adviezen, serialiseert naar JSON en publiceert of buffert.
- */
 void sendMqttData() {
   if (millis() < 5000) return;
 
   JsonDocument doc;
   
-  // --- 3.1 KAS DATA (SHT31) ---
   if (kasSmoothedTemp != -999.0) doc["kas_temp"] = kasSmoothedTemp;
   if (kasSmoothedHum != -999.0) doc["kas_vochtigheid"] = kasSmoothedHum;
   if (kasDewPoint != -999.0) doc["kas_dauwpunt"] = kasDewPoint;
   if (kasVpd != -999.0) doc["kas_vpd"] = kasVpd;
   doc["kas_dp_marge"] = kasDpMargin;
 
-  // --- 3.2 TRAY SENSOREN (DS18B20) & MODUS GRENZEN ---
   if (traySensor1Temp != -999.0) doc["tray_sensor_1_temp"] = traySensor1Temp;
   doc["tray_1_mode"] = tray1Mode;
   doc["tray_1_min"]  = getTrayMinTemp(tray1Mode);
   doc["tray_1_max"]  = getTrayMaxTemp(tray1Mode);
-  doc["tray_1_status"] = (tray1Mode != 3 && traySensor1Temp != -999.0 && (traySensor1Temp < getTrayMinTemp(tray1Mode) || traySensor1Temp > getTrayMaxTemp(tray1Mode))) ? 1 : 0;
 
   if (traySensor2Temp != -999.0) doc["tray_sensor_2_temp"] = traySensor2Temp;
   doc["tray_2_mode"] = tray2Mode;
   doc["tray_2_min"]  = getTrayMinTemp(tray2Mode);
   doc["tray_2_max"]  = getTrayMaxTemp(tray2Mode);
-  doc["tray_2_status"] = (tray2Mode != 3 && traySensor2Temp != -999.0 && (traySensor2Temp < getTrayMinTemp(tray2Mode) || traySensor2Temp > getTrayMaxTemp(tray2Mode))) ? 1 : 0;
 
-  // --- 3.3 WONING SENSOR DATA (BME280) ---
   if (indoorSmoothedTemp != -999.0) doc["binnen_temp"] = indoorSmoothedTemp;
   if (indoorSmoothedHum != -999.0) doc["binnen_vochtigheid"] = indoorSmoothedHum;
   if (indoorDewPoint != -999.0) doc["binnen_dauwpunt"] = indoorDewPoint;
   if (indoorVpd != -999.0) doc["binnen_vpd"] = indoorVpd;
-  doc["binnen_dp_marge"] = indoorDpMargin;
 
-  // --- 3.4 BUITEN DATA ---
   if (outdoorTemp != -999.0) doc["buiten_temp"] = outdoorTemp;
   if (outdoorHumidity != -999.0) doc["buiten_vochtigheid"] = outdoorHumidity;
-  if (outdoorDewPoint != -999.0) doc["buiten_dauwpunt"] = outdoorDewPoint;
-  
-  // Strikte grenscheck voor buiten VPD (0.0 - 5.0 kPa)
-  if (outdoorVpd != -999.0 && outdoorVpd >= 0.0 && outdoorVpd <= 5.0) {
-    doc["buiten_vpd"] = outdoorVpd;
-  }
-  doc["buiten_dp_marge"] = outdoorDpMargin;
-  
-  // --- 3.5 RISICO STATUSSEN & ACTATORS ---
-  doc["schimmel_risico"]     = moldRisk;
-  
-  float currentMaxVpdMqtt = lampsAreOn ? VPD_MAX_OPTIMAL_DAY : VPD_MAX_OPTIMAL_NIGHT;
-  float currentMinVpdMqtt = lampsAreOn ? VPD_MIN_OPTIMAL_DAY : VPD_MIN_OPTIMAL_NIGHT;
+  if (outdoorDewPoint != -999.0) doc["buiten_dewpoint"] = outdoorDewPoint;
+  if (outdoorVpd != -999.0 && outdoorVpd >= 0.0 && outdoorVpd <= 5.0) doc["buiten_vpd"] = outdoorVpd;
 
-  doc["uitdroging_risico"]   = (kasVpd > currentMaxVpdMqtt) ? 1 : 0;
-  doc["te_klam_risico"]      = (kasVpd < currentMinVpdMqtt || kasSmoothedHum >= HUM_MOLD_THRESHOLD) ? 1 : 0;
-  
-  doc["verwarmingsmat"]      = isHeatMatRecommended ? 1 : 0;
-  doc["testmodus_actief"]    = isTestModeActive ? 1 : 0;
+  doc["schimmel_risico"] = moldRisk;
+  doc["verwarmingsmat"] = isHeatMatRecommended ? 1 : 0;
+  doc["testmodus_actief"] = isTestModeActive ? 1 : 0;
 
-  // --- 3.6 VENTILATIE & ZONE ADVIEZEN ---
-  doc["advies_kas_actief"]    = (kasAdvice != KAS_OFF) ? 1 : 0;
-  doc["advies_binnen_actief"] = (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) ? 1 : 0;
-  doc["advies_buiten_actief"] = homeVentActive ? 1 :  0;  
-
-  // Verrijkte kas-advies status voor Grafana (onderscheid tussen Rust en Blokkade)
-  String kasAdviesText = "CLOSED_OPTIMAL";
-  if (kasAdvice == GREENHOUSE_VENTILATE) {
-    kasAdviesText = "VENTILATE";
-  } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
-    kasAdviesText = "CIRCULATE";
-  } else {
-    // Als de kas dicht is: is het optimaal of worden we tegengehouden door buiten?
-    if (moldRisk || kasSmoothedHum > 78.0f) {
-      kasAdviesText = "CLOSED_BLOCKED"; // Vochtcorrectie nodig, maar buitenlucht laat het niet toe
-    } else {
-      kasAdviesText = "CLOSED_OPTIMAL"; // Alles is rustig en in balans
-    }
-  }
-  doc["kas_advies"] = kasAdviesText;
-
-  // Redenen en status-teksten  voor Grafana/Telegram
-  doc["schimmel_reden"]     = moldReasonText;
-  doc["kas_advies_reden"]   = kasAdviceReason;
-  doc["kas_vpd_status"]     = vpdStatusText;
-  doc["dp_marge_status"]    = dpMarginStatusText;
-  
-  // --- 3.7 VENTILATOR STATISTIEKEN (RPM & Percentage) ---
   doc["fan_int_rpm"]  = fanIntRPM;
   doc["fan_int_pct"]  = map(fanIntSpeed, 0, 255, 0, 100);
   doc["fan_ext1_rpm"] = fanExt1RPM;
@@ -264,22 +237,12 @@ void sendMqttData() {
   doc["fan_ext2_rpm"] = fanExt2RPM;
   doc["fan_ext2_pct"] = map(fanExt2Speed, 0, 255, 0, 100);
 
-  // --- 3.8 SYSTEEM & DIAGNOSTIEK ---
   if (currentPressure > 0.0) doc["luchtdruk"] = currentPressure;
   doc["luchtdruk_trend"] = baroTrendArrow;
   if (currentLuxValue >= 0.0) doc["licht_lux"] = currentLuxValue;
+  doc["wifi_rssi"] = wifiRSSI;
+  doc["free_heap"] = freeHeap;
 
-  doc["wifi_rssi"]            = wifiRSSI;
-  doc["free_heap"]            = freeHeap;
-  doc["failed_kas_reads"]     = failedKasReads;
-  doc["failed_indoor_reads"]  = failedIndoorReads;
-
-  float espInternalTemp = readEspInternalTemp();
-  if (espInternalTemp != -999.0 && espInternalTemp != 0.0) {
-    doc["esp_temp"] = espInternalTemp;
-  }
-
-  // --- 3.9 SERIALISATIE & UITVOER / BUFFERING ---
   char buffer[1536];
   serializeJson(doc, buffer);
 
@@ -287,10 +250,306 @@ void sendMqttData() {
     if (mqttClient.publish(mqtt_topic, buffer)) {
       lastSuccessfulNetworkActivity = millis(); 
     } else {
-      savePayloadToBuffer(String(buffer)); // Publiceren mislukt, buffer lokaal
+      savePayloadToBuffer(String(buffer));
     }
   } else {
-    savePayloadToBuffer(String(buffer));     // Geen verbinding, buffer lokaal
+    savePayloadToBuffer(String(buffer));
   }
 }
+
+// /**
+//  * @file MQTT.cpp
+//  * @brief Implementatie van MQTT-communicatie, offline LittleFS buffering en JSON-telemetrie voor ESP32-S3.
+//  */
+
+// #include "Config.h"
+// #include "MQTT.h"
+// #include "ClimateLogic.h"
+// #include "KasSensors.h" // Nodig voor traySensor1Temp en traySensor2Temp
+// #include "Logger.h"
+// #include <LittleFS.h>
+// #include <ArduinoJson.h>
+// #include <WiFi.h>
+
+// // Maximale hoeveelheid opgeslagen regels tijdens netwerkuitval om flash-overbelasting te voorkomen
+// const int MAX_BUFFER_LINES = 50; 
+
+
+// // =========================================================================
+// // 📁 DEEL 1: OFFLINE BUFFER BEHEER (LITTLEFS)
+// // =========================================================================
+
+// /**
+//  * @brief Bewaakt en bewaart MQTT-payloads lokaal in LittleFS wanneer de verbinding wegvalt.
+//  */
+// void savePayloadToBuffer(const String& payload) {
+//   // Tel eerst hoeveel regels er al in het bufferbestand staan
+//   File checkFile = LittleFS.open(BUFFER_FILE, "r");
+//   int lineCount = 0;
+//   if (checkFile) {
+//     while (checkFile.available()) {
+//       if (checkFile.read() == '\n') lineCount++;
+//     }
+//     checkFile.close();
+//   }
+
+//   // Als de buffer vol is, weiger nieuwe toevoegingen om flash-wear tegen te gaan
+//   if (lineCount >= MAX_BUFFER_LINES) {
+//     logToSyslogAndSerial("[MQTT BUFFER WARNING] Buffer vol (" + String(MAX_BUFFER_LINES) + " regels). Oude metingen worden niet overschreven.");
+//     return;
+//   }
+
+//   // Voeg de payload toe aan het einde van het bufferbestand
+//   File file = LittleFS.open(BUFFER_FILE, "a");
+//   if (file) {
+//     file.println(payload);
+//     file.close();
+//     logToSyslogAndSerial("[MQTT BUFFER] Offline meting opgeslagen in LittleFS.");
+//   }
+// }
+
+// /**
+//  * @brief Non-blocking buffer flush: verwerkt exact 1 gebufferd bericht per interval zodra online.
+//  */
+// void processBufferedMqtt() {
+//   if (!mqttClient.connected() || !LittleFS.exists(BUFFER_FILE)) return;
+
+//   static unsigned long lastBufferFlushTime = 0;
+//   // Pauzeer minimaal 50ms tussen het verzenden van opeenvolgende bufferberichten
+//   if (millis() - lastBufferFlushTime < 50) return;
+
+//   File file = LittleFS.open(BUFFER_FILE, "r");
+//   if (!file || !file.available()) {
+//     if (file) file.close();
+//     LittleFS.remove(BUFFER_FILE); // Wis leeg bestand
+//     return;
+//   }
+
+//   // Lees het EERSTE bericht uit het bufferbestand
+//   String lineToSend = file.readStringUntil('\n');
+//   lineToSend.trim();
+
+//   // Lees de REST van het bestand in om later terug te schrijven
+//   String remainingBuffer = "";
+//   while (file.available()) {
+//     remainingBuffer += file.readStringUntil('\n') + "\n";
+//   }
+//   file.close();
+
+//   // Probeer het oudste gebufferde bericht te publiceren
+//   if (lineToSend.length() > 0) {
+//     if (mqttClient.publish(mqtt_topic, lineToSend.c_str())) {
+//       lastBufferFlushTime = millis();
+//       logToSyslogAndSerial("[MQTT BUFFER] Gebufferd bericht succesvol ingehaald!");
+
+//       // Werk het bestand bij met de resterende wachtende berichten
+//       if (remainingBuffer.length() > 0) {
+//         File outFile = LittleFS.open(BUFFER_FILE, "w");
+//         if (outFile) {
+//           outFile.print(remainingBuffer);
+//           outFile.close();
+//         }
+//       } else {
+//         LittleFS.remove(BUFFER_FILE); // Buffer is volledig leeg!
+//         logToSyslogAndSerial("[MQTT BUFFER] Alle gebufferde berichten succesvol ingehaald! Buffer gewist.");
+//       }
+//     }
+//   }
+// }
+
+
+// // =========================================================================
+// // 🌐 DEEL 2: NETWERK & MQTT VERBINDINGSBEHEER
+// // =========================================================================
+
+// /**
+//  * @brief Callback voor inkomende MQTT-berichten (indien van toepassing).
+//  */
+// void mqttCallback(char* topic, byte* payload, unsigned int length) {
+//   // Implementatie voor inkomende sturingen (indien gewenst)
+// }
+
+// /**
+//  * @brief Initialiseert de MQTT client configuratie en buffers.
+//  */
+// void setupMqtt() {
+//   mqttClient.setServer(mqtt_server, mqtt_port);
+//   mqttClient.setBufferSize(1536);
+//   mqttClient.setCallback(mqttCallback);
+//   logToSyslogAndSerial("[MQTT] MQTT client geconfigureerd.");
+// }
+
+// /**
+//  * @brief Handelt automatische herverbinding en Last Will & Testament (LWT) af.
+//  */
+// void reconnectMqtt() {
+//   if (!mqttClient.connected()) {
+//     uint64_t chipId = ESP.getEfuseMac();
+//     String clientId = "Esp32S3Kas-";
+//     clientId += String((uint32_t)(chipId >> 32), HEX);
+    
+//     // Verbind met LWT topic (offline status bij plotselinge disconnect)
+//     if (mqttClient.connect(clientId.c_str(), mqtt_status_topic, 1, true, "offline")) {
+//       mqttClient.publish(mqtt_status_topic, "online", true); 
+//       logToSyslogAndSerial("[MQTT] Opnieuw verbonden met MQTT broker.");
+//     }
+//   }
+// }
+
+// /**
+//  * @brief Hoofdhandler voor netwerkstatus, verbinding en periodieke verzending in de loop.
+//  */
+// void handleMqtt() {
+//   if (WiFi.status() == WL_CONNECTED) {
+//     static bool mqttInitialized = false;
+//     if (!mqttInitialized) {
+//       mqttClient.setServer(mqtt_server, mqtt_port);
+//       mqttClient.setBufferSize(1536);
+//       mqttClient.setCallback(mqttCallback);
+//       mqttInitialized = true;
+//     }
+
+//     if (!mqttClient.connected()) {
+//       reconnectMqtt();
+//     }
+//     mqttClient.loop();
+
+//     // Verwerk eventuele offline opgeslagen bufferberichten
+//     processBufferedMqtt();
+
+//     // Stuur nieuwe telemetrie op basis van het ingestelde interval
+//     static unsigned long lastMqttSend = 0;
+//     if (millis() - lastMqttSend >= MQTT_SEND_INTERVAL_MS) {
+//       lastMqttSend = millis();
+//       sendMqttData();
+//     }
+//   }
+// }
+
+// // =========================================================================
+// // 📊 DEEL 3: JSON PAYLOAD OPBOUW & PUBLICATIE
+// // =========================================================================
+
+// /**
+//  * @brief Verzamelt alle sensordata, statussen en adviezen, serialiseert naar JSON en publiceert of buffert.
+//  */
+// void sendMqttData() {
+//   if (millis() < 5000) return;
+
+//   JsonDocument doc;
+  
+//   // --- 3.1 KAS DATA (SHT31) ---
+//   if (kasSmoothedTemp != -999.0) doc["kas_temp"] = kasSmoothedTemp;
+//   if (kasSmoothedHum != -999.0) doc["kas_vochtigheid"] = kasSmoothedHum;
+//   if (kasDewPoint != -999.0) doc["kas_dauwpunt"] = kasDewPoint;
+//   if (kasVpd != -999.0) doc["kas_vpd"] = kasVpd;
+//   doc["kas_dp_marge"] = kasDpMargin;
+
+//   // --- 3.2 TRAY SENSOREN (DS18B20) & MODUS GRENZEN ---
+//   if (traySensor1Temp != -999.0) doc["tray_sensor_1_temp"] = traySensor1Temp;
+//   doc["tray_1_mode"] = tray1Mode;
+//   doc["tray_1_min"]  = getTrayMinTemp(tray1Mode);
+//   doc["tray_1_max"]  = getTrayMaxTemp(tray1Mode);
+//   doc["tray_1_status"] = (tray1Mode != 3 && traySensor1Temp != -999.0 && (traySensor1Temp < getTrayMinTemp(tray1Mode) || traySensor1Temp > getTrayMaxTemp(tray1Mode))) ? 1 : 0;
+
+//   if (traySensor2Temp != -999.0) doc["tray_sensor_2_temp"] = traySensor2Temp;
+//   doc["tray_2_mode"] = tray2Mode;
+//   doc["tray_2_min"]  = getTrayMinTemp(tray2Mode);
+//   doc["tray_2_max"]  = getTrayMaxTemp(tray2Mode);
+//   doc["tray_2_status"] = (tray2Mode != 3 && traySensor2Temp != -999.0 && (traySensor2Temp < getTrayMinTemp(tray2Mode) || traySensor2Temp > getTrayMaxTemp(tray2Mode))) ? 1 : 0;
+
+//   // --- 3.3 WONING SENSOR DATA (BME280) ---
+//   if (indoorSmoothedTemp != -999.0) doc["binnen_temp"] = indoorSmoothedTemp;
+//   if (indoorSmoothedHum != -999.0) doc["binnen_vochtigheid"] = indoorSmoothedHum;
+//   if (indoorDewPoint != -999.0) doc["binnen_dauwpunt"] = indoorDewPoint;
+//   if (indoorVpd != -999.0) doc["binnen_vpd"] = indoorVpd;
+//   doc["binnen_dp_marge"] = indoorDpMargin;
+
+//   // --- 3.4 BUITEN DATA ---
+//   if (outdoorTemp != -999.0) doc["buiten_temp"] = outdoorTemp;
+//   if (outdoorHumidity != -999.0) doc["buiten_vochtigheid"] = outdoorHumidity;
+//   if (outdoorDewPoint != -999.0) doc["buiten_dauwpunt"] = outdoorDewPoint;
+  
+//   // Strikte grenscheck voor buiten VPD (0.0 - 5.0 kPa)
+//   if (outdoorVpd != -999.0 && outdoorVpd >= 0.0 && outdoorVpd <= 5.0) {
+//     doc["buiten_vpd"] = outdoorVpd;
+//   }
+//   doc["buiten_dp_marge"] = outdoorDpMargin;
+  
+//   // --- 3.5 RISICO STATUSSEN & ACTATORS ---
+//   doc["schimmel_risico"]     = moldRisk;
+  
+//   float currentMaxVpdMqtt = lampsAreOn ? VPD_MAX_OPTIMAL_DAY : VPD_MAX_OPTIMAL_NIGHT;
+//   float currentMinVpdMqtt = lampsAreOn ? VPD_MIN_OPTIMAL_DAY : VPD_MIN_OPTIMAL_NIGHT;
+
+//   doc["uitdroging_risico"]   = (kasVpd > currentMaxVpdMqtt) ? 1 : 0;
+//   doc["te_klam_risico"]      = (kasVpd < currentMinVpdMqtt || kasSmoothedHum >= HUM_MOLD_THRESHOLD) ? 1 : 0;
+  
+//   doc["verwarmingsmat"]      = isHeatMatRecommended ? 1 : 0;
+//   doc["testmodus_actief"]    = isTestModeActive ? 1 : 0;
+
+//   // --- 3.6 VENTILATIE & ZONE ADVIEZEN ---
+//   doc["advies_kas_actief"]    = (kasAdvice != KAS_OFF) ? 1 : 0;
+//   doc["advies_binnen_actief"] = (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) ? 1 : 0;
+//   doc["advies_buiten_actief"] = homeVentActive ? 1 :  0;  
+
+//   // Verrijkte kas-advies status voor Grafana (onderscheid tussen Rust en Blokkade)
+//   String kasAdviesText = "CLOSED_OPTIMAL";
+//   if (kasAdvice == GREENHOUSE_VENTILATE) {
+//     kasAdviesText = "VENTILATE";
+//   } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+//     kasAdviesText = "CIRCULATE";
+//   } else {
+//     // Als de kas dicht is: is het optimaal of worden we tegengehouden door buiten?
+//     if (moldRisk || kasSmoothedHum > 78.0f) {
+//       kasAdviesText = "CLOSED_BLOCKED"; // Vochtcorrectie nodig, maar buitenlucht laat het niet toe
+//     } else {
+//       kasAdviesText = "CLOSED_OPTIMAL"; // Alles is rustig en in balans
+//     }
+//   }
+//   doc["kas_advies"] = kasAdviesText;
+
+//   // Redenen en status-teksten  voor Grafana/Telegram
+//   doc["schimmel_reden"]     = moldReasonText;
+//   doc["kas_advies_reden"]   = kasAdviceReason;
+//   doc["kas_vpd_status"]     = vpdStatusText;
+//   doc["dp_marge_status"]    = dpMarginStatusText;
+  
+//   // --- 3.7 VENTILATOR STATISTIEKEN (RPM & Percentage) ---
+//   doc["fan_int_rpm"]  = fanIntRPM;
+//   doc["fan_int_pct"]  = map(fanIntSpeed, 0, 255, 0, 100);
+//   doc["fan_ext1_rpm"] = fanExt1RPM;
+//   doc["fan_ext1_pct"] = map(fanExt1Speed, 0, 255, 0, 100);
+//   doc["fan_ext2_rpm"] = fanExt2RPM;
+//   doc["fan_ext2_pct"] = map(fanExt2Speed, 0, 255, 0, 100);
+
+//   // --- 3.8 SYSTEEM & DIAGNOSTIEK ---
+//   if (currentPressure > 0.0) doc["luchtdruk"] = currentPressure;
+//   doc["luchtdruk_trend"] = baroTrendArrow;
+//   if (currentLuxValue >= 0.0) doc["licht_lux"] = currentLuxValue;
+
+//   doc["wifi_rssi"]            = wifiRSSI;
+//   doc["free_heap"]            = freeHeap;
+//   doc["failed_kas_reads"]     = failedKasReads;
+//   doc["failed_indoor_reads"]  = failedIndoorReads;
+
+//   float espInternalTemp = readEspInternalTemp();
+//   if (espInternalTemp != -999.0 && espInternalTemp != 0.0) {
+//     doc["esp_temp"] = espInternalTemp;
+//   }
+
+//   // --- 3.9 SERIALISATIE & UITVOER / BUFFERING ---
+//   char buffer[1536];
+//   serializeJson(doc, buffer);
+
+//   if (mqttClient.connected()) {
+//     if (mqttClient.publish(mqtt_topic, buffer)) {
+//       lastSuccessfulNetworkActivity = millis(); 
+//     } else {
+//       savePayloadToBuffer(String(buffer)); // Publiceren mislukt, buffer lokaal
+//     }
+//   } else {
+//     savePayloadToBuffer(String(buffer));     // Geen verbinding, buffer lokaal
+//   }
+// }
 

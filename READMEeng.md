@@ -3,6 +3,7 @@
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [About the Project](#about-the-project)
   - [What's New in](#whats-new-in)
+    - [v3.6.2](#v362)
     - [v3.6.1](#v361)
     - [v3.6](#v36)
     - [v3.5.6](#v356)
@@ -33,6 +34,10 @@
 **De Kleine Kas** is an advanced climate and greenhouse controller built on an **ESP32-S3-Zero (N8R8)**. The firmware autonomously regulates the indoor climate using **VPD (Vapor Pressure Deficit)**, manages dual tray heating with independent germination and growth profiles, and enforces safety through a unique **3-zone architecture (Greenhouse $\iff$ Indoor Living Space $\iff$ Outdoor)**.
 
 ## What's New in
+
+### v3.6.2
+
+- **Home Assistant** integration.
 
 ### v3.6.1
 

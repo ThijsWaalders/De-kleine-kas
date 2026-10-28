@@ -3,6 +3,7 @@
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [Over het Project](#over-het-project)
   - [Wat is er nieuw in](#wat-is-er-nieuw-in)
+    - [v3.6.2](#v362)
     - [v3.6.1](#v361)
     - [v3.6](#v36)
     - [v3.5.6](#v356)
@@ -35,6 +36,10 @@
 Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
 
 ## Wat is er nieuw in
+
+### v3.6.2
+
+- **Home Assistant** integratie.
 
 ### v3.6.1
 
