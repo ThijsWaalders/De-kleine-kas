@@ -48,21 +48,6 @@ float readEspInternalTemp() {
   }
   return espInternalTemp;
 }
-// float readEspInternalTemp() {
-//   // Als de testmodus actief is, sturen we een virtuele oververhittingswaarde terug
-//   if (isFakeEspOverheatActive) {
-//     espInternalTemp = 72.0f;
-//     return espInternalTemp;
-//   }
-
-//   if (temp_sensor_handle == NULL) return 0.0;
-
-//   float result = 0.0;
-//   if (temperature_sensor_get_celsius(temp_sensor_handle, &result) == ESP_OK) {
-//     espInternalTemp = result;
-//   }
-//   return espInternalTemp;
-// }
 
 void checkEspTemperatureSafety() {
   if (isnan(espInternalTemp) || espInternalTemp == 0.0) return;

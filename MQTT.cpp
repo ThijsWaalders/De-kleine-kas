@@ -92,7 +92,7 @@ void processBufferedMqtt() {
         }
       } else {
         LittleFS.remove(BUFFER_FILE); // Buffer is volledig leeg!
-        logToSyslogAndSerial("[MQTT BUFFER] ✅ Alle gebufferde berichten succesvol ingehaald! Buffer gewist.");
+        logToSyslogAndSerial("[MQTT BUFFER] Alle gebufferde berichten succesvol ingehaald! Buffer gewist.");
       }
     }
   }

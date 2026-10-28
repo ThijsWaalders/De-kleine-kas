@@ -2,7 +2,8 @@
 
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [About the Project](#about-the-project)
-  - [What's New?](#whats-new)
+  - [What's New in](#whats-new-in)
+    - [v3.6.1](#v361)
     - [v3.6](#v36)
     - [v3.5.6](#v356)
     - [v3.5.5](#v355)
@@ -31,7 +32,18 @@
 
 **De Kleine Kas** is an advanced climate and greenhouse controller built on an **ESP32-S3-Zero (N8R8)**. The firmware autonomously regulates the indoor climate using **VPD (Vapor Pressure Deficit)**, manages dual tray heating with independent germination and growth profiles, and enforces safety through a unique **3-zone architecture (Greenhouse $\iff$ Indoor Living Space $\iff$ Outdoor)**.
 
-## What's New?
+## What's New in
+
+### v3.6.1
+
+Version v3.6.1 elevates De kleine kas with fully autonomous, self-learning AI capabilities deeply integrated into hardware and climate control logic.
+
+- **Autonomous AI Learning Engine**: The system now securely and persistently stores all learned parameters in NVS Flash (kas-store), making them instantly active across reboots.
+- **Learned Stabilization Time (learnedStabilizationTime)**: The ESP32 uses an intelligent timer to measure exact recovery durations after climate deviations. PID fan ramp-down profiles automatically adapt to this learned duration for smooth adjustments.
+- **Adaptive Grow Light Offset (learnedLampTempOffset)**: Moving away from static assumptions, the system measures the actual temperature increase over a 30-minute window when lights turn on, dynamically adjusting target temperatures.
+- **Climate Bias & Long-Term Trends (learnedClimateBias)**: Tracks whether the greenhouse tends toward structural dryness or humidity over time, intelligently optimizing house-buffer ventilation exchanges.
+- **Telegram /ka Advisory Report**: The greenhouse advisory report on your phone now includes a live breakdown of all AI-learned metrics for full transparency.
+- **Architecture & Cleanups**: Centralized all learning parameters into Config.h/cpp to completely resolve past scope and declaration conflicts (extern vs. static).
 
 ### v3.6
 

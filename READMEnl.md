@@ -2,7 +2,8 @@
 
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [Over het Project](#over-het-project)
-  - [Wat is er nieuw?](#wat-is-er-nieuw)
+  - [Wat is er nieuw in](#wat-is-er-nieuw-in)
+    - [v3.6.1](#v361)
     - [v3.6](#v36)
     - [v3.5.6](#v356)
     - [v3.5.5](#v355)
@@ -33,7 +34,18 @@
 
 Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
 
-## Wat is er nieuw?
+## Wat is er nieuw in
+
+### v3.6.1
+
+Versie v3.6.1 brengt De kleine kas naar een hoger niveau door volledige, autonome zelflerende AI-functionaliteiten die diep zijn geïntegreerd in de hardware- en klimaatsturing.
+
+- **Autonoom Zelflerend Systeem (AI)**: Het systeem slaat alle geleerde parameters nu veilig en persistent op in NVS Flash (kas-store), zodat ze de volgende keer na een herstart direct weer actief zijn.
+- **Geleerde Stabilisatietijd (learnedStabilizationTime)**: De ESP32 meet via een slimme stopwatch exact hoe lang het duurt voordat een klimaatprobleem is opgelost. De PID-regeling gebruikt deze data direct om ventilatoren rustig en vloeiend af te bouwen i.p.v. abrupt te stoppen.
+- **Adaptieve Lamp-Opwarming (learnedLampTempOffset)**: Geen vaste aannames meer; het systeem meet zelf gedurende 30 minuten de werkelijke temperatuurstijging wanneer de lampen aangaan en past de doeltemperatuur hierop aan.
+- **Klimaatbias Luchtvochtigheid (learnedClimateBias)**: Houdt op lange termijn bij of de kas neigt naar structurele droogte of klamheid, en stuurt hiermee de woningbuffer-ventilatie slim aan.
+- **Telegram /ka Kweekadvies**: Het rapport op je telefoon is uitgebreid met een live overzicht van alle geleerde AI-parameters, zodat je precies kunt zien wat de controller heeft opgestoken.
+- **Architectuur & Code Sanitizing**: Alle AI-variabelen zijn centraal ondergebracht in Config.h/cpp om eerdere scope- en declaratieconflicten (extern vs. static) definitief op te lossen.
 
 ### v3.6
 

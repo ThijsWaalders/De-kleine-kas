@@ -214,3 +214,10 @@ Adafruit_BME280 bme;
 bool lightMeterConnected = false;
 bool sht31Connected = false;
 bool bmeConnected = false;
+
+// =========================================================================
+// 10. ZELFLERENDE AI PARAMETERS (NVS Flash)
+// =========================================================================
+float learnedClimateBias = 0.0f;
+float learnedLampTempOffset = 2.0f;          // Veilige startwaarde voor lamp-opwarming
+unsigned long learnedStabilizationTime = 15; // Standaard stabilisatietijd in minuten

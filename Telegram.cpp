@@ -382,50 +382,48 @@ void handleTelegramIncoming() {
   else if (text == "kweekadvies" || text == "ka") {
     String ktReport = "🕒 *Adaptief Kweek- & Lichtadvies*\n\n";
     
-    // Check of er überhaupt verlichting/groeifase nodig is
+    // Check of er überhaupt verlichting nodig is
     bool needLighting = (tray1Mode != 0 || tray2Mode != 0);
     
     if (!needLighting) {
       ktReport += "🌱 *Status:* Alle trays staan in Kiemfase (Rustmodus).\n";
-      ktReport += "💡 *Advies:* Lampen uitlaten. Kiemzaden hebben nu geen licht nodig; de achtergrondregeling bewaakt het vochtgehalte.";
+      ktReport += "💡 *Advies:* Lampen uitlaten. Kiemzaden hebben duisternis en rust nodig.";
     } else {
-      // 1. DYNAMISCHE METINGEN EN AI PARAMETERS
+      // 1. DYNAMISCHE AI BEREKENINGEN UIT NVS & SENSOREN
       float expectedGreenhouseTempWithLamps = indoorSmoothedTemp + learnedLampTempOffset;
       float maxSafeRoomTemp = GREENHOUSE_MAX_TEMP - learnedLampTempOffset;
 
-      ktReport += "📊 *AI-Klimaatdiagnose:*\n";
-      ktReport += "• Geleerde lamp-opwarming: `+" + String(learnedLampTempOffset, 1) + "°C` (uit NVS Flash)\n";
+      ktReport += "📊 *AI-Klimaatdiagnose (NVS Flash):*\n";
+      ktReport += "• Geleerde lamp-opwarming: `+" + String(learnedLampTempOffset, 1) + "°C`\n";
+      ktReport += "• Geleerde stabilisatietijd: `" + String(learnedStabilizationTime) + " min`\n";
+      ktReport += "• Geleerde klimaat bias: `" + String(learnedClimateBias, 2) + "`\n";
       ktReport += "• Verwachte kastemp onder lampen: `" + String(expectedGreenhouseTempWithLamps, 1) + "°C`\n\n";
 
-      // 2. DYNAMISCHE ADVISERING OP BASIS VAN BUFFER & KLIMAAT
-      ktReport += "⭐️ *Advies & Strategie:*\n";
-
+      // 2. DYNAMISCHE VENSTER & BUFFER ANALYSE
+      ktReport += "⭐️ *Aanbevolen Lichtvenster:* `20:00 - 12:00` (16u licht)\n\n";
+      ktReport += "🔍 *Waarom dit venster (Adaptieve Analyse)?*\n";
+      
+      // Adaptieve invulling op basis van de actuele temperatuur en de geleerde offset
       if (indoorSmoothedTemp > maxSafeRoomTemp) {
-        // Woning is te warm om nu te belichten zonder dat de ventilatoren max moeten zwoegen
-        ktReport += "🔴 *Status:* Woningruimte is nu te warm (" + String(indoorSmoothedTemp, 1) + "°C).\n";
-        ktReport += "💡 *Advies:* Schakel de lampen bij voorkeur 's nachts in (wanneer de woning afkoelt tot onder " + String(maxSafeRoomTemp, 1) + "°C) om hittepieken en schimmelrisico te vermijden.\n\n";
-      } else if (indoorSmoothedTemp < 18.0f) {
-        // Woning is fris, lampen zijn perfect als bijverwarming!
-        ktReport += "🟢 *Status:* Woningruimte is fris (" + String(indoorSmoothedTemp, 1) + "°C).\n";
-        ktReport += "💡 *Advies:* Belichten is nu **optimaal**! De lampwarmte brengt de kas precies op de ideale kiem/groeitemperatuur zonder extra warmtemat.\n\n";
+        ktReport += "• ⚠️ *Hittegevaar Overdag:* Woningbuffer is nu te warm (" + String(indoorSmoothedTemp, 1) + "°C). Belichten veroorzaakt een hittepiek (`" + String(expectedGreenhouseTempWithLamps, 1) + "°C`), waardoor ventilatoren maximaal moeten loeien.\n";
       } else {
-        // Woning is in balans
-        ktReport += "🟢 *Status:* Binnenklimaat is in ideale balans (" + String(indoorSmoothedTemp, 1) + "°C).\n";
-        ktReport += "💡 *Advies:* Huidige lichtcyclus (16u licht / 8u donker) draait uitstekend op de woningbuffer.\n\n";
+        ktReport += "• *Nachtkoeling & Buffer:* Woningbuffer is gunstig (" + String(indoorSmoothedTemp, 1) + "°C). De geleerde lamp-opwarming (+`" + String(learnedLampTempOffset, 1) + "°C`) houdt de kas perfect binnen de ideale bandbreedte.\n";
       }
 
-      // 3. ACTUELE STATUS & ANTICIPATIE METING
-      ktReport += "🔍 *Actuele Dagcyclus:*\n";
+      ktReport += "• *VPD Stabiliteit:* Nachtelijk belichten minimaliseert schommelingen in de luchtvochtigheid doordat de woningbuffer stabieler is.\n\n";
+
+      // 3. ACTUELE STATUS & ANTICIPATIE
+      ktReport += "⚙️ *Huidige Status:*\n";
       if (lampsAreOn) {
-        ktReport += "• Lampen staan **AAN**. De thermische AI compensatie is actief.";
+        ktReport += "• Lampen staan **AAN**. Thermische AI-compensatie is actief.";
       } else if (isPreemptiveLampConditioningActive) {
         int mins = getMinutesUntilLightsOn();
-        ktReport += "• 🔮 *Anticipatie actief!* Lampen gaan over ca. " + String(mins) + " minuten aan. De buffer wordt voorgewarmt/geconditioneerd.";
+        ktReport += "• 🔮 *Anticipatie actief!* Lampen starten over ca. " + String(mins) + " min. Buffer wordt voorgeconditioneerd.";
       } else {
         int mins = getMinutesUntilLightsOn();
         int hours = mins / 60;
         int remainingMins = mins % 60;
-        ktReport += "• Lampen staan **UIT**. Volgende cyclus start over ca. " + String(hours) + "u " + String(remainingMins) + "m.";
+        ktReport += "• Lampen staan **UIT**. Volgende cyclus over ca. " + String(hours) + "u " + String(remainingMins) + "m.";
       }
     }
 

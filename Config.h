@@ -25,7 +25,7 @@
 #include <Preferences.h>
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.6"
+#define FIRMWARE_VERSION "v3.6.1"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 #define ENABLE_TELEGRAM true
@@ -35,6 +35,14 @@
 #define PREEMPTIVE_LAMP_LOOKAHEAD_MINUTES 180 // 3 uur van tevoren anticiperen op de lampen
 extern bool isPreemptiveLampConditioningActive; // Vlag voor actieve anticipatiefase
 extern int testMinutesUntilLightsOn;             // Testvariabele om het te testen
+
+// --- Zelflerende AI Grenzen & Marges ---
+const unsigned long MIN_STABILIZATION_TIME_MINUTES = 2;
+const unsigned long MAX_STABILIZATION_TIME_MINUTES = 120;
+// --- ZELFELERENDE AI PARAMETERS (NVS Flash) ---
+extern float learnedClimateBias;
+extern float learnedLampTempOffset;
+extern unsigned long learnedStabilizationTime;
 
 // =========================================================================
 // 🎛️ DEEL 1: GEBRUIKERSINSTELLINGEN & GRENSWAARDEN (CENTRALE BRON)

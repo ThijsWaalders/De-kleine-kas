@@ -11,7 +11,6 @@
 #include "LedManager.h"
 #include <Preferences.h>
 
-// Preferences preferences;
 extern LedManager statusLed;
 
 // Externe variabelen uit Config.cpp die hier worden gebruikt
@@ -34,17 +33,22 @@ static unsigned long lastToggleTime = 0;
 static float dynamicSetpointOffset = 0.0f; 
 
 // Klimaatgeheugen (Bias voor langetermijntrend: droog vs. klam)
-static float learnedClimateBias = 0.0f; 
+// float learnedClimateBias = 0.0f; 
 static unsigned long lastBiasCheckTime = 0;
 
 // 3 uur van te voren licht anticipatie
 static int currentMinutesUntilLightsOn = 0;
 
 // --- ZELFLERENDE LAMPCORRECTIE ---
-float learnedLampTempOffset = 2.0f; // Startwaarde als veilige fallback
+// float learnedLampTempOffset = 2.0f; 
 static float tempBeforeLampsOn = 0.0f;
 static unsigned long lampOnTimestamp = 0;
 static bool lampLearningLocked = false;
+
+// --- ZELFLERENDE STABILISATIETIJD ---
+// unsigned long learnedStabilizationTime = 15; 
+static unsigned long stabilizationStartTime = 0;
+static bool isWaitingForStabilization = false;
 
 // Getter functie
 int getMinutesUntilLightsOn() {
@@ -54,27 +58,39 @@ int getMinutesUntilLightsOn() {
 // ================================================
 // NVS FLASH OPSLAG & LADEN
 // ================================================
+void updateLearnedStabilizationTime(unsigned long newMinutes) {
+  preferences.begin("kas-store", false);
+  unsigned long currentLearned = preferences.getULong("stabTime", 15);
+  unsigned long finalMinutes = (currentLearned * 4 + newMinutes) / 5;
+  preferences.putULong("stabTime", finalMinutes);
+  preferences.end();
+  learnedStabilizationTime = finalMinutes;
+  logToSyslogAndSerialPrintf("[AI LEARN] Geleerde stabilisatietijd bijgesteld naar: %lu minuten", finalMinutes);
+}
+
 void saveSystemStateToFlash() {
-  preferences.begin("kas-store", false); // Read/Write
+  preferences.begin("kas-store", false); 
   preferences.putULong("lastLightsOn", lastLightsOnMillis);
   preferences.putBool("hasStoredOn", hasStoredLastLightsOn);
   preferences.putFloat("lampOffset", learnedLampTempOffset);
   preferences.putFloat("climateBias", learnedClimateBias);
   preferences.putFloat("setpointOff", dynamicSetpointOffset);
+  preferences.putULong("stabTime", learnedStabilizationTime);
   preferences.end();
   logToSyslogAndSerialPrintf("[STORAGE] Systeemstatussen en AI-parameters opgeslagen in NVS Flash.");
 }
 
 void loadSystemStateFromFlash() {
-  preferences.begin("kas-store", true); // Read-only
-  lastLightsOnMillis    = preferences.getULong("lastLightsOn", 0);
-  hasStoredLastLightsOn = preferences.getBool("hasStoredOn", false);
-  learnedLampTempOffset = preferences.getFloat("lampOffset", 2.0f);
-  learnedClimateBias    = preferences.getFloat("climateBias", 0.0f);
-  dynamicSetpointOffset = preferences.getFloat("setpointOff", 0.0f);
+  preferences.begin("kas-store", true); 
+  lastLightsOnMillis        = preferences.getULong("lastLightsOn", 0);
+  hasStoredLastLightsOn     = preferences.getBool("hasStoredOn", false);
+  learnedLampTempOffset     = preferences.getFloat("lampOffset", 2.0f);
+  learnedClimateBias        = preferences.getFloat("climateBias", 0.0f);
+  dynamicSetpointOffset     = preferences.getFloat("setpointOff", 0.0f);
+  learnedStabilizationTime  = preferences.getULong("stabTime", 15);
   preferences.end();
-  logToSyslogAndSerialPrintf("[STORAGE] Systeemstatussen geladen uit NVS: LampOffset=%.2f, Bias=%.2f", 
-                            learnedLampTempOffset, learnedClimateBias);
+  logToSyslogAndSerialPrintf("[STORAGE] Systeemstatussen geladen uit NVS: LampOffset=%.2f, Bias=%.2f, StabTime=%lu", 
+                            learnedLampTempOffset, learnedClimateBias, learnedStabilizationTime);
 }
 
 bool isSystemReady() {
@@ -97,7 +113,7 @@ void applyLampLearning(bool currentLampsOn, float kasTemp) {
     lampLearningLocked = false;
   }
   
-  if (currentLampsOn && !lampLearningLocked && (now - lampOnTimestamp >= 1800000UL)) { // 30 min
+  if (currentLampsOn && !lampLearningLocked && (now - lampOnTimestamp >= 1800000UL)) { 
     float actualTempDelta = kasTemp - tempBeforeLampsOn;
     if (actualTempDelta > 0.5f && actualTempDelta < 4.0f) {
       learnedLampTempOffset = (1.0f - 0.1f) * learnedLampTempOffset + 0.1f * actualTempDelta;
@@ -117,12 +133,12 @@ void checkClimateCrash(float inTemp) {
   if (!isClimateCrash && criticalTempHigh) {
     isClimateCrash = true;
     logToSyslogAndSerialPrintf("[CRASH] KLIMAAT CRASH GEDETECTEERD! Kas temperatuur is kritiek: %.1f°C", inTemp);
-    sendTelegramAlert("🚨 *KRITIEK KLIMAATALARM:* De kas is in een noodtoestand beland (Te heet: " + String(inTemp, 1) + "°C)! Systeem forceert maximale ventilatie.");
+    sendTelegramAlert("*KRITIEK KLIMAATALARM:* De kas is in een noodtoestand beland (Te heet: " + String(inTemp, 1) + "°C)! Systeem forceert maximale ventilatie.");
   } 
   else if (isClimateCrash && safeTempRecovery) {
     isClimateCrash = false;
     logToSyslogAndSerialPrintf("[RECOVERY] Klimaat crash voorbij. Kas temperatuur hersteld: %.1f°C", inTemp);
-    sendTelegramAlert("✅ *HERSTEL:* De kas is weer buiten de gevarenzone (Temp: " + String(inTemp, 1) + "°C). Systeem hervat automatische regeling.");
+    sendTelegramAlert("*HERSTEL:* De kas is weer buiten de gevarenzone (Temp: " + String(inTemp, 1) + "°C). Systeem hervat automatische regeling.");
   }
 }
 
@@ -131,9 +147,9 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
 
   if (!isSystemReady()) {
     moldRisk = false;
-    moldReasonText = "⏳ Systeem kalibreert / leert...";
-    vpdStatusText = " `(⏳ Opstarten)`";
-    dpMarginStatusText = " `(⏳ Kalibreren)`";
+    moldReasonText = "Kalibreert...";
+    vpdStatusText = " `Kalibreren...`";
+    dpMarginStatusText = " `Kalibreren...`";
     return;
   }
 
@@ -147,9 +163,6 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
 
   checkClimateCrash(kasSmoothedTemp);
 
-  // =========================================================================
-  // DYNAMISCHE FEEDFORWARD LAMP-ANTICIPATIE (Met 10-minuten testfilter & NVS)
-  // =========================================================================
   static unsigned long lampOnStartTime = 0;
   static bool waitingForMinRunTime = false;
 
@@ -157,7 +170,7 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
     if (!prevLampsAreOn) {
       lampOnStartTime = millis();
       waitingForMinRunTime = true;
-    } else if (waitingForMinRunTime && (millis() - lampOnStartTime >= 600000UL)) { // 10 min aaneengesloten
+    } else if (waitingForMinRunTime && (millis() - lampOnStartTime >= 600000UL)) { 
       lastLightsOnMillis = lampOnStartTime;
       hasStoredLastLightsOn = true;
       waitingForMinRunTime = false;
@@ -173,7 +186,7 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
   
   if (hasStoredLastLightsOn && !lampsAreOn) {
     unsigned long elapsedSinceLastOn = millis() - lastLightsOnMillis;
-    unsigned long cycleDurationMs = 86400000UL; // 24 uur in milliseconden
+    unsigned long cycleDurationMs = 86400000UL; 
     
     if (elapsedSinceLastOn < cycleDurationMs) {
       unsigned long remainingMs = cycleDurationMs - elapsedSinceLastOn;
@@ -196,9 +209,6 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
     dynamicSetpointOffset = 0.0f;
   }
 
-  // =========================================================================
-  // VERRUIMDE & LAMP-AWARE DYNAMISCHE VPD GRENZEN
-  // =========================================================================
   float currentMaxOptimalVpd = lampsAreOn ? VPD_MAX_OPTIMAL_DAY : VPD_MAX_OPTIMAL_NIGHT; 
   float currentMinOptimalVpd = lampsAreOn ? VPD_MIN_OPTIMAL_DAY : VPD_MIN_OPTIMAL_NIGHT; 
 
@@ -212,63 +222,78 @@ void evaluateClimateState(float kasTemp, float kasHum, float indoorTemp, float i
   float effectiveTargetTemp = lampsAreOn ? 24.0f : 22.0f;
   bool tempCorrectionActive = (kasSmoothedTemp > effectiveTargetTemp + 0.4f && !tempTooHigh);
 
+  // ZELFLERENDE STABILISATIETIJD METING
+  bool hasClimateIssue = (vpdTooWet || vpdTooDry || condensRisk || tempCorrectionActive || moldRisk);
+  unsigned long now = millis();
+
+  if (hasClimateIssue && !isWaitingForStabilization) {
+    stabilizationStartTime = now;
+    isWaitingForStabilization = true;
+  } else if (!hasClimateIssue && isWaitingForStabilization) {
+    unsigned long durationMinutes = (now - stabilizationStartTime) / 60000UL;
+    if (durationMinutes >= 2 && durationMinutes <= 120) {
+      updateLearnedStabilizationTime(durationMinutes);
+    }
+    isWaitingForStabilization = false;
+  }
+
   if (isClimateCrash) {
     moldRisk = true;
-    moldReasonText = "🚨 NOODTOESTAND: Kas uit de hand gelopen (" + String(kasSmoothedTemp, 1) + "°C)!";
+    moldReasonText = "NOODTOESTAND: Kas uit de hand gelopen (" + String(kasSmoothedTemp, 1) + "°C)!";
   }
   else if (condensRisk) {
     moldRisk = true;
-    moldReasonText = "⚠️ KRITIEK: Condensgevaar op zaadjes! Marge: " + String(kasDpMargin, 1) + "°C";
+    moldReasonText = "KRITIEK: Condensgevaar op zaadjes! Marge: " + String(kasDpMargin, 1) + "°C";
   } 
   else if (vpdTooWet || humHigh) {
     moldRisk = false; 
-    moldReasonText = "💧 Vochtcorrectie actief (buffer regelt bij, vochtigheid is wat hoog)";
+    moldReasonText = "Vochtcorrectie actief (buffer regelt bij, vochtigheid is wat hoog)";
   }
   else if (tempCorrectionActive) {
     moldRisk = false;
-    moldReasonText = "🌡️ Warmte afvoeren (temperatuur in de kas regelt bij)";
+    moldReasonText = "Warmte afvoeren (temperatuur in de kas regelt bij)";
   }
   else if (upcomingLightsOn) {
     moldRisk = false;
-    moldReasonText = "🔮 Lamp-anticipatie actief: we bereiden de binnenbuffer alvast voor op de warmte.";
+    moldReasonText = "Lamp-anticipatie actief: we bereiden de binnenbuffer alvast voor op de warmte.";
   }
   else if (vpdTooDry) {
     moldRisk = false; 
     String cause = lampsAreOn ? "door de lampen (normaal)" : "door omgevingswarmte";
-    moldReasonText = "🔥 Lichte uitdroging " + cause + " (klimaat is onder controle)";
+    moldReasonText = "Lichte uitdroging " + cause + " (klimaat is onder controle)";
   }
   else if (tempTooLow) {
     moldRisk = false;
-    moldReasonText = "⚠️ Kiemtemperatuur is wat aan de frisse kant (" + String(kasSmoothedTemp, 1) + "°C)";
+    moldReasonText = "Kiemtemperatuur is wat aan de frisse kant (" + String(kasSmoothedTemp, 1) + "°C)";
   }
   else if (tempTooHigh) {
     moldRisk = false;
     String cause = lampsAreOn ? "door verlichting" : "door externe warmte";
-    moldReasonText = "⚠️ Kiemtemperatuur is wat aan de warme kant " + cause + " (" + String(kasSmoothedTemp, 1) + "°C)";
+    moldReasonText = "Kiemtemperatuur is wat aan de warme kant " + cause + " (" + String(kasSmoothedTemp, 1) + "°C)";
   }
   else {
     moldRisk = false;
-    moldReasonText = lampsAreOn ? "✅ Ideaal kiemklimaat (inclusief lamp-compensatie)" : "✅ Ideaal kiemklimaat en stabiele buffer";
+    moldReasonText = lampsAreOn ? "Ideaal kiemklimaat (inclusief lamp-compensatie)" : "Ideaal kiemklimaat en stabiele buffer";
   }
 
   if (isClimateCrash || tempTooHigh) {
-    statusLed.setColor(255, 0, 0); // Rood
+    statusLed.setColor(255, 0, 0); 
   } 
   else if (vpdTooDry || condensRisk || tempCorrectionActive) {
-    statusLed.setColor(255, 100, 0); // Oranje
+    statusLed.setColor(255, 100, 0); 
   }
   else {
-    statusLed.setColor(0, 0, 0); // Uit / Groen
+    statusLed.setColor(0, 0, 0); 
   }
 
-  if (isClimateCrash) vpdStatusText = " `🚨 NOODSTOP`";
-  else if (vpdTooWet) vpdStatusText = " `💧 Vochtcorrectie`";
-  else if (tempCorrectionActive) vpdStatusText = " `🌡️ Temp-correctie`";
-  else if (vpdTooDry) vpdStatusText = " `🔥 Te droog`";
-  else vpdStatusText = " `✅ Optimaal`";
+  if (isClimateCrash) vpdStatusText = " `NOODSTOP`";
+  else if (vpdTooWet) vpdStatusText = " `Vochtcorrectie`";
+  else if (tempCorrectionActive) vpdStatusText = " `Temp-correctie`";
+  else if (vpdTooDry) vpdStatusText = " `Te droog`";
+  else vpdStatusText = " `Optimaal`";
 
-  if (condensRisk) dpMarginStatusText = " `⚠️ Risico`";
-  else dpMarginStatusText = " `✅ Veilig`";
+  if (condensRisk) dpMarginStatusText = " `Risico`";
+  else dpMarginStatusText = " `Veilig`";
 
   if (!isnan(indoorSmoothedTemp) && !isnan(indoorSmoothedHum)) {
     indoorDewPoint = calcDewPoint(indoorSmoothedTemp, indoorSmoothedHum);
@@ -404,22 +429,22 @@ void calculateAdaptiveClimate() {
     if ((indoorTooHumid || indoorVpdTooLow || kasIsDumpingMoisture || projectedIndoorHum > INDOOR_PROJECTED_HUM_MAX) && outsideAirIsSignificantlyDrier && !forecastBadWeather) {
       desiredAdvice = HOUSE_VENTILATE;
       if (upcomingLightsOn && indoorVpdTooLow) {
-        newReason = "🔮 Lamp-anticipatie actief: de kweeklampen gaan zo aan. De binnenbuffer wordt nu vast slim opgeschoond met frisse, droge buitenlucht.";
+        newReason = "Lamp-anticipatie actief: de kweeklampen gaan zo aan. De binnenbuffer wordt nu vast slim opgeschoond met frisse, droge buitenlucht.";
       } else if (indoorVpdTooLow) {
-        newReason = "🏡 De binnenlucht wordt wat aan de klamme kant. Buitenlucht is droger, dus ventileren helpt de buffer fris te houden.";
+        newReason = "De binnenlucht wordt wat aan de klamme kant. Buitenlucht is droger, dus ventileren helpt de buffer fris te houden.";
       } else if (kasIsDumpingMoisture && indoorTooHumid) {
-        newReason = "🌿 De kas voert vocht af en binnen is het wat vochtig. Buitenlucht is gunstig om nu even door te luchten.";
+        newReason = "De kas voert vocht af en binnen is het wat vochtig. Buitenlucht is gunstig om nu even door te luchten.";
       } else {
-        newReason = "🏡 Binnen is het wat vochtig aan het worden. Buitenlucht is helder en droger om de buffer te herstellen.";
+        newReason = "Binnen is het wat vochtig aan het worden. Buitenlucht is helder en droger om de buffer te herstellen.";
       }
     } else {
       desiredAdvice = HOUSE_CLOSED;
       if (forecastBadWeather) {
-        newReason = "🌤️ Binnen en kas zijn in balans. Buiten wordt slecht weer verwacht, dus we houden alles lekker dicht.";
+        newReason = "Binnen en kas zijn in balans. Buiten wordt slecht weer verwacht, dus we houden alles lekker dicht.";
       } else if (!outsideAirIsSignificantlyDrier) {
-        newReason = "🌿 Binnen en kas zijn in balans. Buitenlucht is momenteel te vochtig om extra te ventileren.";
+        newReason = "Binnen en kas zijn in balans. Buitenlucht is momenteel te vochtig om extra te ventileren.";
       } else {
-        newReason = "✅ Het binnenklimaat is stabiel; de binnenbuffer heeft alle ruimte en capaciteit voor de kas.";
+        newReason = "Het binnenklimaat is stabiel; de binnenbuffer heeft alle ruimte en capaciteit voor de kas.";
       }
     }
 
@@ -436,11 +461,11 @@ void calculateAdaptiveClimate() {
         bool improving = (indoorSmoothedHum < baselineIndoorHum) || (kasVpd < baselineKasVpd);
 
         if (worsening) {
-          String escMsg = "⚠️ *MELDING:* De luchtvochtigheid binnenshuis blijft wat oplopen. Extra luchten wordt aangeraden.";
+          String escMsg = "*MELDING:* De luchtvochtigheid binnenshuis blijft wat oplopen. Extra luchten wordt aangeraden.";
           logToSyslogAndSerialPrintf("[INDOOR ADVICE ESCALATION] Klimaat blijft escaleren na 15 minuten.");
           sendTelegramAlert(escMsg);
         } else if (improving) {
-          String succMsg = "✅ *GOED NIEUWS:* Binnenventilatie heeft de buffer weer netjes hersteld.";
+          String succMsg = "*GOED NIEUWS:* Binnenventilatie heeft de buffer weer netjes hersteld.";
           logToSyslogAndSerialPrintf("[INDOOR ADVICE SUCCESS] Ventileren effectief, klimaat stabiliseert.");
           sendTelegramAlert(succMsg);
         }
@@ -459,6 +484,7 @@ void calculateAdaptiveClimate() {
 
   applyLampLearning(lampsAreOn, kasSmoothedTemp);
 
+  // Gebruik geleerde lamp-offset voor doeltemperatuur
   float lampTemperatureOffset = lampsAreOn ? learnedLampTempOffset : 0.0f;
   float targetTemp = 22.0f + dynamicSetpointOffset + lampTemperatureOffset; 
   
@@ -479,20 +505,27 @@ void calculateAdaptiveClimate() {
 
   float pidOutput = (Kp * pError) + (Ki * iError) + (Kd * dError);
 
+  // Dynamische lamp-overgangsboost gekoppeld aan de geleerde stabilisatietijd
   if (isLampTransitionActive) {
     unsigned long transitionElapsed = now - lampTransitionStartTime;
-    if (transitionElapsed < 600000UL) pidOutput += 10.0f; 
-    else isLampTransitionActive = false; 
+    // Boostduur dynamisch afhankelijk van geleerde stabilisatietijd (max 20 min)
+    unsigned long dynamicBoostDuration = min(learnedStabilizationTime * 60000UL, 1200000UL); 
+    if (transitionElapsed < dynamicBoostDuration) {
+      pidOutput += 10.0f; 
+    } else {
+      isLampTransitionActive = false; 
+    }
   }
 
   int rawPidOutput = (int)pidOutput;
 
+  // Interne ventilator met dynamische hysterese tegen klapperen
   bool internalFanNeeded = (moldRisk || kasSmoothedHum > 78.0f || rawPidOutput > 0.0f || isPreemptiveLampConditioningActive);
   static bool internalFanActiveState = false;
   
   if (internalFanNeeded) {
     internalFanActiveState = true;
-  } else if (kasSmoothedHum < 75.0f && rawPidOutput < -5.0f && !moldRisk) {
+  } else if (kasSmoothedHum < (75.0f - (learnedThermalInertia * 0.5f)) && rawPidOutput < -5.0f && !moldRisk) {
     internalFanActiveState = false;
   }
 
@@ -534,11 +567,14 @@ void calculateAdaptiveClimate() {
     targetExt1Speed = 0;
   }
 
+  // Slimme PID-afbouw gekoppeld aan learnedStabilizationTime (voorkomt abrupt stoppen of te lang blazen)
   int finalExt1Speed = fanExt1Speed;
   if (targetExt1Speed > finalExt1Speed) {
     finalExt1Speed = targetExt1Speed;
   } else if (targetExt1Speed < finalExt1Speed) {
-    finalExt1Speed -= 3; 
+    // Hoe langer de geleerde stabilisatietijd, hoe geleidelijker de ventilator afbouwt
+    int stepDown = max(1, (int)(30 / (learnedStabilizationTime + 5)));
+    finalExt1Speed -= stepDown;
     if (finalExt1Speed < EXT_FAN_MIN_PWM && finalExt1Speed > 0) finalExt1Speed = 0; 
     if (targetExt1Speed == 0 && finalExt1Speed < INT_FAN_MIN_PWM) finalExt1Speed = 0;
   }

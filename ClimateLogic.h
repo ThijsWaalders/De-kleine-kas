@@ -85,7 +85,11 @@ extern float indoorHum;
 extern float learnedLampTempOffset;
 void applyLampLearning(bool currentLampsOn, float kasTemp);
 
-
+extern unsigned long learnedStabilizationTime;
+extern float learnedLampTempOffset;
+extern float learnedClimateBias;
+void updateLearnedStabilizationTime(unsigned long newMinutes);
+void applyLampLearning(bool currentLampsOn, float kasTemp);
 void updateHumidityHighLow(float kasHum, float indoorHum, float outHum);
 
 // Forward declaration voor alert functionaliteit
@@ -116,5 +120,6 @@ void updateMoldRiskHistory(bool currentRisk);
 void checkKasTrends(float currentTemp, float currentHum, float currentBaro);
 void checkIndoorTrends();
 void updateHighLow(float currentTemp);
+
 
 #endif // CLIMATELOGIC_H
