@@ -3,6 +3,7 @@
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [Over het Project](#over-het-project)
   - [Wat is er nieuw?](#wat-is-er-nieuw)
+    - [v3.5.6](#v356)
     - [v3.5.5](#v355)
     - [v3.5.4](#v354)
     - [v3.5.3](#v353)
@@ -33,14 +34,34 @@ Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
 
 ## Wat is er nieuw?
 
+### v3.5.6
+
+1. Menselijke Telegram-Adviezen & Spam-vrije Logica
+
+- *Jip-en-Janneketaal**: Alle Telegram-berichten (/st, /ad, /ka) leggen nu in duidelijke mensentaal uit hoe, wat en waarom het systeem keuzes maakt. Technische vaktaal is gestroomlijnd naar begrijpelijke statusupdates.
+- **Geharmoniseerde INDOOR_ Naming**: De dubbele en verwarrende HOUSE_ variabelen zijn volledig uit de codebase gestript en vervangen door de uniforme INDOOR_ standaard.
+- **Einde aan Valse Klam-Meldingen**: Drempelwaarden zijn realistisch fijngesteld (INDOOR_VPD_MIN_TARGET = 0.72f en INDOOR_HUM_MAX_TARGET = 70.0%). Een stabiele woningomgeving triggert geen onterechte alarms meer.
+- **15-Minuten Escalatie-Venster**: Berichten die menselijke actie vragen (zoals woningventilatie) worden gefilterd door een evaluatietimer van 15 minuten om meldingenspam bij kleine fluctuaties te voorkomen.
+
+2. Zelflerend Kweekadvies (/ka) & NVS Geheugen
+
+- **Dynamisch AI Kweekadvies**: Het /ka commando is niet langer een statische tekst, maar berekent live advies op basis van de geleerde lamp-opwarming (learnedLampTempOffset) en de actuele woningtemperatuur.
+- **Permanent Flash Geheugen (Preferences.h)**: Zelflerende parameters (zoals lamp-offsets, klimaat-bias en setpoint-aanpassingen) en de exact gemeten dagcyclustijd worden permanent bewaard in NVS Flash. Het systeem leert door, zelfs na een reboot.
+- **Feedforward Lamp-Anticipatie**: Het 3-uurs anticipatiesysteem bereidt de binnenbuffer proactief voor op de komende warmte van de lampen, gefilterd door een 10-minuten run-time check.
+
+3. Architectuur & Stabileit
+
+- **Duplicaten & Linker-Errors Opgelost**: Alle hardgecodeerde uitzonderingen in DecisionEngine.cpp en Telegram.cpp zijn gekoppeld aan de centrale bron Config.h. De multiple definition ld-error is definitief verholpen.
+
+4. Display
+
+- **Verbeterde weergave**: Tray temperaturen verplaats van top banner naar hoofd kas gedeelte.
+
 ### v3.5.5
 
 - **Centrale & Lamp-Aware VPD Grenzen**: Alle VPD-drempels zijn gecentraliseerd in Config.h en zijn nu volledig "lamp-aware". Het systeem onderscheidt automatisch strakke dagwaarden van ruimere nachtwaarden (VPD_MIN/MAX_OPTIMAL_DAY/NIGHT).
-
 - **Slimme Nachtdip (Geen Valse Alarmen)**: De vochtigheidsgrens voor actieve correctie (HUM_MOLD_THRESHOLD) is verruimd naar 80%. Hierdoor triggert de natuurlijke nachtelijke dip geen onnodige stressmeldingen of klam-alarmen meer.
-
 - **Grafana-Geoptimaliseerde Statusredenen**: Alle statusredenen (kasAdviceReason) in de beslisboom zijn opgeschoond. Overbodige emoji's, markdown-sterretjes en lange, afgebroken zinnen zijn verwijderd. Dit zorgt voor een superstrakke, overzichtelijke en professionele tijdlijnweergave in Grafana.
-
 - **Volledige Technische Harmonisatie**: Modules zoals ClimateLogic, DecisionEngine, Display, MQTT en Telegram grijpen nu allemaal foutloos en zonder losse "magic numbers" terug op dezelfde centrale configuratiebron.
 
 ### v3.5.4

@@ -23,7 +23,6 @@ static bool tempSensorInitialized = false;
 bool isDisplayActiveByMotion = true;
 unsigned long lastMotionTime = 0;
 
-
 // =========================================================================
 // 2. NETWERK & SERVERS
 // =========================================================================
@@ -41,7 +40,6 @@ float espVcc = 0.0;
 int wifiRSSI = 0;
 uint32_t freeHeap = 0;
 const char* BUFFER_FILE = "/data_buffer.txt";
-
 
 // =========================================================================
 // 3. SENSOR & KLIMAAT VARIABELEN
@@ -88,7 +86,6 @@ bool isLuxShiftPending = false;
 bool isDisplayOff = false;
 unsigned long darkStartTime = 0;
 
-
 // =========================================================================
 // 4. LAMPEN, TRAY SENSOREN & MODUS
 // =========================================================================
@@ -124,7 +121,6 @@ void loadTrayModesFromPreferences() {
   preferences.end();
 }
 
-
 // =========================================================================
 // 5. EVALUATIE, SCHIMMELRISICO & UI TEKSTEN
 // =========================================================================
@@ -152,7 +148,6 @@ unsigned long lastButtonPressTime = 0;
 unsigned long lastBotCheckTime = 0;
 unsigned long lastTelegramSentTime = 0;
 
-
 // =========================================================================
 // 6. VOCHTIGHEID & EXTREMEN
 // =========================================================================
@@ -167,7 +162,6 @@ float indoorLowHum = 999.0;
 float indoorHighHum = -1.0;
 float outdoorLowHum = 999.0;
 float outdoorHighHum = -1.0;
-
 
 // =========================================================================
 // 7. VENTILATOREN, TACHO & PID RUNTIME
@@ -187,7 +181,6 @@ float pidOutput = 0.0;
 unsigned long lastPidTime = 0;
 float pError = 0.0, iError = 0.0, dError = 0.0, lastError = 0.0;
 
-
 // =========================================================================
 // 8. ADVIEZEN & BESTURING
 // =========================================================================
@@ -202,7 +195,6 @@ bool isClimateCrash = false;
 unsigned long lastVelocityCheckTime = 0;
 float previousHumForVelocity = -999.0;
 float humidityVelocity = 0.0;
-
 
 // =========================================================================
 // 9. HARDWARE & NETWERK OBJECTEN

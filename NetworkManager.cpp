@@ -1,8 +1,7 @@
 /**
-@file NetworkManager.cpp
-@brief Implementatie van Wi-Fi herverbinding, RTC crash-logging, Dedicated Core 0 OTA,
-       Telegram-triggered AP-modus en Telnet-server voor ESP32-S3.
- */
+# @file NetworkManager.cpp
+# @brief Implementatie van Wi-Fi herverbinding, RTC crash-logging, Dedicated Core 0 OTA, Telegram-triggered AP-modus en Telnet-server voor ESP32-S3.
+*/
 
 #include "Config.h"
 #include "NetworkManager.h"

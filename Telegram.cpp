@@ -162,7 +162,7 @@ String buildStatusReport() {
   String kasActieLogica = "";
   if (isPreemptiveLampConditioningActive) {
     int mins = getMinutesUntilLightsOn();
-    kasActieLogica += "🔮 *ANTICIPATIE ACTIEF:* Lampen gaan over ca. " + String(mins) + " min aan. Woningbuffer wordt voorbereid.\n";
+    kasActieLogica += "🔮 *ANTICIPATIE ACTIEF:* Lampen gaan over ca. " + String(mins) + " min aan. Binnenbuffer wordt voorbereid.\n";
   } else if (!lampsAreOn) {
     int mins = getMinutesUntilLightsOn();
     int hours = mins / 60;
@@ -173,22 +173,6 @@ String buildStatusReport() {
   kasActieLogica += kasAdviceReason;
   if (isHeatMatRecommended) kasActieLogica += "\nWarmtemat (Kas): AAN 🔥";
   else kasActieLogica += "\nWarmtemat (Kas): UIT 💤";
-  // // --- ANTICIPATIE & COUNTDOWN INTEGRATIE ---
-  // String kasActieLogica = "";
-  // if (isPreemptiveLampConditioningActive) {
-  //   int mins = getMinutesUntilLightsOn();
-  //   kasActieLogica += "🔮 *ANTICIPATIE ACTIEF:* Lampen gaan over ca. " + String(mins) + " min aan. Woningbuffer wordt voorbereid.\n";
-  // } else if (!lampsAreOn) {
-  //   int mins = getMinutesUntilLightsOn();
-  //   int hours = mins / 60;
-  //   int remainingMins = mins % 60;
-  //   kasActieLogica += "🔄 *Lamp-anticipatie:* Stand-by (lampen over ca. " + String(hours) + "u " + String(remainingMins) + "m).\n";
-  // }
-  
-  // kasActieLogica += kasAdviceReason;
-  
-  // if (isHeatMatRecommended) kasActieLogica += "\nWarmtemat (Kas): AAN 🔥";
-  // else kasActieLogica += "\nWarmtemat (Kas): UIT 💤";
 
   // Bereken de dauwpuntmarge voor de veiligheidscheck
   float kasDpMargin = displayedTemp - kasDewPoint;
@@ -200,7 +184,7 @@ String buildStatusReport() {
     actieVereist = "⚖️ Even wachten: Systeem kalibreert (fans staan stil).";
   } else if (!isSystemReady()) {
     actieVereist = "⏳ Even geduld: Systeem is nog aan het opstarten.";
-  } else if (moldRisk || kasDpMargin < 2.0f) {
+  } else if (moldRisk || kasDpMargin < DP_MARGIN_MIN) {
     if (outdoorDewPoint >= kasDewPoint) {
       actieVereist = "🛑 **DOE DEUR DICHT!** Er is schimmelrisico, MAAR de buitenlucht is te klam. Niet ventileren!";
     } else {
@@ -209,11 +193,12 @@ String buildStatusReport() {
   } else if (houseAdvice == HOUSE_VENTILATE) {
     actieVereist = "🏠 **VENTILEER WONING:** " + houseAdviceReason;
   } else if (homeVentActive) {
-    actieVereist = "🟢 **Niets:** De kleine kas gebruikt automatisch de woningbuffer om bij te sturen.";
-  } else if (indoorVpd < 0.80f) {
-    actieVereist = "🟡 **Let op:** Woning-VPD is aan de klamme kant; buffer raakt vol.";
+    actieVereist = "🟢 **Niets:** De kleine kas gebruikt automatisch de binnenbuffer om bij te sturen.";
+  } else if (!isnan(indoorVpd) && indoorVpd < INDOOR_VPD_MIN_TARGET) {
+    // Gebruikt nu netjes de centrale INDOOR_VPD_MIN_TARGET (0.72f) grens!
+    actieVereist = "🟡 **Let op:** Binnen-VPD is aan de klamme kant; buffer raakt vol.";
   } else {
-    actieVereist = "🟢 **Niets:** Woningbuffer en kas-VPD zijn optimaal in balans.";
+    actieVereist = "🟢 **Niets:** Binnenbuffer en kas-VPD zijn optimaal in balans.";
   }
 
   String kasVpdStr    = (kasVpd <= -900.0) ? "N/A" : String(kasVpd, 2) + " kPa";
@@ -395,20 +380,53 @@ void handleTelegramIncoming() {
     sendTelegramAlert("🔌 *Tray 2 Modus:* Ingesteld op **Uit** (uitgeschakeld).");
   }
   else if (text == "kweekadvies" || text == "ka") {
-    String ktReport = "🕒 *Advies Slimme Kweektijden*\n\n";
+    String ktReport = "🕒 *Adaptief Kweek- & Lichtadvies*\n\n";
     
-    // Check of er überhaupt verlichting nodig is
+    // Check of er überhaupt verlichting/groeifase nodig is
     bool needLighting = (tray1Mode != 0 || tray2Mode != 0);
     
     if (!needLighting) {
-      ktReport += "🌱 *Status:* Alle trays staan in Kiemfase.\n";
-      ktReport += "💡 *Advies:* Lampen blijven UIT. Kiemgroenten hebben nu alleen rust en duisternis nodig.";
+      ktReport += "🌱 *Status:* Alle trays staan in Kiemfase (Rustmodus).\n";
+      ktReport += "💡 *Advies:* Lampen uitlaten. Kiemzaden hebben nu geen licht nodig; de achtergrondregeling bewaakt het vochtgehalte.";
     } else {
-      ktReport += "⭐️ *Aanbevolen venster:* `20:00 - 12:00` (16u licht)\n\n";
-      ktReport += "🔍 *Waarom dit venster?*\n";
-      ktReport += "• *Nachtkoeling:* Woningbuffer is 's nachts koeler (" + String(indoorSmoothedTemp, 1) + "°C), waardoor lampwarmte de kleine kas perfect op temperatuur houdt.\n";
-      ktReport += "• *Voorkom Hittepiek:* Overdag stijgt de kamertemperatuur; extra lampwarmte dwingt de fans tot maximaal zwoegen.\n";
-      ktReport += "• *VPD Stabiliteit:* Minder schommelingen in de luchtvochtigheid tijdens de nachtelijke uren.";
+      // 1. DYNAMISCHE METINGEN EN AI PARAMETERS
+      float expectedGreenhouseTempWithLamps = indoorSmoothedTemp + learnedLampTempOffset;
+      float maxSafeRoomTemp = GREENHOUSE_MAX_TEMP - learnedLampTempOffset;
+
+      ktReport += "📊 *AI-Klimaatdiagnose:*\n";
+      ktReport += "• Geleerde lamp-opwarming: `+" + String(learnedLampTempOffset, 1) + "°C` (uit NVS Flash)\n";
+      ktReport += "• Verwachte kastemp onder lampen: `" + String(expectedGreenhouseTempWithLamps, 1) + "°C`\n\n";
+
+      // 2. DYNAMISCHE ADVISERING OP BASIS VAN BUFFER & KLIMAAT
+      ktReport += "⭐️ *Advies & Strategie:*\n";
+
+      if (indoorSmoothedTemp > maxSafeRoomTemp) {
+        // Woning is te warm om nu te belichten zonder dat de ventilatoren max moeten zwoegen
+        ktReport += "🔴 *Status:* Woningruimte is nu te warm (" + String(indoorSmoothedTemp, 1) + "°C).\n";
+        ktReport += "💡 *Advies:* Schakel de lampen bij voorkeur 's nachts in (wanneer de woning afkoelt tot onder " + String(maxSafeRoomTemp, 1) + "°C) om hittepieken en schimmelrisico te vermijden.\n\n";
+      } else if (indoorSmoothedTemp < 18.0f) {
+        // Woning is fris, lampen zijn perfect als bijverwarming!
+        ktReport += "🟢 *Status:* Woningruimte is fris (" + String(indoorSmoothedTemp, 1) + "°C).\n";
+        ktReport += "💡 *Advies:* Belichten is nu **optimaal**! De lampwarmte brengt de kas precies op de ideale kiem/groeitemperatuur zonder extra warmtemat.\n\n";
+      } else {
+        // Woning is in balans
+        ktReport += "🟢 *Status:* Binnenklimaat is in ideale balans (" + String(indoorSmoothedTemp, 1) + "°C).\n";
+        ktReport += "💡 *Advies:* Huidige lichtcyclus (16u licht / 8u donker) draait uitstekend op de woningbuffer.\n\n";
+      }
+
+      // 3. ACTUELE STATUS & ANTICIPATIE METING
+      ktReport += "🔍 *Actuele Dagcyclus:*\n";
+      if (lampsAreOn) {
+        ktReport += "• Lampen staan **AAN**. De thermische AI compensatie is actief.";
+      } else if (isPreemptiveLampConditioningActive) {
+        int mins = getMinutesUntilLightsOn();
+        ktReport += "• 🔮 *Anticipatie actief!* Lampen gaan over ca. " + String(mins) + " minuten aan. De buffer wordt voorgewarmt/geconditioneerd.";
+      } else {
+        int mins = getMinutesUntilLightsOn();
+        int hours = mins / 60;
+        int remainingMins = mins % 60;
+        ktReport += "• Lampen staan **UIT**. Volgende cyclus start over ca. " + String(hours) + "u " + String(remainingMins) + "m.";
+      }
     }
 
     sendTelegramAlert(ktReport);
@@ -429,8 +447,8 @@ void handleTelegramIncoming() {
     }
 
     String woningKleur = "🟢";
-    String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer (VPD: " + String(indoorVpd, 2) + " kPa).";
-    String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf.";
+    String woningDiagnose = "Binnenklimaat is stabiel en geschikt als buffer (VPD: " + String(indoorVpd, 2) + " kPa).";
+    String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf via de binnenbuffer.";
 
     if (isKasSleeping) {
       woningKleur = "⚪";
@@ -446,39 +464,16 @@ void handleTelegramIncoming() {
       actieVoorJij = "Even geduld: Systeem kalibreert nog.";
     } else if (houseAdvice == HOUSE_VENTILATE) {
       woningKleur = "🟠";
-      woningDiagnose = "Woningbuffer moet gelucht worden: " + houseAdviceReason;
-      actieVoorJij = "Zet woningventilatie/raam open (buitenlucht is fysiek droger).";
-    } else if (indoorVpd < 0.80f) {
+      woningDiagnose = "Binnenbuffer moet gelucht worden: " + houseAdviceReason;
+      actieVoorJij = "Zet een raam of woningventilatie open (buitenlucht is fysiek droger).";
+    } else if (!isnan(indoorVpd) && indoorVpd < INDOOR_VPD_MIN_TARGET) {
+      // Gebruikt nu netjes de centrale 0.72f grens!
       woningKleur = "🟡";
-      woningDiagnose = "Woning-VPD is laag (" + String(indoorVpd, 2) + " kPa); buffer dreigt te verzadigen.";
+      woningDiagnose = "Woning-VPD is laag (" + String(indoorVpd, 2) + " kPa); buffer wordt klam.";
       actieVoorJij = "Bereid woningventilatie voor om de buffer te herstellen.";
     } else {
-      actieVoorJij = "De kleine kas beheerst het klimaat via de woningbuffer.";
+      actieVoorJij = "De kleine kas beheerst het klimaat via de binnenbuffer.";
     }
-
-    // String woningKleur = "🟢";
-    // String woningDiagnose = "Woningklimaat is geschikt als ventilatiebuffer.";
-    // String actieVoorJij = "Geen handmatige actie nodig, De kleine kas regelt het zelf.";
-
-    // if (isKasSleeping) {
-    //   woningKleur = "⚪";
-    //   woningDiagnose = "Slaapstand...";
-    //   actieVoorJij = "Geen actie nodig, de kleine kas slaapt.";
-    // } else if (isCalibrationModeActive) {
-    //   woningKleur = "⚪";
-    //   woningDiagnose = "Kalibratiemodus";
-    //   actieVoorJij = "Typ `/cal` om kalibratie uit te schakelen.";
-    // } else if (!isSystemReady()) {
-    //   woningKleur = "🟡";
-    //   woningDiagnose = "Systeem kalibreert nog.";
-    //   actieVoorJij = "Even geduld: Systeem kalibreert nog.";
-    // } else if (homeVentActive) {
-    //   woningKleur = "🟢";
-    //   woningDiagnose = "Woningventilatie open aanbevolen (Buitenlucht kan ontvochtigen op basis van dauwpunt).";
-    //   actieVoorJij = "Ventileer de woningruimte om drogere buitenlucht aan te voeren.";
-    // } else if (kasVpd > 1.0f) {
-    //   actieVoorJij = "De kleine kas corrigeert het klimaat mbt VPD naarmate de warmte afneemt.";
-    // }
 
     String buitenKleur = "🟢";
     String buitenStatus = "Geschikt om in te zetten als ventilatielucht.";

@@ -3,6 +3,7 @@
 - [ESP32-S3 Microgreens Climate Control System](#esp32-s3-microgreens-climate-control-system)
   - [About the Project](#about-the-project)
   - [What's New?](#whats-new)
+    - [v3.5.6](#v356)
     - [v3.5.5](#v355)
     - [v3.5.4](#v354)
     - [v3.5.3](#v353)
@@ -31,14 +32,34 @@
 
 ## What's New?
 
+### v3.5.6
+
+1. Human-Readable Telegram Alerts & Zero-Spam Logic
+
+- **Layman-Friendly Alerts**: All Telegram reports (/st, /ad, /ka) now explain how, what, and why the system acts in clear, natural language instead of cryptic technical jargon.
+- **Unified INDOOR_ Convention**: Eliminated legacy and redundant HOUSE_ terminology across the entire codebase in favor of a clean, standardized INDOOR_ naming convention.
+- **False Alarm Elimination**: Climate thresholds updated to reflect realistic indoor dynamics (INDOOR_VPD_MIN_TARGET = 0.72f and INDOOR_HUM_MAX_TARGET = 70.0%), preventing false "humidity saturation" alerts in stable room conditions.
+- **15-Minute Escalation Window**: Actionable notification triggers (such as home ventilation requests) are now subject to a 15-minute evaluation window to balance responsiveness with notification silence.
+
+2. Adaptive Growing Advice (/ka) & NVS Flash Persistence
+
+- **Dynamic AI Crop Advice**: The /ka command is no longer a static text block; it dynamically evaluates growing conditions using real-time room temps and the AI-learned lamp heat offset (learnedLampTempOffset).
+- **NVS Flash Memory (Preferences.h)**: Self-learning AI parameters (thermal inertia, lamp offsets, climate bias) and light-cycle timestamps are stored permanently in flash memory, persisting seamlessly across restarts.
+- **3-Hour Preemptive Conditioning**: Preemptive 3-hour lamp lookahead logic conditions the indoor air buffer ahead of light-on cycles, protected by a 10-minute runtime validation filter.
+
+3. Architecture & Code Cleanliness
+
+- **Central Source of Truth**: Replaced hard-coded thresholds in DecisionEngine.cpp and Telegram.cpp with centralized constants from Config.h. Resolved all header allocation linker errors.
+
+4. Display
+
+- **Improved display**: Replaced tray temps from top banner to main kas area.
+
 ### v3.5.5
 
 - **Centralized & Lamp-Aware VPD Thresholds**: All VPD thresholds are now centralized in Config.h and fully "lamp-aware", automatically distinguishing between strict daytime values and broader nighttime values (VPD_MIN/MAX_OPTIMAL_DAY/NIGHT).
-
 - **Smart Night Dip (No False Alarms)**: The humidity threshold for active correction (HUM_MOLD_THRESHOLD) has been widened to 80%, preventing the natural night dip from triggering unnecessary stress warnings or false "clammy air" alerts.
-
 - **Grafana-Optimized Status Reasons**: All status reasons (kasAdviceReason) in the decision engine have been cleaned up. Unnecessary emojis, markdown asterisks (*), and long wrapped sentences have been removed to ensure a clean, professional timeline view in Grafana.
-
 - **Full Technical Harmonization**: Modules like ClimateLogic, DecisionEngine, Display, MQTT, and Telegram now cleanly pull from the same central configuration source without scattered "magic numbers."
 
 ### v3.5.4

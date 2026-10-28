@@ -1,6 +1,7 @@
 # To-Do List
 
 - [To-Do List](#to-do-list)
+  - [Fan alerts controleren ?](#fan-alerts-controleren-)
     - [v3.5.5](#v355)
     - [v3.5.3](#v353)
   - [De Kleine Kas - Architectuur \& Besluitenmanifest (BluePrint v3.5.3)](#de-kleine-kas---architectuur--besluitenmanifest-blueprint-v353)
@@ -15,6 +16,9 @@
   - [v3.4](#v34)
   - [v3.4.1](#v341)
     - [De 4 Pijlers van de Slimme Lampen-optimalisatie (v3.4.2)](#de-4-pijlers-van-de-slimme-lampen-optimalisatie-v342)
+
+## Fan alerts controleren ?
+
 
 ### v3.5.5
 
