@@ -3,6 +3,7 @@
 - [ESP32-S3 Kiemgroente Klimaat Regeling](#esp32-s3-kiemgroente-klimaat-regeling)
   - [Over het Project](#over-het-project)
   - [Wat is er nieuw?](#wat-is-er-nieuw)
+    - [v3.6](#v36)
     - [v3.5.6](#v356)
     - [v3.5.5](#v355)
     - [v3.5.4](#v354)
@@ -33,6 +34,14 @@
 Hier is het overzicht van wat er recent is toegevoegd en geoptimaliseerd:
 
 ## Wat is er nieuw?
+
+### v3.6
+
+- **Validatie en filtering**: readEspInternalTemp() accepteert alleen nog maar waardes die binnen een logisch bereik vallen (10.0f tot 90.0f) en negeert NaN of foutieve uitschieters.
+
+- **Laatste goede waarde behouden**: Mocht de sensor een milliseconde haperen door Wi-Fi-pieken, dan houdt de software netjes de laatst bekende, correcte temperatuur vast in plaats van een 0-piek naar beneden te sturen.
+
+---
 
 ### v3.5.6
 

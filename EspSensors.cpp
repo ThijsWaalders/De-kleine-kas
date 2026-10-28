@@ -31,20 +31,38 @@ void initEspSensors() {
 }
 
 float readEspInternalTemp() {
-  // Als de testmodus actief is, sturen we een virtuele oververhittingswaarde terug
   if (isFakeEspOverheatActive) {
     espInternalTemp = 72.0f;
     return espInternalTemp;
   }
 
-  if (temp_sensor_handle == NULL) return 0.0;
+  if (temp_sensor_handle == NULL) return espInternalTemp; // Behoud de laatste goede waarde bij ontbrekende handle
 
   float result = 0.0;
   if (temperature_sensor_get_celsius(temp_sensor_handle, &result) == ESP_OK) {
-    espInternalTemp = result;
+    // Alleen accepteren als het binnen een realistisch bereik valt (10°C tot 90°C)
+    // Dit filtert direct die storende 'stekels' en nullen naar beneden weg!
+    if (!isnan(result) && result > 10.0f && result < 90.0f) {
+      espInternalTemp = result;
+    }
   }
   return espInternalTemp;
 }
+// float readEspInternalTemp() {
+//   // Als de testmodus actief is, sturen we een virtuele oververhittingswaarde terug
+//   if (isFakeEspOverheatActive) {
+//     espInternalTemp = 72.0f;
+//     return espInternalTemp;
+//   }
+
+//   if (temp_sensor_handle == NULL) return 0.0;
+
+//   float result = 0.0;
+//   if (temperature_sensor_get_celsius(temp_sensor_handle, &result) == ESP_OK) {
+//     espInternalTemp = result;
+//   }
+//   return espInternalTemp;
+// }
 
 void checkEspTemperatureSafety() {
   if (isnan(espInternalTemp) || espInternalTemp == 0.0) return;
@@ -70,3 +88,12 @@ void checkEspTemperatureSafety() {
     }
   }
 }
+
+void updateEspSensors() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastEspTempCheck >= 5000) { // Elke 5 seconden
+    lastEspTempCheck = currentMillis;
+    readEspInternalTemp(); // Leest en filtert op de achtergrond
+  }
+}
+

@@ -25,7 +25,7 @@
 #include <Preferences.h>
 #include <LittleFS.h>
 
-#define FIRMWARE_VERSION "v3.5.6"
+#define FIRMWARE_VERSION "v3.6"
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 #define ENABLE_TELEGRAM true
