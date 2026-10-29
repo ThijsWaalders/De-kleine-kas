@@ -54,10 +54,18 @@ void sendHomeAssistantDiscovery() {
   registerSensor("kas_temp", "Kas Temperatuur", "temperature", "°C", "measurement", "kas_temp");
   registerSensor("kas_vochtigheid", "Kas Luchtvochtigheid", "humidity", "%", "measurement", "kas_vochtigheid");
   registerSensor("kas_vpd", "Kas VPD", "", "kPa", "measurement", "kas_vpd");
+  registerSensor("kas_dauwpunt", "Kas Dauwpunt", "temperature", "°C", "measurement", "kas_dauwpunt");
+  
   registerSensor("binnen_temp", "Binnen / Buffer Temperatuur", "temperature", "°C", "measurement", "binnen_temp");
   registerSensor("binnen_vochtigheid", "Binnen Luchtvochtigheid", "humidity", "%", "measurement", "binnen_vochtigheid");
+  
   registerSensor("buiten_temp", "Buiten Temperatuur", "temperature", "°C", "measurement", "buiten_temp");
   registerSensor("buiten_vochtigheid", "Buiten Luchtvochtigheid", "humidity", "%", "measurement", "buiten_vochtigheid");
+  registerSensor("buiten_vpd", "Buiten VPD", "", "kPa", "measurement", "buiten_vpd");
+
+  registerSensor("tray_sensor_1_temp", "Tray Sensor 1 Temperatuur", "temperature", "°C", "measurement", "tray_sensor_1_temp");
+  registerSensor("tray_sensor_2_temp", "Tray Sensor 2 Temperatuur", "temperature", "°C", "measurement", "tray_sensor_2_temp");
+
   registerSensor("licht_lux", "Kas Licht", "illuminance", "lx", "measurement", "licht_lux");
   registerSensor("fan_int_pct", "Interne Ventilator", "", "%", "measurement", "fan_int_pct");
   registerSensor("fan_ext1_pct", "Externe Ventilator 1", "", "%", "measurement", "fan_ext1_pct");
@@ -200,36 +208,80 @@ void sendMqttData() {
 
   JsonDocument doc;
   
+  // --- 3.1 KAS DATA ---
   if (kasSmoothedTemp != -999.0) doc["kas_temp"] = kasSmoothedTemp;
   if (kasSmoothedHum != -999.0) doc["kas_vochtigheid"] = kasSmoothedHum;
   if (kasDewPoint != -999.0) doc["kas_dauwpunt"] = kasDewPoint;
   if (kasVpd != -999.0) doc["kas_vpd"] = kasVpd;
   doc["kas_dp_marge"] = kasDpMargin;
 
+  // --- 3.2 TRAY SENSOREN & STATUSSEN ---
   if (traySensor1Temp != -999.0) doc["tray_sensor_1_temp"] = traySensor1Temp;
   doc["tray_1_mode"] = tray1Mode;
   doc["tray_1_min"]  = getTrayMinTemp(tray1Mode);
   doc["tray_1_max"]  = getTrayMaxTemp(tray1Mode);
+  doc["tray_1_status"] = (tray1Mode != 3 && traySensor1Temp != -999.0 && (traySensor1Temp < getTrayMinTemp(tray1Mode) || traySensor1Temp > getTrayMaxTemp(tray1Mode))) ? 1 : 0;
 
   if (traySensor2Temp != -999.0) doc["tray_sensor_2_temp"] = traySensor2Temp;
   doc["tray_2_mode"] = tray2Mode;
   doc["tray_2_min"]  = getTrayMinTemp(tray2Mode);
   doc["tray_2_max"]  = getTrayMaxTemp(tray2Mode);
+  doc["tray_2_status"] = (tray1Mode != 3 && traySensor2Temp != -999.0 && (traySensor2Temp < getTrayMinTemp(tray2Mode) || traySensor2Temp > getTrayMaxTemp(tray2Mode))) ? 1 : 0;
 
+  // --- 3.3 WONING SENSOR DATA ---
   if (indoorSmoothedTemp != -999.0) doc["binnen_temp"] = indoorSmoothedTemp;
   if (indoorSmoothedHum != -999.0) doc["binnen_vochtigheid"] = indoorSmoothedHum;
   if (indoorDewPoint != -999.0) doc["binnen_dauwpunt"] = indoorDewPoint;
   if (indoorVpd != -999.0) doc["binnen_vpd"] = indoorVpd;
+  doc["binnen_dp_marge"] = indoorDpMargin;
 
+  // --- 3.4 BUITEN DATA ---
   if (outdoorTemp != -999.0) doc["buiten_temp"] = outdoorTemp;
   if (outdoorHumidity != -999.0) doc["buiten_vochtigheid"] = outdoorHumidity;
-  if (outdoorDewPoint != -999.0) doc["buiten_dewpoint"] = outdoorDewPoint;
-  if (outdoorVpd != -999.0 && outdoorVpd >= 0.0 && outdoorVpd <= 5.0) doc["buiten_vpd"] = outdoorVpd;
+  if (outdoorDewPoint != -999.0) doc["buiten_dauwpunt"] = outdoorDewPoint;
+  
+  if (outdoorVpd != -999.0 && outdoorVpd >= 0.0 && outdoorVpd <= 5.0) {
+    doc["buiten_vpd"] = outdoorVpd;
+  }
+  doc["buiten_dp_marge"] = outdoorDpMargin;
 
+  // --- 3.5 RISICO STATUSSEN & ACTATORS ---
   doc["schimmel_risico"] = moldRisk;
+  
+  float currentMaxVpdMqtt = lampsAreOn ? VPD_MAX_OPTIMAL_DAY : VPD_MAX_OPTIMAL_NIGHT;
+  float currentMinVpdMqtt = lampsAreOn ? VPD_MIN_OPTIMAL_DAY : VPD_MIN_OPTIMAL_NIGHT;
+
+  doc["uitdroging_risico"] = (kasVpd > currentMaxVpdMqtt) ? 1 : 0;
+  doc["te_klam_risico"]    = (kasVpd < currentMinVpdMqtt || kasSmoothedHum >= HUM_MOLD_THRESHOLD) ? 1 : 0;
+
   doc["verwarmingsmat"] = isHeatMatRecommended ? 1 : 0;
   doc["testmodus_actief"] = isTestModeActive ? 1 : 0;
 
+  // --- 3.6 VENTILATIE & ZONE ADVIEZEN ---
+  doc["advies_kas_actief"]    = (kasAdvice != KAS_OFF) ? 1 : 0;
+  doc["advies_binnen_actief"] = (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) ? 1 : 0;
+  doc["advies_buiten_actief"] = homeVentActive ? 1 : 0;  
+
+  String kasAdviesText = "CLOSED_OPTIMAL";
+  if (kasAdvice == GREENHOUSE_VENTILATE) {
+    kasAdviesText = "VENTILATE";
+  } else if (kasAdvice == GREENHOUSE_CIRCULATE_INTERNAL) {
+    kasAdviesText = "CIRCULATE";
+  } else {
+    if (moldRisk || kasSmoothedHum > 78.0f) {
+      kasAdviesText = "CLOSED_BLOCKED"; 
+    } else {
+      kasAdviesText = "CLOSED_OPTIMAL"; 
+    }
+  }
+  doc["kas_advies"] = kasAdviesText;
+
+  doc["schimmel_reden"]   = moldReasonText;
+  doc["kas_advies_reden"] = kasAdviceReason;
+  doc["kas_vpd_status"]   = vpdStatusText;
+  doc["dp_marge_status"]  = dpMarginStatusText;
+
+  // --- 3.7 VENTILATOR STATISTIEKEN ---
   doc["fan_int_rpm"]  = fanIntRPM;
   doc["fan_int_pct"]  = map(fanIntSpeed, 0, 255, 0, 100);
   doc["fan_ext1_rpm"] = fanExt1RPM;
@@ -237,12 +289,22 @@ void sendMqttData() {
   doc["fan_ext2_rpm"] = fanExt2RPM;
   doc["fan_ext2_pct"] = map(fanExt2Speed, 0, 255, 0, 100);
 
+  // --- 3.8 SYSTEEM & DIAGNOSTIEK ---
   if (currentPressure > 0.0) doc["luchtdruk"] = currentPressure;
   doc["luchtdruk_trend"] = baroTrendArrow;
   if (currentLuxValue >= 0.0) doc["licht_lux"] = currentLuxValue;
-  doc["wifi_rssi"] = wifiRSSI;
-  doc["free_heap"] = freeHeap;
+  
+  doc["wifi_rssi"]            = wifiRSSI;
+  doc["free_heap"]            = freeHeap;
+  doc["failed_kas_reads"]     = failedKasReads;
+  doc["failed_indoor_reads"]  = failedIndoorReads;
 
+  float espInternalTemp = readEspInternalTemp();
+  if (espInternalTemp != -999.0 && espInternalTemp != 0.0) {
+    doc["esp_temp"] = espInternalTemp;
+  }
+
+  // --- 3.9 SERIALISATIE & UITVOER / BUFFERING ---
   char buffer[1536];
   serializeJson(doc, buffer);
 
